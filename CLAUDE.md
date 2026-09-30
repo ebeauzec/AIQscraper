@@ -22,9 +22,34 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.199)
+## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.200)
 
-Eight threads this session, all triggered by screenshots of generated deliverables.
+Nine threads this session, all triggered by screenshots of generated deliverables.
+
+**22. New health-score/issue-ranking sections converted to real tables (shipped, v5.6.200).** User: "make the
+changes to the deliverables comply with the standard document formats... we need consistency" -- flagged that
+point 21's "Systems Ranked by Issue Severity" list and point 20's per-system Health Score "worst" list were
+both comma-joined/one-per-line prose, not real tables, despite being exactly the kind of multi-row numeric
+data `_dfTable()` exists for (and despite this session having already fixed several "table rendered as
+run-on prose" bugs elsewhere). Converted both to real `_dfTable()` output: `_dfSystemIssueRankingText()` now
+returns a table (System/Customer/Crit Risks/High Risks/Crit CVEs/High CVEs/Open Cases/AIQ Score columns) with
+the "+N more" truncation note appended after the table rather than inside it; new
+`_dfSystemHealthScoreWorstTable(hs)` does the same for the health-score worst-list wherever it appears as its
+OWN dedicated multi-line section (Executive Risk Assessment, Account Handover Brief). **Deliberately left
+alone** the short ONE-LINE summary-bullet usages in the TAM Success Plan and QBR Pack (e.g. "Active IQ
+Per-System Health Scores: 4/4 systems... Lowest-scoring: sys1 (42), sys2 (65)") -- those are single sentences
+embedded among sibling one-line prose bullets (Security Fix Floor, Critical NetApp Issues, Support Cases) in
+the same section, and forcing a single sentence into a table would be inconsistent with THAT section's own
+established convention, not more consistent with it (same judgment call already made and documented earlier
+this session for other "single fact in a sentence" lines). Verified live: both new tables parse as real
+`_dxParse(...)` table blocks (not prose) against real data with synthetic health scores set on 4 real systems,
+across all 3 places they appear (Executive Risk Assessment, Account Handover Brief, and the TAM Success
+Plan/QBR Pack's issue-ranking section specifically -- which, unlike the health-score worst list, IS its own
+dedicated section in all 4 documents and was always meant to be tabular from point 21).
+
+**21. Systems ranked by issue severity, worst first (shipped, v5.6.199 -- see point 22 above for a follow-up
+formatting fix).** User, immediate follow-up to point
+20: "give a breakdown in the tool, and the reports/deliverables of the issues identified with the individual
 
 **21. Systems ranked by issue severity, worst first (shipped, v5.6.199).** User, immediate follow-up to point
 20: "give a breakdown in the tool, and the reports/deliverables of the issues identified with the individual
@@ -360,14 +385,15 @@ two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, f
 none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
 matrix does.
 
-**Git:** branch `main`. v5.6.192 through v5.6.199 each committed individually after this session's work
+**Git:** branch `main`. v5.6.192 through v5.6.200 each committed individually after this session's work
 (app.js, CHANGELOG.md, version.json, CLAUDE.md, and the synced `dist/app.js` +
 `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time; v5.6.197 and v5.6.198 also synced
-`dist/NetApp_AIQ_Advisor/_internal/server.py` since both touched the harvester (v5.6.199 was app.js-only, no
-server.py sync needed) -- note PyInstaller does NOT produce a loose `server.py` in its own build output (it's
-compiled into the exe), so that sync step copies directly from the repo root's `server.py`, matching what past
-sessions did). Exe rebuilt via PyInstaller (`build/AIQscraper.spec`, note the spec lives under `build/`, not
-the repo root) to `%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild199`, never `build/build_windows.bat`. No HTML changes this
+`dist/NetApp_AIQ_Advisor/_internal/server.py` since both touched the harvester (v5.6.199/v5.6.200 were
+app.js-only, no server.py sync needed) -- note PyInstaller does NOT produce a loose `server.py` in its own
+build output (it's compiled into the exe), so that sync step copies directly from the repo root's `server.py`,
+matching what past sessions did). Exe rebuilt via PyInstaller (`build/AIQscraper.spec`, note the spec lives
+under `build/`, not the repo root) to `%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild200`, never
+`build/build_windows.bat`. No HTML changes this
 session.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir via

@@ -1,8 +1,8 @@
 {
-  "version": "5.6.199",
+  "version": "5.6.200",
   "major": 5,
   "minor": 6,
-  "patch": 199,
+  "patch": 200,
   "date": "2026-09-30",
-  "notes": "Every system with at least one open critical/high risk, critical/high security advisory, or open support case is now ranked worst-first by a combined severity score (risks + CVEs + open cases + how far below par its real Active IQ Health Score sits), in both the Overview tab's Needs Attention card (now expandable to the full list, not just the top 5) and in the TAM Success Plan, QBR Pack, Executive Risk Assessment, and Account Handover Brief."
+  "notes": "The new Systems Ranked by Issue Severity and per-system Active IQ Health Score sections (v5.6.198/199) now render as real tables via the same shared _dfTable() column-width builder every other deliverable table uses, instead of comma-joined prose lines -- consistent with this session's earlier fix for tables that were rendering as run-on paragraphs."
 }

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.200] - 2026-09-30
+
+### Changed
+- The "Systems Ranked by Issue Severity" and per-system Active IQ Health Score "worst-scoring" lists added in v5.6.198/v5.6.199 now render as real tables (via the same shared `_dfTable()` column-width builder every other deliverable table uses) instead of comma-joined prose lines, for consistency with the rest of each document and with this session's earlier fix for tables that were rendering as run-on paragraphs.
+
+---
+
 ## [5.6.199] - 2026-09-30
 
 ### Added

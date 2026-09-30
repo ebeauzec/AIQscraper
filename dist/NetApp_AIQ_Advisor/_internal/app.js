@@ -31,6 +31,21 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.200",
+    date: "30 September 2026",
+    title: "New Health Score/Issue-Ranking Sections Now Use Real Tables",
+    sections: [
+      {
+        icon: "📄",
+        label: "Changed -- Consistency With the Rest of Each Document",
+        color: "#3b82f6",
+        items: [
+          "The 'Systems Ranked by Issue Severity' section and the per-system Active IQ Health Score 'lowest-scoring' list (added in v5.6.198/v5.6.199) now render as real tables via the same shared `_dfTable()` builder every other table in these documents uses, instead of a comma-joined line per system -- consistent with the rest of each document, and with this session's earlier fix for tables that were rendering as run-on paragraphs.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.199",
     date: "30 September 2026",
     title: "Systems Ranked by Issue Severity, Worst First",
@@ -19408,6 +19423,15 @@ function _dfSystemHealthScores(systems) {
   return { rows, avg, worst, coverage: rows.length, total: (systems || []).length };
 }
 
+// Real table (via the shared _dfTable() column-width builder) for
+// _dfSystemHealthScores()'s worst-scoring list -- the same reasoning as
+// _dfSystemIssueRankingText() below: a list of systems with a numeric score
+// is a table, not a comma-joined sentence.
+function _dfSystemHealthScoreWorstTable(hs) {
+  if (!hs || !hs.worst.length) return '';
+  return _dfTable(['System', 'Customer', 'AIQ Health Score'], hs.worst.map(r => [r.systemName, r.customerName || '—', r.score]));
+}
+
 // Ranks every system in scope by a composite issue-severity score, worst
 // first: critical/high risk findings, critical/high security advisories
 // (CVEs), open support cases, and -- when Active IQ reports one -- how far
@@ -19445,21 +19469,22 @@ function _dfSystemIssueRanking(systems) {
 // that surfaces it -- one line per system, worst first, capped so a large
 // fleet doesn't turn into a multi-thousand-line dump (the ranking itself is
 // unbounded; only this text rendering truncates, with an explicit "+N more").
+// Real table (via the shared _dfTable() column-width builder every other
+// deliverable table uses), not a comma-joined prose line per system -- a
+// list of systems with several numeric fields is exactly the shape _dfTable()
+// exists for, and rendering it as prose would reintroduce the same
+// "table pretending to be a paragraph" inconsistency this session's earlier
+// column-alignment fixes removed everywhere else.
 function _dfSystemIssueRankingText(systems, limit) {
   const rows = _dfSystemIssueRanking(systems);
   if (!rows.length) return '';
   const lim = limit || 15;
-  const line = r => {
-    const parts = [];
-    if (r.critRisks) parts.push(`${r.critRisks} critical risk${r.critRisks !== 1 ? 's' : ''}`);
-    if (r.highRisks) parts.push(`${r.highRisks} high risk${r.highRisks !== 1 ? 's' : ''}`);
-    if (r.critCves) parts.push(`${r.critCves} critical CVE${r.critCves !== 1 ? 's' : ''}`);
-    if (r.highCves) parts.push(`${r.highCves} high CVE${r.highCves !== 1 ? 's' : ''}`);
-    if (r.openCases) parts.push(`${r.openCases} open case${r.openCases !== 1 ? 's' : ''}`);
-    if (r.aiqHealthScore != null) parts.push(`AIQ Health Score ${r.aiqHealthScore}/100`);
-    return `  ${r.systemName}${r.customerName ? ` (${r.customerName})` : ''}: ${parts.join(', ') || 'issues present'}`;
-  };
-  return rows.slice(0, lim).map(line).join('\n') + (rows.length > lim ? `\n  +${rows.length - lim} more system${rows.length - lim !== 1 ? 's' : ''} with at least one issue` : '');
+  const shown = rows.slice(0, lim);
+  const table = _dfTable(
+    ['System', 'Customer', 'Crit Risks', 'High Risks', 'Crit CVEs', 'High CVEs', 'Open Cases', 'AIQ Score'],
+    shown.map(r => [r.systemName, r.customerName || '—', r.critRisks, r.highRisks, r.critCves, r.highCves, r.openCases, r.aiqHealthScore != null ? r.aiqHealthScore : '—'])
+  );
+  return table + (rows.length > lim ? `\n  +${rows.length - lim} more system${rows.length - lim !== 1 ? 's' : ''} with at least one issue` : '');
 }
 
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
@@ -25763,7 +25788,7 @@ ${recentActivityText}
 --------------------------------------------------------------------------------
 ${(() => { const hs = _dfSystemHealthScores(targetSystems); if (!hs) return '  No system in scope currently reports a real Active IQ Health Score.'; return `  ${hs.coverage}/${hs.total} systems report a real, NetApp-calculated Active IQ Health Score. Fleet average: ${hs.avg}/100.
   Lowest-scoring systems:
-${hs.worst.map(r => `    ${r.systemName}: ${r.score}/100`).join('\n')}`; })()}
+${_dfSystemHealthScoreWorstTable(hs)}`; })()}
 
 --------------------------------------------------------------------------------
 7b. SYSTEMS RANKED BY ISSUE SEVERITY (Worst First)
@@ -27706,7 +27731,7 @@ ${r.items.map(it => `    - [${it.severity.toUpperCase()}/${it.category}] ${it.de
 
 ${(() => { const hs = _dfSystemHealthScores(targetSystems); if (!hs) return ''; return `ACTIVE IQ PER-SYSTEM HEALTH SCORES
   ${hs.coverage}/${hs.total} systems in scope report a real Active IQ Health Score (the same NetApp-calculated 0-100 score shown at the account level elsewhere in this document, here broken out per system so the lowest-scoring systems are visible by name). Fleet average: ${hs.avg}/100.
-${hs.worst.map(r => `  ${r.systemName}: ${r.score}/100${r.date ? ` (as of ${r.date.slice(0, 10)})` : ''}`).join('\n')}
+${_dfSystemHealthScoreWorstTable(hs)}
 `; })()}
 
 ${(() => { const t = _dfSystemIssueRankingText(targetSystems); if (!t) return ''; return `SYSTEMS RANKED BY ISSUE SEVERITY (Worst First)
