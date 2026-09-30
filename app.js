@@ -31,6 +31,21 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.194",
+    date: "30 September 2026",
+    title: "Critical CVEs vs. Critical NetApp Issues Now Shown Separately",
+    sections: [
+      {
+        icon: "📄",
+        label: "Added -- Non-CVE Critical/High Findings No Longer Folded Into a Single 'Fix Version'",
+        color: "#3b82f6",
+        items: [
+          "Every place the Security Fix Floor appears (OS Upgrade Roadmap card, Executive Risk Assessment, TAM Success Plan) now shows a second, separate figure: 'Critical NetApp Issues (Non-CVE)' -- critical/high findings that are hardware, firmware, lifecycle, or configuration issues rather than CVEs. Checked real fleet data before building this: unlike CVEs (a real 'Fixed In' release database), these findings' own text does not reduce to one required ONTAP version -- the fix varies per finding (drive/shelf/BMC firmware, a config change, a hardware refresh), and some findings name a version to AVOID rather than one that fixes the issue. So rather than guess, each is listed individually for review.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.193",
     date: "30 September 2026",
     title: "Fixed: Cisco Nexus/MDS Interop Findings Were Cross-Attributed",
@@ -19177,6 +19192,52 @@ function _dfCriticalHighFixFloorSummary(systems) {
   return { rows, conflictCount: rows.filter(r => r.conflict).length, cqvSetCount: rows.filter(r => r.cqv).length };
 }
 
+// Critical/high Active IQ risk findings that are NOT CVE-driven (hardware,
+// firmware, lifecycle, capacity, configuration, etc.) -- the non-security
+// counterpart to _dfCriticalHighFixFloor(). Deliberately reports a COUNT and
+// the finding list, never a synthesized "minimum version to upgrade to" the
+// way the CVE floor does. Checked against real fleet data before deciding
+// this: unlike CVEs (a real "Fixed In" release database), these findings'
+// own text does not reduce to one required ONTAP version -- the fix vector
+// varies per finding (drive/shelf/BMC firmware, a config change, a hardware
+// refresh, moving off a pre-release build), and some explicitly describe a
+// version to AVOID or a version where a bug TRIGGERS rather than one that
+// fixes it (e.g. real findings seen: "ONTAP 9.16.1 and newer do not support
+// IOM6 Modules", "...after upgrade to 9.12.1P4 or 9.13.1" describing when a
+// bug manifests). Extracting a version from free text here would risk
+// recommending an upgrade INTO a version a finding warns against -- so this
+// intentionally does not attempt it. Review each finding individually.
+function _dfCriticalHighNonCveIssues(sys) {
+  const items = (sys.risks || []).filter(r => {
+    if (!/^(critical|high)$/i.test(String(r.severity || ''))) return false;
+    const cat = (r.category || '').toLowerCase();
+    if (cat === 'security' || cat === 'best practice' || cat === 'best_practice' || cat === 'best practices') return false;
+    if ((r.cveDetails || []).length) return false;   // already covered by the CVE-based floor
+    if (/cve-\d{4}-\d{4,}/i.test(`${r.description || ''} ${r.recommendation || ''}`)) return false;
+    return true;
+  });
+  if (!items.length) return null;
+  return {
+    count: items.length,
+    items: items.map(r => ({ category: r.category || 'Uncategorized', severity: (r.severity || '').toLowerCase(), description: r.description || '', recommendation: r.recommendation || '' })),
+  };
+}
+
+// Fleet-level rollup of _dfCriticalHighNonCveIssues() -- mirrors
+// _dfCriticalHighFixFloorSummary()'s shape (rows + a total) but with no
+// version/CQV angle, since there's no single version to conflict-check here.
+function _dfCriticalHighNonCveIssuesSummary(systems) {
+  const rows = [];
+  (systems || []).forEach(s => {
+    const issues = _dfCriticalHighNonCveIssues(s);
+    if (!issues) return;
+    rows.push({ systemName: s.systemName || s.serialNumber, customerName: s.customerName, count: issues.count, items: issues.items });
+  });
+  if (!rows.length) return null;
+  rows.sort((a, b) => b.count - a.count || a.systemName.localeCompare(b.systemName));
+  return { rows, totalCount: rows.reduce((s, r) => s + r.count, 0) };
+}
+
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
 // ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57
 // critical/high + the rest). A bulletin that lists several CVEs contributes each of them.
@@ -23898,7 +23959,8 @@ ${_dfTable(['Critical', 'High', 'Medium'], [[critCount, highCount, medCount]])}
   - AutoSupport Issues: ${asupIssues.length}
   - Support Cases: ${(() => { const cc = _dfCaseCounts(allSupportCases); return `${cc.open} open, ${cc.closed} closed (${cc.total} total)`; })()}
 ${(() => { const ff = _dfCriticalHighFixFloorSummary(targetSystems); if (!ff) return ''; const worst = ff.rows.reduce((a, r) => !a || _dfVerCmp(_dfVerParse(r.fixedIn), _dfVerParse(a.fixedIn)) > 0 ? r : a, null);
-  return `  - Security Fix Floor: ${_dfPlural(ff.rows.length, 'system')} below the version needed to clear all critical/high CVEs (highest requirement: ${worst.fixedIn})${ff.conflictCount > 0 ? ` -- ${_dfPlural(ff.conflictCount, 'system')} with a Customer Qualified Version set BELOW that floor (decision point for the account team)` : (ff.cqvSetCount > 0 ? ` -- ${_dfPlural(ff.cqvSetCount, 'system')} with a Customer Qualified Version set, none conflicting` : '')}`; })()}
+  return `  - Security Fix Floor (Critical/High CVEs): ${_dfPlural(ff.rows.length, 'system')} below the version needed to clear all critical/high CVEs (highest requirement: ${worst.fixedIn})${ff.conflictCount > 0 ? ` -- ${_dfPlural(ff.conflictCount, 'system')} with a Customer Qualified Version set BELOW that floor (decision point for the account team)` : (ff.cqvSetCount > 0 ? ` -- ${_dfPlural(ff.cqvSetCount, 'system')} with a Customer Qualified Version set, none conflicting` : '')}`; })()}
+${(() => { const nc = _dfCriticalHighNonCveIssuesSummary(targetSystems); if (!nc) return ''; return `  - Critical NetApp Issues (Non-CVE): ${_dfPlural(nc.rows.length, 'system')} with ${_dfPlural(nc.totalCount, 'critical/high finding')} that don't reduce to a single required software version (hardware, firmware, configuration, or lifecycle fixes instead) -- see Section 2 / As-Built for individual findings`; })()}
 
 ${compileSvmLifSummaryText(targetSystems)}
 
@@ -27334,6 +27396,12 @@ ${(() => { const ff = _dfCriticalHighFixFloorSummary(targetSystems); if (!ff) re
   ${_dfPlural(ff.rows.length, 'system')} ${ff.rows.length === 1 ? 'is' : 'are'} below the version needed to clear every critical/high-severity CVE affecting it. "Fixed In" below is the HIGHEST fix-in release required across those CVEs for that system -- being fixed for one does not help if another on the same system needs a later release.
 ${[...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([ver, rows]) => `  Fixed In: ${ver}  --  ${_dfGroupNow(rows.map(r => ({ name: r.systemName, cur: r.currentVersion })))}`).join('\n')}
 ${ff.cqvSetCount > 0 ? `  Customer Qualified Version (CQV) set on ${_dfPlural(ff.cqvSetCount, 'system')}.${ff.conflictCount > 0 ? ` ${ff.conflictCount} of those ${ff.conflictCount === 1 ? 'has' : 'have'} a CQV BELOW the fix floor -- the customer's qualified version does not clear a critical/high finding, a decision point for the account team: ${ff.rows.filter(r => r.conflict).slice(0, 5).map(r => `${r.systemName} (CQV ${r.cqv} < required ${r.fixedIn})`).join(', ')}${ff.conflictCount > 5 ? ` +${ff.conflictCount - 5} more` : ''}.` : ' None conflict with the fix floor above.'}` : ''}
+`; })()}
+
+${(() => { const nc = _dfCriticalHighNonCveIssuesSummary(targetSystems); if (!nc) return ''; return `CRITICAL NETAPP ISSUES (Non-CVE)
+  ${_dfPlural(nc.rows.length, 'system')} with ${_dfPlural(nc.totalCount, 'critical/high finding')} that are NOT CVEs (hardware, firmware, lifecycle, configuration, capacity). Unlike the CVE-based Security Fix Floor above, these do not reduce to a single required software version -- the fix varies per finding (drive/shelf/BMC firmware, a config change, a hardware refresh) and some findings describe a version to avoid rather than one that fixes the issue, so each is listed for individual review rather than rolled into one target version.
+${nc.rows.map(r => `  SYSTEM: ${r.systemName}${r.customerName ? ` (${r.customerName})` : ''}
+${r.items.map(it => `    - [${it.severity.toUpperCase()}/${it.category}] ${it.description}`).join('\n')}`).join('\n')}
 `; })()}
 
 ${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (IMT)
@@ -32305,6 +32373,25 @@ function generateActionPlan() {
           <div style="margin-top:10px; padding:10px 14px; background:${_conflict ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.06)'}; border:1px solid ${_color}44; border-radius:6px; font-size:0.78rem;">
             <strong style="color:${_color};">Security Fix Floor:</strong> ${_dfPlural(_floor.cveIds.length, 'critical/high CVE')} on this system need${_floor.cveIds.length === 1 ? 's' : ''} at least <code style="color:${_color};">${_floor.version}</code> to be cleared.
             ${_cqv ? `<br>Customer Qualified Version is <code>${_cqv}</code>${_conflict ? ` -- <strong style="color:${_color};">below the fix floor</strong>. The customer's qualified version does not clear these findings; this needs a decision from the account team, not a silent override in either direction.` : ', which already meets the fix floor.'}` : ''}
+          </div>`;
+          })()}
+          ${(() => {
+            // Critical/high NetApp issues that are NOT CVEs -- a deliberately
+            // separate figure from the Security Fix Floor above. These don't
+            // reduce to one required ONTAP version the way CVEs do (fix vector
+            // varies per finding: firmware, config, hardware refresh -- see
+            // _dfCriticalHighNonCveIssues()), so this shows a count and the
+            // finding list for individual review, never a version.
+            const _sys2 = targetSystems.find(s => s.serialNumber === u.serialNumber);
+            if (!_sys2) return '';
+            const _issues = _dfCriticalHighNonCveIssues(_sys2);
+            if (!_issues) return '';
+            const _list = _issues.items.slice(0, 5).map(it => `<li><strong>[${it.category}]</strong> ${_esc(it.description)}</li>`).join('');
+            return `
+          <div style="margin-top:10px; padding:10px 14px; background:rgba(148,163,184,0.06); border:1px solid rgba(148,163,184,0.25); border-radius:6px; font-size:0.78rem;">
+            <strong style="color:#94a3b8;">Critical NetApp Issues (non-CVE):</strong> ${_dfPlural(_issues.count, 'critical/high finding')} on this system that ${_issues.count === 1 ? "doesn't" : "don't"} reduce to a single required software version (firmware, configuration, or hardware-refresh fixes instead) -- review each individually:
+            <ul style="margin:6px 0 0 18px; padding:0;">${_list}</ul>
+            ${_issues.count > 5 ? `<div style="margin-top:4px; color:var(--text-muted);">+${_issues.count - 5} more</div>` : ''}
           </div>`;
           })()}
           ${u.serialNumber && minVer && minVer !== 'N/A' ? (() => {

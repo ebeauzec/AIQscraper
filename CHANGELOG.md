@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.194] - 2026-09-30
+
+### Added
+- Split critical/high findings into two distinct figures wherever the Security Fix Floor appears (OS Upgrade Roadmap card, Executive Risk Assessment, TAM Success Plan): the existing CVE-based floor (one required ONTAP version) and a new "Critical NetApp Issues (Non-CVE)" figure for hardware/firmware/lifecycle/configuration findings. Checked real fleet data first: unlike CVEs, these don't reduce to a single required version (the fix varies per finding, and some findings name a version to avoid rather than one that fixes the issue), so they're listed individually for review rather than folded into a synthesized version number.
+
+---
+
 ## [5.6.193] - 2026-09-30
 
 ### Fixed

@@ -22,9 +22,39 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.193)
+## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.194)
 
-Two threads this session, both triggered by screenshots of generated deliverables.
+Three threads this session, all triggered by screenshots of generated deliverables.
+
+**16. Critical CVEs vs. critical non-CVE NetApp issues split (shipped, v5.6.194).** User, from a screenshot of
+the OS Upgrade Roadmap card: asked to distinguish "critical CVEs" from "critical NetApp issues" since each
+needs a different minimum version to fix, then "this needs to carry through the entire ARIA suite." **Before
+building anything, checked real fleet data for what non-CVE critical/high Active IQ risk findings actually
+look like** (`_dfCriticalHighFixFloor()`'s CVE-only floor has a real "Fixed In" release database behind it;
+non-CVE findings do not) -- sampled 30 real critical/high non-security findings across the fleet and found the
+fix vector is NOT a single ONTAP version the way CVEs are: drive/shelf/BMC firmware updates, config changes,
+hardware refreshes (EOA/EOS), or "move off a pre-release build." Worse, two real findings explicitly describe
+a version to AVOID or a version where a bug TRIGGERS, not one that fixes it (`"ONTAP 9.16.1 and newer releases
+do not support IOM6 Modules"`; `"...after upgrade to 9.12.1P4 or 9.13.1"` describing when a bug manifests).
+Naive regex version-extraction from this text would risk recommending an upgrade INTO a version a finding
+warns against. Asked the user via AskUserQuestion how to handle un-extractable findings; they asked to review
+a sample first, which confirmed the above, so implemented count-only (no fabricated version) for the non-CVE
+side: `_dfCriticalHighNonCveIssues(sys)`/`_dfCriticalHighNonCveIssuesSummary(systems)` (app.js, right after
+`_dfCriticalHighFixFloorSummary`, ~line 19180) filter to critical/high risks that aren't CVE-tagged (no
+`cveDetails`, no CVE regex match, category isn't security/best-practice) and return a count + finding list,
+deliberately never a version. Wired into the same 3 places the CVE floor already existed (confirmed via grep
+these were the only 3 -- did NOT add the Security Fix Floor concept to documents that never had it, e.g. QBR/
+MSP/Security Brief, since that's a different, unasked-for scope expansion): the OS Upgrade Roadmap card
+(`generateActionPlan()`, a new sibling block right after the existing Security Fix Floor block, listing up to
+5 findings with a "+N more"), the Executive Risk Assessment (new "CRITICAL NETAPP ISSUES (Non-CVE)" section,
+grouped by system per this session's earlier grouping work), and the TAM Success Plan (one summary line).
+Renamed the existing CVE floor's label to "Security Fix Floor (Critical/High CVEs)" in the TAM Success Plan for
+clarity now that there are two figures. Verified live against a real account (Telkom SA Ltd.): 16 CVE-floor
+occurrences and 8 non-CVE-issue occurrences rendered correctly in the same Action Plan; the TAM Success Plan
+and Executive Risk Assessment text downloads both show the two figures side by side with no version fabricated
+for the non-CVE side, and a real example (`"Updating to BMC FW 19.3 resolves unexpected cluster node
+shutdown"`) confirms even findings that DO name a fix version don't necessarily mean ONTAP -- reinforcing why
+this stays count-only rather than attempting selective extraction.
 
 **14b. User gave a screenshot of the Security Advisories report (flat "Sa-Id: CVE-... -
 SYSTEMNAME" entries, no structure) and asked to reformat it grouped by system, drop the Sa-Id label, and
@@ -112,10 +142,11 @@ two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, f
 none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
 matrix does.
 
-**Git:** branch `main`. v5.6.192 and v5.6.193 both committed after this session's work (app.js, CHANGELOG.md,
-version.json, CLAUDE.md, and the synced `dist/app.js` + `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe`
-each time). Exe rebuilt via PyInstaller (`build/AIQscraper.spec`, note the spec lives under `build/`, not the
-repo root) to `%LOCALAPPDATA%\Temp\aiqbuild192`/`aiqbuild193`, never `build/build_windows.bat`. No `server.py`
+**Git:** branch `main`. v5.6.192, v5.6.193, and v5.6.194 each committed individually after this session's work
+(app.js, CHANGELOG.md, version.json, CLAUDE.md, and the synced `dist/app.js` +
+`dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time). Exe rebuilt via PyInstaller
+(`build/AIQscraper.spec`, note the spec lives under `build/`, not the repo root) to
+`%LOCALAPPDATA%\Temp\aiqbuild192`/`aiqbuild193`/`aiqbuild194`, never `build/build_windows.bat`. No `server.py`
 or HTML changes this session, so only `app.js` + the exe + `base_library.zip` needed re-syncing into `dist/`.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir via

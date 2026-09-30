@@ -1,8 +1,8 @@
 {
-  "version": "5.6.193",
+  "version": "5.6.194",
   "major": 5,
   "minor": 6,
-  "patch": 193,
+  "patch": 194,
   "date": "2026-09-30",
-  "notes": "Fixed the IMT Interop Compatibility Warnings incorrectly flagging systems for a Cisco Nexus or Cisco MDS finding when they only had the other switch type (or no switch at all) attached -- both integrations shared one fleet-wide 'a Cisco switch exists somewhere' signal instead of being matched per-system against the actual switch model."
+  "notes": "Split critical/high findings into two distinct figures everywhere the Security Fix Floor appears (OS Upgrade card, Executive Risk Assessment, TAM Success Plan): CVE-driven findings (which reduce to one required ONTAP version) versus non-CVE NetApp issues -- hardware, firmware, lifecycle, configuration -- which don't, and are now listed individually for review instead of being folded into a fabricated single version."
 }
