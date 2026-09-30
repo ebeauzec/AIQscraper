@@ -27,9 +27,40 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.188";
+const APP_VERSION = "5.6.190";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.190",
+    date: "30 September 2026",
+    title: "New: Security Fix Floor, and Customer Qualified Version Conflicts",
+    sections: [
+      {
+        icon: "📄",
+        label: "Added -- The Real 'Fixed In' Version for Critical/High CVEs, Cross-Checked Against CQV",
+        color: "#3b82f6",
+        items: [
+          "New 'SECURITY FIX FLOOR' section in the Executive Risk Assessment and TAM Success Plan: the single version each affected system must reach to clear EVERY critical/high-severity CVE against it (the highest 'Fixed In' release across all of them -- being fixed for one CVE doesn't help if another needs a later release), grouped by target version across the fleet.",
+          "Cross-checked against Customer Qualified Version (CQV) -- the version a customer has explicitly locked in via the existing 'Set as Qualified Version (CQV) in AIQ' action (OS Upgrades tab), for accounts running an N-1 or similarly fixed software strategy. When a system's CQV sits BELOW its security fix floor, both documents now call that out by name as a decision point for the account team -- a CQV is a real customer decision and isn't overridden automatically, but a critical/high vulnerability fix requirement doesn't go away because of it either. Verified live against a real account: 12 systems below their fix floor, 6 with a CQV set, all 6 in conflict.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.189",
+    date: "30 September 2026",
+    title: "Support Case Counts Were Never Actually 'Open' -- Fixed Fleet-Wide",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Every 'Open Support Cases' Figure Was Really the Total (Open + Closed)",
+        color: "#ef4444",
+        items: [
+          "Every deliverable's 'Open Support Cases' count was actually the total case count -- open, closed, AND cancelled -- mislabeled as 'open'. Confirmed live: a real customer with 18 historical cases, all Closed/Cancelled, would have shown 'Open Support Cases: 18'. Every occurrence across the TAM Success Plan, QBR Pack, Executive Risk Assessment, Technical Solution Proposal, and As-Built downloads now shows a real breakdown ('N open, M closed (T total)'), computed from the same active/closed classification the GUI's own Support Cases tab already used correctly. Case listings labelled 'OPEN CASES' now actually filter to open cases instead of listing every case ever raised.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.188",
     date: "30 September 2026",
@@ -18988,6 +19019,71 @@ function _dfMinFixLines(cveId, advisoryUrl, systemNames, allSystems) {
   return lines;
 }
 
+// The single version a system must reach to clear EVERY critical/high CVE affecting
+// it -- "Fixed In" for the risks that actually matter, not Active IQ's general
+// recommended-version nudge (which is a different signal and can be lower than what
+// a critical/high finding actually requires, or higher for unrelated reasons). Reuses
+// _dfFixedReleases() (already used for the Security Brief's per-CVE "Fixed In" line)
+// scanned across every critical/high CVE on this one system, taking the HIGHEST
+// required version across all of them (being fixed for CVE A but not CVE B isn't
+// actually fixed). Returns null when no critical/high CVE on this system has a
+// published fixed release, or the system isn't ONTAP/StorageGRID/E-Series.
+function _dfCriticalHighFixFloor(sys) {
+  const fam = _platformFamily(sys), key = fam === 'storagegrid' ? 'storagegrid' : fam === 'eseries' ? 'eseries' : fam === 'ontap' ? 'ontap' : null;
+  if (!key) return null;
+  const cur = _dfVerParse(fam === 'eseries' ? (sys.santricityVersion || sys.ontapVersion) : sys.ontapVersion);
+  const ids = new Map();   // CVE id -> {link}
+  (sys.securityBulletins || []).forEach(b => {
+    if (!/^(critical|high)$/i.test(String(b.severity || ''))) return;
+    const found = new Set([...(String(b.cve || '').match(/CVE-\d{4}-\d{4,}/gi) || []), ...(String(b.cveId || b.id || '').match(/CVE-\d{4}-\d{4,}/gi) || []), ...(String(b.title || '').match(/CVE-\d{4}-\d{4,}/gi) || [])]);
+    found.forEach(id => { if (!ids.has(id.toUpperCase())) ids.set(id.toUpperCase(), b.link); });
+  });
+  (sys.risks || []).forEach(r => (r.cveDetails || []).forEach(d => {
+    if (!d || !d.id || !/^(critical|high)$/i.test(String(d.severity || r.severity || ''))) return;
+    const id = String(d.id).toUpperCase();
+    if (!ids.has(id)) ids.set(id, r.url || r.advisoryUrl || r.kbLink);
+  }));
+  if (!ids.size) return null;
+  let best = null, drivers = [];
+  ids.forEach((link, id) => {
+    const rel = _dfFixedReleases(id, link);
+    const cands = (rel[key] || []).map(x => x.v);
+    if (!cands.length) return;
+    const target = cands.sort((a, b) => _dfVerCmp(a, b))[cands.length - 1];   // highest fixed-in release listed for this CVE
+    if (!best || _dfVerCmp(target, best) > 0) { best = target; drivers = [id]; }
+    else if (_dfVerCmp(target, best) === 0) drivers.push(id);
+  });
+  if (!best) return null;
+  return { version: best.text, cveIds: drivers, alreadyMet: !!(cur && _dfVerCmp(cur, best) >= 0) };
+}
+
+// Fleet-level rollup of _dfCriticalHighFixFloor(), plus the Customer Qualified
+// Version (CQV) angle: a customer running an N-1 (or any fixed) software strategy
+// sets a CQV in Active IQ via updateQualifiedVersionInAIQ() (OS Upgrades tab), which
+// this app already reads back as s.swCQV. A CQV is a real, deliberate customer
+// decision and should be respected -- but it does NOT cancel a critical/high CVE:
+// if the version needed to clear one is ABOVE the customer's qualified ceiling,
+// that's a genuine conflict a TAM needs a conversation about, not something to
+// silently suppress either direction. Returns null when nothing in scope has a
+// critical/high fix-in version at all (nothing to report).
+function _dfCriticalHighFixFloorSummary(systems) {
+  const rows = [];
+  (systems || []).forEach(s => {
+    const floor = _dfCriticalHighFixFloor(s);
+    if (!floor || floor.alreadyMet) return;
+    const cqv = s.swCQV || '';
+    const cqvVer = cqv ? _dfVerParse(cqv) : null;
+    const floorVer = _dfVerParse(floor.version);
+    const conflict = !!(cqvVer && floorVer && _dfVerCmp(cqvVer, floorVer) < 0);
+    rows.push({ systemName: s.systemName || s.serialNumber, customerName: s.customerName, platform: s.platform || s.model,
+      currentVersion: (_platformFamily(s) === 'eseries' ? (s.santricityVersion || s.ontapVersion) : s.ontapVersion) || 'Unknown',
+      fixedIn: floor.version, cveIds: floor.cveIds, cqv, conflict });
+  });
+  if (!rows.length) return null;
+  rows.sort((a, b) => (b.conflict - a.conflict) || a.systemName.localeCompare(b.systemName));
+  return { rows, conflictCount: rows.filter(r => r.conflict).length, cqvSetCount: rows.filter(r => r.cqv).length };
+}
+
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
 // ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57
 // critical/high + the rest). A bulletin that lists several CVEs contributes each of them.
@@ -23700,7 +23796,9 @@ ${_dfTable(['Critical', 'High', 'Medium'], [[critCount, highCount, medCount]])}
   - SP/BMC Firmware Drift: ${spDrift.length} system${spDrift.length !== 1 ? 's' : ''} below recommended version
   - Motherboard Firmware Drift: ${mbDrift.length} system${mbDrift.length !== 1 ? 's' : ''} below recommended version
   - AutoSupport Issues: ${asupIssues.length}
-  - Open Support Cases: ${allSupportCases.length}
+  - Support Cases: ${(() => { const cc = _dfCaseCounts(allSupportCases); return `${cc.open} open, ${cc.closed} closed (${cc.total} total)`; })()}
+${(() => { const ff = _dfCriticalHighFixFloorSummary(targetSystems); if (!ff) return ''; const worst = ff.rows.reduce((a, r) => !a || _dfVerCmp(_dfVerParse(r.fixedIn), _dfVerParse(a.fixedIn)) > 0 ? r : a, null);
+  return `  - Security Fix Floor: ${_dfPlural(ff.rows.length, 'system')} below the version needed to clear all critical/high CVEs (highest requirement: ${worst.fixedIn})${ff.conflictCount > 0 ? ` -- ${_dfPlural(ff.conflictCount, 'system')} with a Customer Qualified Version set BELOW that floor (decision point for the account team)` : (ff.cqvSetCount > 0 ? ` -- ${_dfPlural(ff.cqvSetCount, 'system')} with a Customer Qualified Version set, none conflicting` : '')}`; })()}
 
 ${compileSvmLifSummaryText(targetSystems)}
 
@@ -24307,7 +24405,7 @@ ${trendSection}
 --------------------------------------------------------------------------------
 ${_dfTable(['Critical', 'High', 'Medium', 'Low'], [[critCount, highCount, medCount, lowCount]])}
   Security-Related Risk Findings: ${secCount} (see Cost of Inaction below for the unique CVE count)
-  Open Support Cases:  ${allSupportCases.length}
+  Support Cases:       ${(() => { const cc = _dfCaseCounts(allSupportCases); return `${cc.open} open, ${cc.closed} closed (${cc.total} total)`; })()}
 
   TOP CORRECTIVE ACTIONS (with root cause context):
 ${topActions || '  No critical or high-severity corrective actions identified.'}
@@ -24540,8 +24638,9 @@ function compileMSPServiceReport(targetSystems, allRisks, expiringContracts, all
   function slaStatus(actual, target) { return parseFloat(actual) >= target ? 'MET' : 'MISSED'; }
 
   // ── Cases ──
-  const casesLines = allSupportCases.length > 0
-    ? allSupportCases.map(c =>
+  const _openCasesOnly = allSupportCases.filter(c => c._isActive);
+  const casesLines = _openCasesOnly.length > 0
+    ? _openCasesOnly.map(c =>
         (() => {
           const sys = targetSystems.find(s => s.systemName === c.systemName);
           const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
@@ -24651,7 +24750,7 @@ ${capacityLines}
 --------------------------------------------------------------------------------
 5. INCIDENT & CASE MANAGEMENT [RISK EXPOSURE]
 --------------------------------------------------------------------------------
-  Open Cases:     ${allSupportCases.length}
+  Support Cases:  ${(() => { const cc = _dfCaseCounts(allSupportCases); return `${cc.open} open, ${cc.closed} closed (${cc.total} total)`; })()}
 ${casesLines}
 
 --------------------------------------------------------------------------------
@@ -25217,7 +25316,7 @@ ${compileSvmLifSummaryText(targetSystems)}
 --------------------------------------------------------------------------------
   Total Risks:          ${allRisks.filter(r => r.severity !== 'best_practice').length} (Critical: ${critCount}, High: ${highCount}, Medium: ${allRisks.filter(r => r.severity === 'medium').length}, Low: ${allRisks.filter(r => r.severity === 'low').length})
   Security Advisories:  ${secCount}
-  Open Support Cases:   ${allSupportCases.length}
+  Support Cases:        ${(() => { const cc = _dfCaseCounts(allSupportCases); return `${cc.open} open, ${cc.closed} closed (${cc.total} total)`; })()}
   ASUP Compliance:      ${asupPct}%
   ARP Coverage:         ${_ontapN > 0 ? arpPct + '%' : 'N/A (no ONTAP systems)'}
   Support Contract Coverage: ${contractPct}% (active per Active IQ's contract data)
@@ -26261,6 +26360,24 @@ function _dfTable(headers, rows) {
   const rule = widths.map(w => '─'.repeat(w)).join(' ');
   return [padRow(headers), rule, ...cells.map(padRow)].join('\n');
 }
+// Real open-vs-closed support case counts. Every deliverable that printed
+// "Open Support Cases: ${allSupportCases.length}" was actually printing the
+// TOTAL case count (open + closed + cancelled) mislabeled as "open" --
+// filterActiveCases() tags each case ._isActive/._isClosed but never removes
+// anything, and the deliverable text never read those tags, just the raw
+// array length. Confirmed live: a real customer's cases were almost entirely
+// Closed/Cancelled, so "Open Support Cases: 210" (fleet-wide total) would have
+// read as 210 open cases when the true open count was far lower. The GUI's own
+// Support Cases tab already did this correctly (`allSupportCases.filter(c =>
+// c._isActive).length` alongside the total) -- this brings the deliverable
+// text in line with what the GUI already showed. Assumes filterActiveCases()
+// has already been called on `cases` (every deliverable compiler calls it once
+// near the top before any of this text is built).
+function _dfCaseCounts(cases) {
+  const list = cases || [];
+  const open = list.filter(c => c._isActive).length;
+  return { open, closed: list.length - open, total: list.length };
+}
 function _dfDays(d) { const t = d ? Date.parse(d) : NaN; return isNaN(t) ? null : Math.ceil((t - Date.now()) / 86400000); }
 function _dfDate(d) { const t = d ? Date.parse(d) : NaN; return isNaN(t) ? 'not reported' : new Date(t).toISOString().split('T')[0]; }
 function _dfName(s) { return s.systemName || s.clusterName || s.serialNumber; }
@@ -27073,7 +27190,7 @@ ACCOUNT TEAM
 RISK SUMMARY
 ${_dfTable(['Critical', 'High', 'Medium', 'Low'], [[critCount, highCount, medCount, lowCount]])}
 
-${_dfTable(['Security', 'AutoSupport', 'Open Cases', 'Upgrades', 'Contracts Expiring', 'Lapsed'], [[allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length, asupIssues.length, allSupportCases.length, allUpgrades.length, expiringContracts.length, (expiringContracts._expired || []).length]])}
+${(() => { const cc = _dfCaseCounts(allSupportCases); return _dfTable(['Security', 'AutoSupport', 'Open Cases', 'Closed Cases', 'Upgrades', 'Contracts Expiring', 'Lapsed'], [[allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length, asupIssues.length, cc.open, cc.closed, allUpgrades.length, expiringContracts.length, (expiringContracts._expired || []).length]]); })()}
 
 OPERATIONAL HEALTH
   ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
@@ -27112,6 +27229,12 @@ SAN/NAS STORAGE RISK
 
 FEATURE ADOPTION:     ${fm.ontapCount > 0 ? fm.fleetAvgScore + '% fleet average (' + fm.perSystem.reduce((s,p) => s + p.score, 0) + '/' + fm.perSystem.reduce((a, p) => a + p.total, 0) + ' best-practice criteria met, ' + fm.ontapCount + ' ONTAP systems)' : 'N/A (ONTAP feature set; no ONTAP systems in scope)'}${fm.ontapCount > 0 ? `
   ARP: ${fm.pct.arp}%  SnapMirror: ${fm.pct.snapMirror}%  HA: ${fm.pct.ha}%` : ''}
+
+${(() => { const ff = _dfCriticalHighFixFloorSummary(targetSystems); if (!ff) return ''; const grouped = new Map(); ff.rows.forEach(r => { if (!grouped.has(r.fixedIn)) grouped.set(r.fixedIn, []); grouped.get(r.fixedIn).push(r); }); return `SECURITY FIX FLOOR (Critical/High CVEs)
+  ${_dfPlural(ff.rows.length, 'system')} ${ff.rows.length === 1 ? 'is' : 'are'} below the version needed to clear every critical/high-severity CVE affecting it. "Fixed In" below is the HIGHEST fix-in release required across those CVEs for that system -- being fixed for one does not help if another on the same system needs a later release.
+${[...grouped.entries()].sort((a, b) => a[0].localeCompare(b[0], undefined, { numeric: true })).map(([ver, rows]) => `  Fixed In: ${ver}  --  ${_dfGroupNow(rows.map(r => ({ name: r.systemName, cur: r.currentVersion })))}`).join('\n')}
+${ff.cqvSetCount > 0 ? `  Customer Qualified Version (CQV) set on ${_dfPlural(ff.cqvSetCount, 'system')}.${ff.conflictCount > 0 ? ` ${ff.conflictCount} of those ${ff.conflictCount === 1 ? 'has' : 'have'} a CQV BELOW the fix floor -- the customer's qualified version does not clear a critical/high finding, a decision point for the account team: ${ff.rows.filter(r => r.conflict).slice(0, 5).map(r => `${r.systemName} (CQV ${r.cqv} < required ${r.fixedIn})`).join(', ')}${ff.conflictCount > 5 ? ` +${ff.conflictCount - 5} more` : ''}.` : ' None conflict with the fix floor above.'}` : ''}
+`; })()}
 
 ${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (IMT)
   Integrations Checked: ${Object.keys(_fleetSignals).filter(k => _fleetSignals[k]).length}
@@ -27234,7 +27357,7 @@ ${emailRiskLines}
 
 ${asupIssues.length > 0 ? 'AUTOSUPPORT ISSUES:\n' + asupIssues.map(a => `  • ${a.name}: ${a.issue}`).join('\n') : 'AutoSupport: All systems reporting healthy.'}
 
-${allSupportCases.length > 0 ? 'OPEN CASES:\n' + allSupportCases.slice(0, 5).map(c => `  • Case ${c.id} [${c.severity}]${c.systemName ? ' ' + c.systemName + ':' : ''} ${String(c.title || '').replace(/\s+/g, ' ').replace(/\s*S\/N \[[^\]]*\]/g, '').slice(0, 110)}`).join('\n') + (allSupportCases.length > 5 ? `\n  ... and ${allSupportCases.length - 5} more` : '') : 'No open support cases.'}
+${(() => { const open = allSupportCases.filter(c => c._isActive); return open.length > 0 ? 'OPEN CASES:\n' + open.slice(0, 5).map(c => `  • Case ${c.id} [${c.severity}]${c.systemName ? ' ' + c.systemName + ':' : ''} ${String(c.title || '').replace(/\s+/g, ' ').replace(/\s*S\/N \[[^\]]*\]/g, '').slice(0, 110)}`).join('\n') + (open.length > 5 ? `\n  ... and ${open.length - 5} more` : '') : 'No open support cases.'; })()}
 
 ${exp90.length > 0 ? 'SUPPORT CONTRACTS EXPIRING WITHIN 90 DAYS:\n' + exp90.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName);
@@ -27271,7 +27394,7 @@ HEALTH METRICS:
 
 RISK POSTURE:
   Risks: ${allRisks.length} (${critCount}C / ${highCount}H / ${medCount}M / ${lowCount}L) -- the ${totalDeduped} critical/high consolidate into ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''}
-${_dfTable(['Security', 'Open Cases', 'Upgrades'], [[allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length, allSupportCases.length, allUpgrades.length]])}
+${(() => { const cc = _dfCaseCounts(allSupportCases); return _dfTable(['Security', 'Open Cases', 'Closed Cases', 'Upgrades'], [[allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length, cc.open, cc.closed, allUpgrades.length]]); })()}
 ${sustLatest.scorePercentage ? `\nSUSTAINABILITY (Active IQ score): ${sustLatest.scorePercentage}%` : ''}
 
 PRIORITY ACTIONS:
@@ -32857,7 +32980,7 @@ Total Systems Audited: ${targetSystems.length}
 METRICS SUMMARY:
 - Technical Risks: ${allRisks.length}
 - Security Advisories: ${allSecurityAdvisories.length}
-- Open Support Cases: ${allSupportCases.length}
+- Support Cases: ${(() => { const cc = _dfCaseCounts(allSupportCases); return `${cc.open} open, ${cc.closed} closed (${cc.total} total)`; })()}
 - Expiring Support Contracts: ${expiringContracts.length}
 - Active Field Actions: ${activeFAs.length}
 

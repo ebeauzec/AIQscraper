@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.190] - 2026-09-30
+
+### Added
+- New "SECURITY FIX FLOOR" section in the Executive Risk Assessment and TAM Success Plan: the single version each system must reach to clear every critical/high CVE against it, cross-checked against Customer Qualified Version (CQV) -- flags when a customer's locked-in qualified version sits below what's needed to clear a critical/high finding.
+
+## [5.6.189] - 2026-09-30
+
+### Fixed
+- Every "Open Support Cases" figure across every deliverable was actually the total case count (open + closed + cancelled) mislabeled as "open". Now shows a real breakdown ("N open, M closed (T total)"), and case listings labelled "OPEN CASES" actually filter to open cases.
+
+---
+
 ## [5.6.188] - 2026-09-30
 
 ### Fixed

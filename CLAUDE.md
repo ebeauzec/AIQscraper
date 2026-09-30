@@ -372,8 +372,50 @@ fixed** (no trailing `$` in the current file, confirmed via `git log -- .gitigno
 committed at v5.6.50, well before this session) -- nothing to do here, the earlier handoff note describing it
 as still-broken was stale.
 
-**Git:** branch `main`, v5.6.178 through v5.6.188 committed and pushed individually (exe rebuilt each time via
-PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild188`, synced into `dist/NetApp_AIQ_Advisor/` +
+**13. "Open Support Cases" was always the total, not open (shipped, v5.6.189).** User: "how is it possible
+that support cases have dropped to 0? i need to see at least open vs closed cases" -- prompted by MY OWN
+v5.6.187 Risk Summary table fix making a pre-existing bug suddenly visible/obviously-wrong. Root cause,
+confirmed live: `filterActiveCases()` tags every case `._isActive`/`._isClosed` but never removes anything
+from the array, and every deliverable's "Open Support Cases: ${allSupportCases.length}" read the raw array
+length (open + closed + cancelled) -- the GUI's own Support Cases tab already did this correctly
+(`allSupportCases.filter(c => c._isActive).length` alongside the total, app.js ~31558) but the deliverable
+text never matched it. Added `_dfCaseCounts(cases)` (app.js, right after `_dfPlural`) and fixed every instance
+across `compileCustomerSuccessPlanText`, `compileQBRPack`, `compileExtendedDeliverables` (Executive Risk
+Assessment, Technical Solution Proposal x2, and a "OPEN CASES:" listing that was listing every case ever
+raised, not just open ones), the Risk & Compliance Posture section, and `downloadPlanSection`'s Executive
+Summary. Verified live: a real customer with 18 historical cases (17 Closed, 1 Cancelled) now correctly shows
+"0 open, 18 closed (18 total)" instead of the old "Open Support Cases: 18".
+
+**14. Security Fix Floor + Customer Qualified Version (CQV) conflict detection (shipped, v5.6.190).** User
+asked how a customer running an N-1 (or any fixed) software strategy flags their qualified version and gets
+reporting to respect it, using a real screenshot of the existing "Set as Qualified Version (CQV) in AIQ"
+button (`updateQualifiedVersionInAIQ()`, app.js ~9874 -- a real GraphQL mutation writing back to the
+customer's live Active IQ account, already built, pre-dates this session). Confirmed: general upgrade
+recommendations already pull from Active IQ's own `recommendedOSVersion`/`swRecMin` fields (not an
+independently computed target), so once a TAM sets CQV in Active IQ, those should already respect it on the
+next harvest -- no code change needed there. **The actual gap**: `s.swCQV` (the CQV value, already harvested)
+never appeared in any deliverable narrative, only as a raw status field in the As-Built table, and there was
+no way to see whether a customer's locked-in CQV conflicted with what a critical/high CVE actually requires.
+User's follow-up: "the interface and deliverables should mention the 'fixed in' statement, to show which is
+the minimum version required to fix the most critical and high risks." Added `_dfCriticalHighFixFloor(sys)`
+and `_dfCriticalHighFixFloorSummary(systems)` (app.js, right after `_dfMinFixLines`) -- reuses the EXISTING
+`_dfFixedReleases()` (already powers the Security Brief's per-CVE "Fixed In" line) scanned across every
+critical/high CVE on a system, taking the HIGHEST required version across all of them (being fixed for one
+CVE doesn't help if another needs a later release), then cross-checks that floor against `s.swCQV`. New
+"SECURITY FIX FLOOR" section added to the Executive Risk Assessment and TAM Success Plan. Verified live
+against a real account (Allan Gray Ltd.): 12 systems below their fix floor (all requiring 9.19.1), 6 with a
+CQV set, **all 6 in genuine conflict** (CQV 9.16.1P10 vs required 9.19.1) -- and verified the null/no-data case
+(a synthetic clean system) produces no section at all, no `undefined`/`NaN` leakage. **Not done**: did NOT
+change the GUI's "Min. Required (To Fix)" card (app.js ~32014) -- confirmed live that its `minVer` comes from
+`u.targetVersion` (the general Active-IQ-recommended target), not this new critical/high-specific floor, so
+the card's own label is arguably a slight misnomer, but changing its data source was out of scope for this
+pass (that value feeds other things too; swapping it needs its own careful look, not a drive-by change).
+Next session: consider whether that GUI card should show the critical/high fix floor instead of/alongside the
+general recommendation, and whether the CQV conflict should surface directly on that card (next to the
+"Set as Qualified Version" button) rather than only in the two deliverables.
+
+**Git:** branch `main`, v5.6.178 through v5.6.190 committed and pushed individually (exe rebuilt each time via
+PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild190`, synced into `dist/NetApp_AIQ_Advisor/` +
 `dist/app.js`; v5.6.180-181 and v5.6.184 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
 harvester; v5.6.183 also synced `dist/NetApp_AIQ_Advisor/_internal/index.html` since that's the first fix this
 session that touched HTML). Working tree otherwise shows harvest data files modified by the running server
