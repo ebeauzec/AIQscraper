@@ -22,410 +22,89 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-29 (Windows dev station, v5.6.177 -> v5.6.179)
+## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.192)
 
-Three separate threads this session; the second and third shipped.
+Single-thread session: user gave a screenshot of the Security Advisories report (flat "Sa-Id: CVE-... -
+SYSTEMNAME" entries, no structure) and asked to reformat it grouped by system, drop the Sa-Id label, and
+under each system list CVE/Title/Mitigation/Status. That escalated in three follow-up messages to: group
+tasks/actions by system in **all** other deliverables, then "scan all of the downloadable, formatted
+documents, and fix the logic and legibility in the same way."
 
-**1. Security scare, unresolved.** User installed ARIA fresh on a Mac (unzipped straight from a GitHub
-download, no Google Drive involved) and it came up already connected to Active IQ with a refresh token,
-account filters, and watchlist IDs visible in the GUI. Did exhaustive git forensics on `ebeauzec/ARIA`
-(`git ls-files`, `git ls-tree -r HEAD`, `git log --all --diff-filter=A --name-only`, `git grep` for
-secret-like patterns, direct inspection of every `data/*.json`) -- **the repo itself is clean, nothing
-committed.** Leading theory: `localStorage` for `http://localhost:8080` is scoped by origin, not by which
-files are served from it, so stale watchlists/credentials from a prior run on the same origin could look
-"pre-connected" regardless of which code deployed there. Gave the user Brave cache-clearing steps to test.
-**Not confirmed fixed or even correctly diagnosed -- follow up if it recurs.** Also flagged but not fixed:
-`.gitignore` has `aiq_config.json$` -- gitignore is glob syntax, the trailing `$` is a literal character,
-not an anchor, so that line doesn't actually match the file. Harmless today only because the file was never
-`git add`ed; worth fixing for real given this thread was about credential hygiene.
+**What shipped (v5.6.192):** every place in the codebase that rendered a flat, un-grouped list of
+risks/cases/security-advisories/switch-firmware-findings now groups them under a `SYSTEM: <name>` header, one
+system at a time, before moving to the next system. Concretely, in `app.js`:
+- `downloadPlanSection()` (the quick per-section TXT downloads driven by the Action Planner's per-tab
+  "Download ..." buttons): sections 2 (Prioritized Technical Risks), 3 (Security Advisories -- also dropped
+  the "SA-ID:" label in favor of the bare CVE number, e.g. `CVE: CVE-2024-42516 [Severity: CRITICAL]`), 4
+  (Support Cases), and 6 (Switch Validation) now group by system via a `Map` built from the flat array, sorted
+  by severity within each system where a severity exists. Section 5 (OS Upgrades) and 7 (Site Logistics) were
+  already one-row-per-system and needed no change.
+- `generateActionPlan()` (the live in-app Action Planner HTML, source of what gets shown in the tabs and of
+  what `downloadFullActionPlan()`'s DOM-to-Markdown converter later exports): the same grouping applied to the
+  Prioritized Technical Risks cards (section index 2), the Security Bulletins cards (section index 3, dropped
+  `s.systemName` from the card title since it's now under a system header), and the Switch Remediation cards
+  (section index 6). The OS Upgrade Roadmap cards (index 5) were already one-card-per-system.
+- `compileCustomerSuccessPlanText()` (TAM Success Plan): `casesText` (the "ACTIVE SUPPORT TICKETS" list) now
+  groups by system. Left `risksText` (built from `fixGroups` / `_filterAndDeduplicateRisks()`) **alone,
+  deliberately** -- that section is intentionally organized by FIX (dedupes an identical remediation across N
+  systems into one entry with a system list) rather than by system, which is a different and still-valuable
+  organizing principle used identically across ~5 other deliverables (Top Corrective Actions-style sections).
+  Restructuring that shared helper to be system-first was judged out of scope for this pass since it would
+  affect every consumer of `_filterAndDeduplicateRisks()`/`_dfCollapseFindings()`, not just this one document;
+  flag it to the user before touching it if they explicitly want that changed too.
+- `compileAccountHandoverBrief()`: section 7 "RECENT ACTIVITY" used to be three separate flat lists (open
+  cases, pending upgrades, active field actions) that each had to be cross-referenced by system name to see
+  everything about one system. Rewrote it to build one combined per-system map (`_activityBySystem`) and emit
+  a `SYSTEM: <name>` block containing all three categories together, only including the sub-headings that
+  actually have entries for that system.
+- Left alone (checked, not applicable): `compileExtendedDeliverables()`'s Technical Solution Proposal
+  "OS & FIRMWARE UPGRADES" / "SAN/NAS STORAGE" blocks inside `solutionProposals` -- that section is
+  deliberately organized by workstream/phase (a project-plan/SOW structure), not by system, and forcing it
+  system-first would break its own narrative; `compileMSPServiceReport()`'s per-customer dashboard tally
+  (`allRisks.forEach` at what's now ~line 24607-ish) -- that's an aggregate counter into a per-customer table,
+  not an itemized list, nothing to group.
 
-**2. ASA (All-SAN Array) capacity bug, fixed (shipped, v5.6.179 then properly fixed v5.6.180).** User: no
-capacity/reporting for any ASA systems. First pass (v5.6.179) found Active IQ genuinely returns null for
-usedKiB/utilizationPercentage/rawMarketingKiB at both system and cluster level for some ASA r2 clusters, and
-shipped an honest "no capacity data" note (same pattern as StorageGRID/E-Series) instead of a misleading
-"0.0 TB / N/A" card. **The user pushed back — "i am positive that it is possible to view asa capacity in
-aiq.. there must be a way to get this" — and was right.** Ran a live GraphQL introspection against the real
-Active IQ API (`__schema` query via a one-off script reusing `server.py`'s own `_gql`/token-exchange
-functions, NOT through the app) and found: `ontapPersonality` is a real, queryable field (values `Unified` /
-`ASAR2` / `AFX`, confirmed live — casing is inconsistent between the enum's declared name `ASAR2` and the
-value the API actually returns, `ASAR2`... but written `Unified` not `UNIFIED` for the other case, so compare
-case-insensitively), and ASA r2 systems (`ontapPersonality: "ASAR2"`) have `capacity{physical{...}}` genuinely
-null but DO report capacity per LUN/namespace via `luns`/`namespaces` GQL fields the harvester queried
-`{ totalCount }` on but never fetched `capacity` for. Cross-checked the LUN `capacity.usableKiB` field against
-a working system's known-good usable capacity and confirmed it's **mislabeled — actually bytes, not KiB**
-(the KiB interpretation gave an impossible 150 PB of LUNs on a 2-node ASA-A70; the bytes interpretation gave a
-plausible ~146 TiB). Added a small standalone "ASA r2 capacity merge" GQL pass in `server.py` (~line 2036,
-same pattern as the existing `ESERIES_CAP_FIELDS`/`SHELVES_SUMMARY_FIELDS` small-query-merged-by-serial
-approach — inlining into the main query would hit Active IQ's "Maximum height (field count)" limit and
-degrade the whole harvest), scoped to `ontapPersonalities: [ASAR2]` (only ~8 systems fleet-wide, confirmed
-live, so this is cheap even unscoped by watchlist). Sums LUN+namespace usable bytes into a new
-`asaLunUsableKiB` field (kept deliberately separate from the pre-existing, still-unconfirmed `saz*` fields —
-don't conflate "LUN/namespace capacity" with "Storage Availability Zone capacity", they're different, and the
-saz* fields already had a **dead duplicate-key bug**: a second `"sazTotalRawKiB": 0` / `"sazUsedKiB": 0` later
-in the same Python dict literal silently overwrites any real value the first one sets, since Python dict
-literals are last-key-wins — left as-is since nothing sets those fields to non-zero, but do not reuse those
-field names for new data without also removing the duplicate). app.js (`enrichSystemTelemetry`, ~19038-19048,
-~19296-19312, ~19372-19383): `isASAr2` now also matches `"ASAR2"`; a new fallback fills raw/usable capacity
-from `asaLunUsableKiB` (tracked via `_asaLunFallbackUsed` so the platform note only claims "LUN/namespace
-derived" when that's actually true, not when Active IQ's own cluster-level fallback already supplied a real
-raw/usable number); `_capacityUnavailable` only stays true when there's truly nothing, not even LUN data.
-Verified with `enrichSystemTelemetry()` called directly (not the UI) against three cases: a synthetic
-genuinely-all-zero ASA r2 system (correctly shows the honest note), a synthetic zero-cluster-capacity-but-
-real-LUN-data system built from the exact live 62-LUN CLKDRNACLUS01-02 numbers (correctly derives 146.2 TB
-raw/usable with the accurate platformNote), and a real live system from a fresh harvest, serial 952541000528
-/ Dept of Home Affairs - KZN (`ontapPersonality` came back `"ASAR2"` live, 403 LUNs, `_capacityUnavailable:
-false`). Required a full `server.py` restart mid-session (killed the running PID on :8080, relaunched) since
-harvester changes don't hot-reload like app.js does.
+**Verified against real production data** (not synthetic): used the already-open browser preview
+(`localhost:8080`, real fleet, 1052 systems loaded, NOT demo mode -- this was read-only verification, no
+customer data was screenshotted or saved anywhere), selected `Customer: Liberty Group Ltd.` in the Action
+Planner's scope selector, clicked the real "Generate Operational Action Plan" button via a real DOM event, and
+confirmed via DOM inspection that all three HTML sections (Risks/Advisories/Switches) render `SYSTEM:` header
+divs with the right entries nested under each. Then monkey-patched `triggerFileDownload` (via
+`window.__dlFmtOverride='txt'` to skip the format-choice modal) to capture text instead of triggering a save
+dialog, and confirmed the actual generated text for: Security Advisories (matches the user's requested format
+exactly -- `CVE: ... [Severity: ...]` / `- Title:` / `- Mitigation:` / `- Status:`, no more Sa-Id, grouped by
+system), Prioritized Risks, Switch Validation, the TAM Success Plan's support-ticket list, and the Account
+Handover Brief's merged Recent Activity section. Also syntax-checked the whole edited `app.js` by fetching it
+fresh from the running server and running `new Function(src)` in the browser (parses without a SyntaxError --
+no Node available on this machine per the standing note below) before calling it verified.
 
-**3. Deliverable filenames standardized (shipped, v5.6.178).** User: downloaded filenames should be
-`<Document Title> - <Customer> - <DD Month YYYY>` for every deliverable, uniformly. Added
-`_dlFilename(title, scope, ext)` in `app.js` (right before `triggerFileDownload`, ~line 32780) and wired it
-into every download call site: all ~16 types in `downloadDeliverable()` (~line 32791, each with its own
-title string -- e.g. `'Executive Risk Assessment'`, `'TAM Quarterly Business Review Pack'`), the As-Built TXT
-branch of `downloadPlanSection(19)` (~line 32281), and `downloadAsBuiltXlsx()`. `cleanScope`
-(underscore-mangled name) is now unused in those spots -- left alone in `downloadPlanSection`'s other
-section indices (1-18), which still use it. Since the filename `base` string also becomes the Word title
-block via `_buildDocx()`, this fixed the in-document title to match the filename for free. Verified against
-real production data (2898 systems, real customer "Liberty Group Ltd.") by monkey-patching `_dlBlob` to
-capture names instead of triggering save dialogs -- confirmed correct output across txt/docx/md/csv/xlsx,
-e.g. `"TAM Quarterly Business Review Pack - Customer Liberty Group Ltd. - 29 September 2026.docx"`.
-`generateCVRPptx` (PPTX export, ~line 33021) was checked and confirmed to be dead code (no call sites) --
-left untouched.
+**Also resolved, incidentally:** a stale-looking bug from earlier this session (browser showed the OLD,
+pre-rewrite flat-`<div>` version of the Operations & Security scorecard's collapsible-by-category rendering,
+`_renderCheckColumn`/`_renderCheckItem` inside `renderCSMTab()`, despite the source on disk clearly containing
+the new `<details>`-based code) turned out to be a plain stale-page issue -- a fresh `location.reload()` of
+the already-open tab picked up the new code correctly (confirmed via DOM: `csmAdoptionChecklist.innerHTML`
+now contains real `<details>` elements). The earlier suspicion that `dist/app.js` / `dist/NetApp_AIQ_Advisor/
+_internal/app.js` were being served instead of the source `app.js` was checked and ruled out (`curl`'d
+`/app.js` from the running `:8080` server and diffed byte-length against the source file -- identical; the
+running `python server.py` process's cwd is the repo root, not `dist/`). The `dist/` copies WERE stale at the
+time (confirmed: they still had the pre-rewrite `_renderCheckColumn` with no `_renderCheckItem` helper), but
+that was irrelevant to what the dev-mode browser was actually loading -- it only matters for the packaged EXE,
+which the standard rebuild-and-sync step at the end of this session addressed anyway.
 
-**4. LUN/NAS SAN reporting, shipped (v5.6.181).** User, right after the ASA fix landed: wants LUN inventory
-(sizes, capacity, mappings) and NAS volume inventory built into "all existing tooling, reporting and
-deliverables", best-practice alignment, and new Action Planner sections if needed; a follow-up added "lun to
-igroups mapping, capacities, paths, best practices, multipathing etc." **Checked the live schema first (same
-introspection as the ASA fix) before committing to anything:** LUN and NAS Volume capacity both exist and are
-rich; **igroups, initiator groups, and multipathing do NOT exist anywhere in the schema** — confirmed live,
-not assumed. Asked the user via AskUserQuestion how to handle that gap and what to prioritize; they said
-proceed LUN/NAS-capacity-only, and build all three of harvester+data model, an Action Planner section, and
-deliverable integration.
-- **server.py** (~line 2131, "LUN / NAS volume inventory summary merge", same small-query-merged-by-serial
-  pattern as ESERIES_CAP_FIELDS/the ASA r2 merge): fetches `luns`/`storageVolumes` (pageSize 50 each, capped
-  to bound cost — `lunFetchTruncated`/`volumeFetchTruncated` flag when a system has more than that) for every
-  ONTAP system across the configured watchlists, and computes per-system LUN count/capacity, volume
-  count/capacity, thin-provisioning count, zero-efficiency count, high-snapshot count, and protocol mix, into
-  a new `lunVolumeSummary` field.
-  **Caught a second units bug before shipping** (same class as the LUN `usableKiB` mislabeling from the ASA
-  fix): Volume `capacity.sizeKB`/`availableKB`/`usedSnapshotsKiB` are ALSO mislabeled — actually bytes, not
-  KB. Caught by a sanity check on real data: one system's raw sum implied a single 420 TiB NAS volume on a
-  cluster with 2.4 PB raw capacity total — divided by 1024 (treating as bytes) it became a plausible ~420 GiB
-  volume, and the system's total volume footprint dropped from 72x its raw cluster capacity to a sane ~7%.
-  Fixed before shipping (server.py now divides by 1024 when reading these three fields).
-- **app.js**: `_sanNasStorageSummary(systems)` (~line 26316, right before `_dfActionPlan`) aggregates
-  `lunVolumeSummary` across a scope into totals + best-practice findings (thin-provisioning adoption rate,
-  volumes with 0% measured data-reduction, volumes with snapshot reserve over 30% of used capacity).
-  `enrichSystemTelemetry` passes `lunVolumeSummary` through unchanged (~line 20547).
-- **Action Planner**: new section 25, "SAN & NAS Storage" (tab button + `_renderSanNasStorageSection`,
-  ~line 29313) — KPI tiles, best-practice findings, per-system inventory table (capped to top 50 by capacity).
-- **Deliverables**: new per-system "LUN & Volume Inventory" subsection in the As-Built Configuration Document
-  (`_renderAsBuiltSection`, inserted after the existing VMware Integration subsection) — this section's DOM
-  content is what `downloadPlanSection(19)` reads for txt/docx export, so it flows into that download for free.
-- **Verified**: `enrichSystemTelemetry()` called directly (not the UI) with a synthetic system built from the
-  corrected real numbers (405 volumes, 165.3 TB total vs. 2403 TB raw cluster capacity) produces sane
-  aggregate stats and the two expected best-practice findings. The Action Planner tab was verified via real
-  DOM events (`.click()` on the actual tab-nav button, not `switchPlanTab()` called directly) rendering the
-  empty-state correctly for a scope with no data.
-  **Follow-up (resolved): the "harvest-cache staleness" gap above was not a real bug.** Multi-account setup
-  (`aiq_config.json` has an `accounts` array with two real accounts, "Sithabile" and "NetApp" — `_sync_all_accounts`
-  harvests each sequentially via `_do_full_harvest(account=...)`, ~15-20+ seconds just for token exchange +
-  per-watchlist paging, ~110s total for one account in this fleet). My verification fetch ran immediately
-  after clicking the sync button, before the background harvest had actually finished and called
-  `_save_harvest_account` — so it read the previous (pre-fix) cached blob, which looked like staleness but was
-  just impatience. Confirmed by: (1) reading the raw SQLite row (`harvest_cache_accounts`, `result_json` column)
-  directly — already had the correct, fixed value; (2) calling `_get_merged_harvest(db)` directly in a fresh
-  Python process — also correct; (3) re-fetching `/api/harvest` from the browser after the harvest genuinely
-  finished (watch for `[HARVEST] Done in ...ms` in the server log, or poll `/api/sync-status` until
-  `isSyncing: false`, before trusting any `/api/harvest` read) — 165.3 TB, sane. Also verified the Action
-  Planner section itself end-to-end via real DOM events (real `.click()` on the tab-nav button and the actual
-  customer-select dropdown, not calling `switchPlanTab()`/`generateActionPlan()`'s internals directly) against
-  the real "Dept of Home Affairs - KZN" scope: 669.2 TB LUN / 282.2 TB volume capacity across 4 systems, with
-  the two expected best-practice findings rendering correctly. No code change was needed for this follow-up —
-  **lesson for next session: after triggering a sync (`triggerManualSync()` or `/api/harvest?force=1`), always
-  wait for the harvest to actually complete (poll `/api/sync-status` or grep the server log for "Done in") before
-  reading `/api/harvest` to verify a fix — a premature read looks exactly like stale/broken caching.**
+**Git:** branch `main`. v5.6.192 committed after this session's work (app.js, CHANGELOG.md, version.json,
+CLAUDE.md, and the synced `dist/app.js` + `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe`). Exe rebuilt via
+PyInstaller (`build/AIQscraper.spec`, note the spec lives under `build/`, not the repo root) to
+`%LOCALAPPDATA%\Temp\aiqbuild192`, never `build/build_windows.bat`. No `server.py` or HTML changes this
+session, so only `app.js` + the exe + `base_library.zip` needed re-syncing into `dist/`.
 
-**5. Feature Adoption Score extended (shipped, v5.6.182).** User asked how dedup/data-reduction applies to
-ASA (answered: same real ONTAP efficiency engine as AFF for classic ASA, confirmed live at `1.3:1` on a real
-ASA-A800; ASA r2 has no measured ratio available from Active IQ at all right now, only NetApp's marketed 4:1
-guarantee, which the app already labels as a guarantee not a measurement). That prompted a look at the
-Success Plan checklist screenshot (Operations & Security / Data Protection & Lifecycle, `_leftChecks`/
-`_rightChecks` in `renderCSMTab()` ~line 17010-17046) — agreed two new SAN/NAS checks were worth adding
-(thin-provisioning adoption, volume efficiency) but explicitly **rolled into `computeFeatureAdoptionScore()`**
-(~line 18582) rather than added as new standalone checklist rows, since the user flagged the checklist as
-already dense — see point 6 below for the follow-on plan on that. Verified against real data (serial
-952541000528): total checks 4→6, both new ones correctly fail (0% thin-provisioned, 404/405 volumes with no
-measured efficiency), no crash.
-
-**6. Scorecard density — plan requested, NOT drafted yet.** User: "the scorecard is getting pretty dense....
-make a plan about that", referring to the same Operations & Security / Data Protection & Lifecycle checklist
-(`_leftChecks`/`_rightChecks` inside `renderCSMTab()`, rendered by `_renderCheckColumn()`, ~lines 17010-17070,
-13 rows in the left column alone). **This was interrupted before a plan was actually produced** -- the very
-next user messages redirected to the Action Planner download-button change (point 7 below) and the session
-ended there. Next session: this still needs a real plan (ideas worth considering: collapsible categories,
-promoting only failing/at-risk items to a "needs attention" view with the rest collapsed, splitting into a
-tab of its own instead of two dense columns on the Success Plan page, or merging near-duplicate checks the
-way Feature Adoption absorption just did) -- don't assume any direction was chosen.
-
-**7. Action Plan download button (shipped, v5.6.183).** User: change the Action Planner's "Print / Save Action
-Plan (PDF)" button to the standard txt/md/docx dialog, then "in fact, make that the default" (replace the
-print behavior entirely, not add an option alongside it). Added `downloadFullActionPlan()` (app.js, right
-before where `printActionPlan()` used to be, ~line 34080): walks every `.plan-section` child of
-`#generatedPlanBody` (whatever's currently generated, all tabs/sections at once), swaps textarea values into
-their text (same trick the old print function used, since `.innerText` doesn't reflect a textarea's live
-value), strips buttons/selects, and feeds the combined Markdown-ish text through the existing `_askFormat()` +
-`triggerFileDownload()` pipeline every other deliverable uses. **Deleted `printActionPlan()` entirely** (was
-~90 lines building a standalone print-window HTML/CSS document) since nothing referenced it anymore after the
-button's `onclick` changed -- confirmed via grep across app.js/index.html/index_src.html before removing.
-Button relabelled "⬇ Download Action Plan" in **both** `index.html` and `index_src.html` (per the standing
-HTML-dual-file rule). Verified via real DOM events: clicked the actual button, confirmed the format dialog
-opened with txt/md/docx options, clicked the docx option for real, and confirmed a real 210KB .docx blob built
-with the correct `<Title> - <Scope> - <Date>` filename (monkey-patched `_dlBlob` to capture instead of
-triggering a save dialog, same technique as the earlier filename-standardization verification).
-
-**8. LUN/volume data missing for one account -- real bug, found via the user's live debugging (shipped,
-v5.6.184).** User reported the new SAN & NAS Storage tab (point 7's sibling feature, shipped v5.6.181) showed
-nothing, even after a relaunch and manual sync. Traced live, with the user relaunching their own app instance
-while I inspected the same `aiq_cache.db` this session's dev server also uses:
-- Root cause, confirmed live: the "NetApp" account (918 of this fleet's 1083 systems -- the majority) lacks
-  Active IQ's `unfiltered_system_access` privilege. Both the v5.6.180 ASA r2 merge and the v5.6.181 LUN/volume
-  merge queried `systems(...)` with no `watchlistId` argument at all, which the API flatly rejects for that
-  account: `"At least one mandatory argument is required for users without the unfiltered_system_access
-  privilege"`. Both merges swallowed this (checked for exceptions, not GraphQL `errors` in a 200 response) and
-  silently produced 0 hits every harvest since those features shipped -- no error surfaced anywhere, which is
-  exactly why it looked like a caching/staleness issue at first rather than a real gap.
-- The main system harvest already had a working fallback for this (REST-based watchlist auto-discovery,
-  `_early_watchlists`, populated near the top of `_do_full_harvest` at ~line 1828) -- neither of my two merges
-  reused it.
-- **First fix attempt was wrong and made the privileged account (Sithabile) WORSE**: unconditionally preferring
-  `_early_watchlists` whenever `watchlist_ids` was empty dropped Sithabile's LUN/volume hits from 143 to 24,
-  because `_early_watchlists` is auto-discovered from a different, incomplete source (4 watchlists / 27
-  systems) than what that account's unfiltered query actually covers (165 systems, since it DOES have the
-  privilege). Caught by re-running the fix and comparing hit counts before/after, not assumed correct on the
-  first pass.
-- **Correct fix**: both merges now try unfiltered first (one cheap query, correct for privileged accounts)
-  and only fall back to per-watchlist scoping via `_early_watchlists` on an actual privilege-error response
-  (checked via the same `_PRIVILEGE_PHRASES` tuple the main harvest's `_fetch_systems_for_scope` already uses,
-  ~line 1870). The ASA r2 merge (raw `_gql` calls, not `_fetch_systems_for_scope`) got its own small
-  `_asar2_fetch_scope()` helper that returns `(rows, privilege_blocked)` to mirror the same pattern.
-- Verified live end-to-end, twice (first attempt's regression caught and fixed before shipping): after the
-  correct fix, a fresh multi-account sync gave Sithabile 143/165 (restored) and NetApp 703/918 (was 0) systems
-  with LUN/volume data; `/api/harvest` merged total 846/1083. **Re-hit the same "read /api/harvest before the
-  harvest actually finished" trap from point 2 one more time while verifying this** -- worth internalizing as
-  a real recurring hazard in this codebase's multi-account setup (NetApp's harvest alone took ~300s), not
-  re-documenting as if new each time.
-
-Also shipped in v5.6.184, smaller and unrelated:
-- **Action Plan download formatting** (user: "make the action plan docx formatting match the formatting of
-  all the other deliverables"): `downloadFullActionPlan()` (point 7) was extracting `.innerText` from each
-  section, which flattens tables/lists/headings to unstructured text. Added `_domToMarkdown(root, headingLevel)`
-  (app.js, right before `downloadFullActionPlan()`): walks the cloned section DOM and emits real Markdown --
-  `<table>` -> pipe table, `<ul>/<ol>` -> `-`/`1.` lists, `<h1-6>`/`<details><summary>` -> `#`-headings,
-  `<textarea>` -> its live value -- so `_dxParse()`'s markdown mode (triggered by the `# ` the text already
-  starts with) renders real Word tables/bullets/headings instead of squashed paragraphs. Caught and worked
-  around a real hazard while verifying: generating this for the "Total Portfolio" (all 1052+ systems) scope
-  produced a 48 MB Markdown string / 351 MB claimed blob size, because the As-Built section's DOM for that
-  scope is already ~144 MB of HTML (a full per-system detail card for every system at once) -- pre-existing to
-  this session's change, not something `_domToMarkdown` introduced (its output is smaller than the raw
-  innerText/HTML, not larger). Verified instead against a realistic single-customer scope (413 KB text, 2.3 MB
-  docx) -- this whole-plan download is not really usable at true fleet-wide "ALL" scope and that's a
-  pre-existing limitation of the As-Built section's rendering approach, not something fixed this session.
-- **Word palette lightened** (user, twice, converging on "just a tick lighter"): `_DX.NAVY`/`_DX.ACC`
-  (app.js ~line 33394) went from `1F3864`/`2E5597` to `2A4D82`/`3D6BB3` -- affects every deliverable's Word
-  export (heading text color, solid-fill card title bars and table header rows, all white-text-on-fill so kept
-  dark enough for contrast).
-
-**9. Word document column-table audit (shipped, v5.6.185).** User, after seeing the Feature Adoption Scorecard
-corruption fixed: "recheck the rendering and formatting of ALL the documents downloadable as docx... make sure
-there is none of this nonsense going forward." Delegated to a background `general-purpose` agent with a very
-precise brief (the exact bug shape: a plain-text table with a header + a `_dxSegRule`-style segmented
-box-drawing-dash rule line, then a data row whose interpolated value has variable character width followed by
-more literal/interpolated content on the same line -- `_dxParse`'s column cutter reads boundaries from the
-rule line's dash-segment positions, so anything after a variable-width value silently shifts per row).
-Found and fixed three more real instances beyond the one already fixed this session: MSP Service Report's
-per-customer health dashboard (`compileMSPServiceReport`, an operator-precedence bug --
-`String(asupP)+'%'.padEnd(7)` only pads the literal `'%'`, not the combined value, because `.padEnd()` binds
-tighter than `+`), the Security Posture Brief's Feature Gap Matrix (`_fGap`/`_fRatio` helpers sitting unused
-right above the bug -- looked like a prior half-finished fix attempt, left the dead helpers alone since wiring
-them up wasn't in scope), and the Sustainability Report's per-system trend column. Grepped the whole file for
-the same `X + '...'.padEnd(n)` precedence anti-pattern afterward -- no further instances. Left several
-similar-looking tables alone after confirming they're NOT at risk (already use `.padEnd()` correctly, or use a
-single unbroken dash rule / dynamic-width split that tolerates variable content) -- see the agent's full report
-in this session's transcript if auditing further. **Only checked plain-text/Markdown table alignment** -- did
-not re-verify every deliverable's visual layout in an actual generated Word document end-to-end; if the user
-finds more corruption, it's a different bug class, not this one recurring.
-
-**10. Snapshot best-practice reporting + narrative integration across every deliverable (shipped, v5.6.186).**
-User: "also look at snapshots... align with best practices, and look for, for example, snapshots that are
-stale, large, etc." Same discipline as the LUN/NAS work: checked the live GraphQL schema first (same
-`__schema` introspection, one-off script reusing `server.py`'s `_gql`/token-exchange) before writing anything.
-**Confirmed live: there is no per-snapshot object anywhere in the schema** (no name, creation date, or lock
-state per snapshot) -- only two volume-level aggregates, `snapshotCount` and `snapshotReserveUsedPercentage`
-(the latter confirmed live to exceed 100% on real data -- 299% on one volume, meaning snapshots had overflowed
-the reserve and were consuming active/user data capacity). So **age-based "stale snapshot" detection is not
-possible from this API** -- flagged this to the user via AskUserQuestion before building anything; they said
-build what's real and label the gap clearly, fold into the existing SAN & NAS Storage section rather than a
-new tab. Added both fields to `LUN_VOLUME_FIELDS` (server.py) and to `_lv_by_serial`'s per-system summary
-(`volumeSnapshotReserveOverflowCount`, `volumeSnapshotCountTotal`); `_sanNasStorageSummary()` (app.js) now
-surfaces a reserve-overflow finding (checked first, most urgent) alongside the existing thin-provisioning/
-efficiency ones. Also relabelled "LUN/Volume Capacity" to "LUN/Volume Provisioned" with an explanatory note,
-per the user's question about what those columns actually meant (they're configured/usable size, not bytes
-written -- thin-provisioned objects can hold far less).
-
-User then asked, in three escalating messages, to (a) "update ALL of the deliverables to reflect the new
-values... how it plays into the narrative" and (b) "make sure that everything from today, and all previous
-deliverables are aligned and explained in compliance with best practice". Delegated both to a single
-background agent (general-purpose) with a precise brief: integrate `_sanNasStorageSummary()` into every
-`compile*` deliverable function proportionate to that document's purpose (a scorecard row for documents that
-already have one, prose for executive-audience documents, risk bullets for risk-focused documents), guard
-every integration point on `null`/empty `findings` so it degrades gracefully, and do a consistency pass on
-terminology and on today's earlier additions (ASA r2 capacity notes, the column-alignment fixes). It touched
-9 deliverable compilers: `compileCustomerSuccessPlanText` (TAM Success Plan), `compileMSPServiceReport`,
-`compileRiskRemediationBrief`, `compileAccountHandoverBrief`, `compileSecurityBrief` (framed snapshot overflow
-as a data-protection/recovery-point risk -- a genuinely different angle than the capacity framing elsewhere,
-not a copy-paste), `compileSustainabilityReport` (thin-provisioning's physical-footprint angle only, didn't
-force an ESG framing that doesn't fit), `compileValueReport`, `compileCustomerReport`, and
-`compileExtendedDeliverables` (which itself contains QBR Pack, Executive Risk Assessment, Technical Solution
-Proposal, and Sales Proposal -- four more touch points inside one function). Deliberately left
-`compileSvmLifSummaryText`/`compilePerformanceText` untouched (no natural SAN/NAS tie-in) and did not
-restructure the per-risk-driven Customer Communications/Change Control Ticket sections (would have gone beyond
-a surgical integration).
-**Verified, not just trusted the agent's report:** reviewed the full diff personally, confirmed every touched
-function still parses (`typeof fn === 'function'` on all of them post-reload), then called four of the nine
-directly with real data and real arguments (had to look up each function's actual parameter order first --
-`compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targetSystems, expiringContracts,
-allSupportCases, fw)`, `compileMSPServiceReport`/`compileSecurityBrief(targetSystems, allRisks,
-expiringContracts, allSupportCases, scopeTitle, fw)` -- calling with guessed/wrong argument order or count is
-exactly the kind of thing that looks like a bug in the new code but isn't): confirmed real SAN/NAS text renders
-for a data-bearing scope, confirmed the `N/A` fallback renders cleanly for a no-data scope, confirmed a
-zero-overflow scope correctly omits the Security Brief's snapshot-risk line entirely rather than printing an
-empty one. Also re-confirmed the server-side snapshot fields end-to-end against a live re-harvest (both
-accounts; a real system showed `volumeSnapshotReserveOverflowCount: 5`, `volumeSnapshotCountTotal: 11135`) by
-reading the raw SQLite row directly, not just trusting the harvest log line.
-
-**11. Cross-customer name leak in exportable deliverables -- real security bug, fixed (shipped, v5.6.187).**
-User screenshotted the MSP/Security Brief's "Portfolio Exposure" section naming OTHER real customers
-("AfroCentric Group" document listing "Airtel Tanzania, Allan Gray Ltd., Bharti Airtel Ltd." as other accounts
-sharing a CVE), said "remove this from the deliverables, and only present it in the GUI", then broadened to
-"remove all information related to other customers in the customer deliverables". Found and initially removed
-THREE cross-customer name leaks in exportable text (all fed by `state.systems` reaching outside the current
-scope, not just `targetSystems`): `_dfPortfolioCveExposureText()` (called from the MSP Service Report AND the
-Security Posture Brief) and an inline "PORTFOLIO REFRESH OVERLAP" block in the Sales Proposal
-(`_dfPortfolioEosOverlap()`). **User then refined the instruction**: don't remove the insight entirely, keep
-a count-only version ("state that a CVE is impacting X number of other monitored customers, without naming
-them"). Re-added all three call sites with names stripped -- `_dfPortfolioCveExposureText()` and the EOS
-overlap block now say "N other monitored customers" with no name list. Verified live: generated a real MSP
-report and confirmed zero real customer names appear in ~600 chars around "Portfolio Exposure" while the counts
-still show correctly (117 CVEs, 48 other customers, etc.). **The GUI's own Portfolio Dashboard tab and
-Security tab's Portfolio Exposure table are untouched and still show full names** -- confirmed via
-`_dfPortfolioCveExposure()` (the shared data function, still called directly by both the removed-then-readded
-text helper AND the HTML render at ~line 31737) still returning full customer-name data; only the
-text-compiling wrapper strips names. `_dfPortfolioBenchmark()` (SLA-rate benchmarking against the rest of the
-portfolio) was checked and left alone -- it only ever returns aggregate percentages/counts, never a customer
-name, so it was never a leak. **Not exhaustively re-audited beyond these three** -- if the user finds another
-deliverable naming another customer, treat it as a new instance of the same bug class (reaches into
-`state.systems`/`allSystems` beyond the current scope's `targetSystems`), not assume this pass caught
-everything.
-
-**12. IMT system-name bug, `_fleetSignals` undercounting, and one more table-alignment bug (shipped, v5.6.187).**
-Same screenshot-driven session: user flagged an "Interoperability Validation (IMT)" section showing a raw
-serial number ("90820130000000001272: ONTAP 9.12.1 is below minimum...") instead of a system name, plus
-"Integrations Checked: 0" despite two real findings existing. Root causes, both confirmed live: (1)
-`runIMTInteropCheck()` (app.js ~line 14091) read `sys.hostname`, a field that doesn't exist anywhere in this
-app's system objects (confirmed via grep -- the only `hostname` in the whole file is `window.location.hostname`,
-unrelated) -- fixed to `sys.systemName`. For the SPECIFIC system in the screenshot this makes no visible
-difference (its real Active IQ systemName genuinely IS the numeric string -- confirmed live, no friendly
-hostname was ever set for it in Active IQ), but the fix is real and matters for every other system with an
-actual name. (2) `_fleetSignals` (the object "Integrations Checked" counts from) was only ever populated by
-the ad-hoc vSphere/vCenter detection loop; the broader switch-vendor detection from `_buildDetectedSignals()`
-(cisco_san/brocade_fc/broadcom_eth) was used to gate `runIMTInteropCheck()` internally but never written back
-onto `_fleetSignals` -- fixed by merging `_buildDetectedSignals()`'s output into `_fleetSignals` before the
-count is read. Verified live: a real scope with 2 Cisco SAN switch findings now shows "Integrations Checked: 1"
-(was 0). Also fixed a third instance of the column-table-misalignment bug class (v5.6.185's pass didn't reach
-it): the Executive Risk Assessment's "RISK SUMMARY" packed multiple metrics onto single lines (`Critical: 0
-High: 28 Medium: 42 Low: 0`), which rendered as a run-on bold-label paragraph, not a table, in the exported
-Word document. Added `_dfTable(headers, rows)` (app.js, right after `_dfPlural`, ~line 26199) -- a small
-shared table-builder that computes every column's width from the actual header/cell content instead of a
-hand-counted rule line, which removes the whole "hardcoded width didn't match a variable-length value" bug
-class for anything built with it going forward, not just this one instance. Verified the parser actually
-treats the output as a real table block (`_dxParse(...).blocks.filter(b => b.t === 'table')`), not just that
-the text looks aligned.
-**A background agent was mid-task on a broader sweep for the same "multi-metric line" pattern across every
-other deliverable when it hit a weekly API rate limit and failed (no partial edits landed, confirmed via git
-diff before proceeding).** User then said "finish all outstanding and incomplete tasks" -- did the sweep
-directly instead of re-delegating (grepped for `Label: ${...}` pairs separated by 2+ literal spaces across the
-whole file, ~25 hits). **Judgment call, not exhaustive**: only converted the ones matching the SAME pattern as
-the confirmed bug -- a same-type severity/count breakdown clearly meant to read as a small stat grid (Critical/
-High/Medium(/Low), 3-4 items) -- into real tables via `_dfTable()`. Left alone every 2-item "Label: X | Label2:
-Y" prose line (Fleet Avg Utilization %, Customer/Date headers, Account/TAM lines, etc.) -- those are single
-facts in a sentence, not a grid, and forcing them into tiny tables would make those documents worse, not
-better. Fixed (v5.6.188): TAM Success Plan's Risk Posture Summary (`compileCustomerSuccessPlanText`), QBR
-Pack's Risk Posture section (`compileQBRPack`), Technical Solution Proposal's Finding Breakdown (inside
-`compileExtendedDeliverables`). Verified each parses as a real `_dxParse(...)` table block, not just that the
-text looks aligned. **If another squished-metrics-grid line turns up later, it's the same bug class and the
-fix is the same one-line `_dfTable(...)` swap** -- but don't assume every "X: ... | Y: ..." line in this
-codebase is broken; most of the remaining ones are fine as prose by design.
-
-Also checked the `.gitignore` `aiq_config.json$` bug flagged early in this engagement's history: **already
-fixed** (no trailing `$` in the current file, confirmed via `git log -- .gitignore` showing a real fix
-committed at v5.6.50, well before this session) -- nothing to do here, the earlier handoff note describing it
-as still-broken was stale.
-
-**13. "Open Support Cases" was always the total, not open (shipped, v5.6.189).** User: "how is it possible
-that support cases have dropped to 0? i need to see at least open vs closed cases" -- prompted by MY OWN
-v5.6.187 Risk Summary table fix making a pre-existing bug suddenly visible/obviously-wrong. Root cause,
-confirmed live: `filterActiveCases()` tags every case `._isActive`/`._isClosed` but never removes anything
-from the array, and every deliverable's "Open Support Cases: ${allSupportCases.length}" read the raw array
-length (open + closed + cancelled) -- the GUI's own Support Cases tab already did this correctly
-(`allSupportCases.filter(c => c._isActive).length` alongside the total, app.js ~31558) but the deliverable
-text never matched it. Added `_dfCaseCounts(cases)` (app.js, right after `_dfPlural`) and fixed every instance
-across `compileCustomerSuccessPlanText`, `compileQBRPack`, `compileExtendedDeliverables` (Executive Risk
-Assessment, Technical Solution Proposal x2, and a "OPEN CASES:" listing that was listing every case ever
-raised, not just open ones), the Risk & Compliance Posture section, and `downloadPlanSection`'s Executive
-Summary. Verified live: a real customer with 18 historical cases (17 Closed, 1 Cancelled) now correctly shows
-"0 open, 18 closed (18 total)" instead of the old "Open Support Cases: 18".
-
-**14. Security Fix Floor + Customer Qualified Version (CQV) conflict detection (shipped, v5.6.190).** User
-asked how a customer running an N-1 (or any fixed) software strategy flags their qualified version and gets
-reporting to respect it, using a real screenshot of the existing "Set as Qualified Version (CQV) in AIQ"
-button (`updateQualifiedVersionInAIQ()`, app.js ~9874 -- a real GraphQL mutation writing back to the
-customer's live Active IQ account, already built, pre-dates this session). Confirmed: general upgrade
-recommendations already pull from Active IQ's own `recommendedOSVersion`/`swRecMin` fields (not an
-independently computed target), so once a TAM sets CQV in Active IQ, those should already respect it on the
-next harvest -- no code change needed there. **The actual gap**: `s.swCQV` (the CQV value, already harvested)
-never appeared in any deliverable narrative, only as a raw status field in the As-Built table, and there was
-no way to see whether a customer's locked-in CQV conflicted with what a critical/high CVE actually requires.
-User's follow-up: "the interface and deliverables should mention the 'fixed in' statement, to show which is
-the minimum version required to fix the most critical and high risks." Added `_dfCriticalHighFixFloor(sys)`
-and `_dfCriticalHighFixFloorSummary(systems)` (app.js, right after `_dfMinFixLines`) -- reuses the EXISTING
-`_dfFixedReleases()` (already powers the Security Brief's per-CVE "Fixed In" line) scanned across every
-critical/high CVE on a system, taking the HIGHEST required version across all of them (being fixed for one
-CVE doesn't help if another needs a later release), then cross-checks that floor against `s.swCQV`. New
-"SECURITY FIX FLOOR" section added to the Executive Risk Assessment and TAM Success Plan. Verified live
-against a real account (Allan Gray Ltd.): 12 systems below their fix floor (all requiring 9.19.1), 6 with a
-CQV set, **all 6 in genuine conflict** (CQV 9.16.1P10 vs required 9.19.1) -- and verified the null/no-data case
-(a synthetic clean system) produces no section at all, no `undefined`/`NaN` leakage. **Not done**: did NOT
-change the GUI's "Min. Required (To Fix)" card (app.js ~32014) -- confirmed live that its `minVer` comes from
-`u.targetVersion` (the general Active-IQ-recommended target), not this new critical/high-specific floor, so
-the card's own label is arguably a slight misnomer, but changing its data source was out of scope for this
-pass (that value feeds other things too; swapping it needs its own careful look, not a drive-by change).
-Next session: consider whether that GUI card should show the critical/high fix floor instead of/alongside the
-general recommendation, and whether the CQV conflict should surface directly on that card (next to the
-"Set as Qualified Version" button) rather than only in the two deliverables.
-
-**Git:** branch `main`, v5.6.178 through v5.6.190 committed and pushed individually (exe rebuilt each time via
-PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild190`, synced into `dist/NetApp_AIQ_Advisor/` +
-`dist/app.js`; v5.6.180-181 and v5.6.184 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
-harvester; v5.6.183 also synced `dist/NetApp_AIQ_Advisor/_internal/index.html` since that's the first fix this
-session that touched HTML). Working tree otherwise shows harvest data files modified by the running server
-(`data/*.json`) and untracked docs images -- never commit those with code changes.
-
-**Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir, never
-`build/build_windows.bat` -- destructive). Server.py changes need an actual server restart -- app.js is
-served fresh on every page load and needs neither. **HTML changes must land in both `index.html` and
-`index_src.html`.** **Verify UI wiring with a real DOM event**, never a direct function call. **Any hand-rolled
-OOXML (docx/xlsx) change must be validated by reproducing the file structure in Python and loading it with
-`python-docx`/`openpyxl`** (installed via pip, not present by default) **before calling it verified.**
-**Any screenshot of this app for documentation must block `/api/**` (or otherwise force demo mode) and verify
-the resulting system count before saving** -- the app's default loaded state is the real fleet, not demo data.
+**Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir via
+`build/AIQscraper.spec`, never `build/build_windows.bat` -- destructive). Server.py changes need an actual
+server restart -- app.js is served fresh on every page load and needs neither. **HTML changes must land in
+both `index.html` and `index_src.html`.** **Verify UI wiring with a real DOM event**, never a direct function
+call. **Any hand-rolled OOXML (docx/xlsx) change must be validated by reproducing the file structure in Python
+and loading it with `python-docx`/`openpyxl`** (installed via pip, not present by default) **before calling it
+verified.** **Any screenshot of this app for documentation must block `/api/**` (or otherwise force demo mode)
+and verify the resulting system count before saving** -- the app's default loaded state is the real fleet, not
+demo data. **No Node.js on this machine** -- to syntax-check a JS edit, fetch the live-served `app.js` in the
+browser preview and run `new Function(src)` (throws `SyntaxError` on a real parse error, and since it's never
+called, nothing in the file actually executes).

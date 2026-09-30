@@ -27,9 +27,40 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.190";
+const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.192",
+    date: "30 September 2026",
+    title: "Deliverables Now Group Findings by System, Not in One Flat List",
+    sections: [
+      {
+        icon: "📄",
+        label: "Changed -- See Everything for One System Before the Next One Starts",
+        color: "#3b82f6",
+        items: [
+          "The Security Advisories, Prioritized Risks, and Switch Validation reports (both the quick-download TXT files and the Action Planner's own tabs) used to list every finding fleet-wide in one flat sequence, so two entries for the same system could be pages apart. They're now grouped under a 'SYSTEM: <name>' header, one system at a time. The Security Advisories report also dropped the internal 'SA-ID' label in favor of the CVE number itself.",
+          "The TAM Success Plan's active support tickets list and the Account Handover Brief's 'Recent Activity' section (previously three separate lists -- open cases, pending upgrades, active field actions) are grouped the same way.",
+        ],
+      },
+    ],
+  },
+  {
+    version: "5.6.191",
+    date: "30 September 2026",
+    title: "Security Fix Floor Now Also Shown Directly on the OS Upgrade Card",
+    sections: [
+      {
+        icon: "📄",
+        label: "Added -- The OS Upgrades Tab Now Shows When Active IQ's Recommendation Understates What's Actually Needed",
+        color: "#3b82f6",
+        items: [
+          "The OS Upgrade Roadmap card's 'Min. Required (To Fix)' figure is Active IQ's general recommended target, which is a different signal from 'the version needed to clear every critical/high CVE on this system' -- confirmed live the two can genuinely disagree (one real system showed a general recommendation of 9.16.1P15 while its actual critical/high CVEs required 9.19.1). Each upgrade card now shows the real Security Fix Floor alongside the existing recommendation, and flags by name when the customer's Qualified Version (CQV) sits below it -- so setting a CQV never silently hides an unresolved critical/high finding.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.190",
     date: "30 September 2026",
@@ -17209,31 +17240,29 @@ function renderCSMTab() {
     ];
 
     // ── Render helper ───────────────────────────────────────────────────────
-    function _renderCheckColumn(checks, n) {
-      let html = '';
-      checks.forEach(item => {
-        // Category header
-        if (item.cat) {
-          html += `<div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);padding:8px 10px 3px;border-top:1px solid rgba(129,140,248,0.12);margin-top:2px;opacity:0.7;">${item.cat}</div>`;
-        }
-        // total = systems this check applies to (ONTAP-only checks exclude
-        // E-Series/StorageGRID); 0 applicable => N/A, never a fake pass/fail.
-        const _tot = item.total != null ? item.total : n;
-        if (_tot === 0) {
-          html += `
+    // Renders one check row (unchanged from before the category-collapse pass below).
+    function _renderCheckItem(item, n) {
+      // total = systems this check applies to (ONTAP-only checks exclude
+      // E-Series/StorageGRID); 0 applicable => N/A, never a fake pass/fail.
+      const _tot = item.total != null ? item.total : n;
+      if (_tot === 0) {
+        return {
+          html: `
           <div style="padding: 6px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color); opacity: 0.6;"${item.tip ? ` title="${_esc(item.tip)}"` : ''}>
             <div style="display: flex; align-items: center; justify-content: space-between;">
               <span style="font-size: 0.78rem;">${item.name}</span>
               <span style="font-size: 0.72rem; font-weight: 600; color: var(--text-muted); white-space: nowrap; margin-left: 8px;">N/A</span>
             </div>
             <div style="font-size: 0.68rem; color: var(--text-muted); margin-top: 2px;">Not applicable to the platforms in this scope</div>
-          </div>`;
-          return;
-        }
-        const _allDone = item.completedCount === _tot;
-        const _col = _allDone ? 'var(--status-normal)' : item.completedCount === 0 ? 'var(--status-critical)' : 'var(--status-warning)';
-        const _pct = Math.round((item.completedCount / Math.max(_tot, 1)) * 100);
-        html += `
+          </div>`,
+          status: 'na',
+        };
+      }
+      const _allDone = item.completedCount === _tot;
+      const status = _allDone ? 'pass' : item.completedCount === 0 ? 'fail' : 'warn';
+      const _col = _allDone ? 'var(--status-normal)' : item.completedCount === 0 ? 'var(--status-critical)' : 'var(--status-warning)';
+      const _pct = Math.round((item.completedCount / Math.max(_tot, 1)) * 100);
+      const html = `
           <div style="padding: 6px 10px; background: rgba(255,255,255,0.01); border-bottom: 1px solid var(--border-color);"${item.tip ? ` title="${_esc(item.tip)}"` : ''}>
             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: ${item.detail ? 3 : 2}px;">
               <span style="font-size: 0.78rem;${item.tip ? ' cursor: help; border-bottom: 1px dotted var(--text-muted);' : ''}">${item.name}</span>
@@ -17245,8 +17274,38 @@ function renderCSMTab() {
             </div>
           </div>
         `;
+      return { html, status };
+    }
+    // Groups the flat checklist into its existing `cat` sections and renders each as
+    // a collapsible <details> -- a category with everything passing (or N/A) starts
+    // collapsed with just a pass-count badge; a category with any fail/warning starts
+    // open. Requested by the user: the flat 13+10-row checklist was "getting pretty
+    // dense" with no way to see what needs attention without reading every row --
+    // this surfaces failures first without hiding or removing any data (every row and
+    // its tooltip/detail text is identical to before, just grouped and collapsible).
+    function _renderCheckColumn(checks, n) {
+      const groups = [];
+      checks.forEach(item => {
+        if (item.cat || !groups.length) groups.push({ cat: item.cat || '', items: [] });
+        groups[groups.length - 1].items.push(item);
       });
-      return html;
+      return groups.map(g => {
+        const rendered = g.items.map(item => _renderCheckItem(item, n));
+        const failCount = rendered.filter(r => r.status === 'fail' || r.status === 'warn').length;
+        const passCount = rendered.filter(r => r.status === 'pass').length;
+        const naCount = rendered.filter(r => r.status === 'na').length;
+        const open = failCount > 0;
+        const badgeColor = failCount > 0 ? 'var(--status-warning)' : 'var(--status-normal)';
+        const badgeText = failCount > 0 ? `${failCount} need${failCount === 1 ? 's' : ''} attention` : (naCount === rendered.length ? 'N/A' : `${passCount}/${rendered.length} ✓`);
+        return `
+          <details${open ? ' open' : ''} style="border-top:1px solid rgba(129,140,248,0.12); margin-top:2px;">
+            <summary style="cursor:pointer; display:flex; align-items:center; justify-content:space-between; padding:8px 10px 3px; list-style:none;">
+              <span style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);opacity:0.7;">${g.cat || ' '}</span>
+              <span style="font-size:0.68rem; font-weight:600; color:${badgeColor};">${badgeText}</span>
+            </summary>
+            ${rendered.map(r => r.html).join('')}
+          </details>`;
+      }).join('');
     }
 
     const _leftPassTotal  = _leftChecks.reduce((s, c) => s + c.completedCount, 0);
@@ -23685,11 +23744,18 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
     return `- Upgrade ${u.systemName} (${u.platform || u.model || ''}) from ${u.currentVersion || "current"} to ${u.targetVersion} (${u.urgency})\n     -> Benefit: ${u.benefits}${hopDetails}`;
   }).join("\n");
 
-  const casesText = allSupportCases.map(c => {
-    const sys = targetSystems.find(s => s.systemName === c.systemName) || {};
+  const _csBySystem = new Map();
+  allSupportCases.forEach(c => {
+    if (!_csBySystem.has(c.systemName)) _csBySystem.set(c.systemName, []);
+    _csBySystem.get(c.systemName).push(c);
+  });
+  const casesText = [..._csBySystem.entries()].map(([systemName, cases]) => {
+    const sys = targetSystems.find(s => s.systemName === systemName) || {};
     const model = sys.platform || sys.model || '';
-    return `- Case ID: ${c.id} (${c.systemName}${model ? ` - ${model}` : ''}) | Sev: ${c.severity} | Status: ${c.status || 'Open'} | Owner: ${c.nextActionBy || "Under Review"}\n  -> Title: ${c.title}`;
-  }).join("\n");
+    return `- SYSTEM: ${systemName}${model ? ` (${model})` : ''}\n` + cases.map(c =>
+      `  * Case ID: ${c.id} | Sev: ${c.severity} | Status: ${c.status || 'Open'} | Owner: ${c.nextActionBy || "Under Review"}\n    -> Title: ${c.title}`
+    ).join("\n");
+  }).join("\n\n");
 
   const contractsText = expiringContracts.map(e => {
     const sys = targetSystems.find(s => s.systemName === e.systemName) || {};
@@ -25189,37 +25255,44 @@ function compileAccountHandoverBrief(targetSystems, allRisks, allUpgrades, expir
       const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
       return `   ${s.systemName}${modelStr} (${s.serialNumber || 'N/A'}) - Contract End: ${cEnd} | Service: ${svc} | Warranty End: ${wEnd}`;  }).join('\n');
 
-  // ── Recent Activity ──
-  const caseLines = allSupportCases.length > 0
-    ? allSupportCases.map(c =>
-        (() => {
-          const sys = targetSystems.find(s => s.systemName === c.systemName);
-          const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-          return `  • Case ${c.id} [${c.severity}] ${c.systemName}${modelStr}: ${c.title}\n    Next Action: ${(c.nextActionBy || 'Under Review').replace(/\s+/g, ' ').trim()}`;
-        })()
-      ).join('\n')
-    : '  No open support cases.';
-
-  const upgradeLines = allUpgrades.length > 0
-    ? allUpgrades.map(u => {
-      const sys = targetSystems.find(s => s.systemName === u.systemName);
-      const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-      return `    ${u.systemName}${modelStr}: ${u.currentVersion || 'current'} →${u.targetVersion} (${u.urgency})`;
-    }).join('\n')
-    : '  No pending upgrades.';
-
-  // Field actions from systems
+  // ── Recent Activity, grouped by system (so a reader sees every open case,
+  // pending upgrade and field action for ONE system together before moving to
+  // the next, instead of three separate flat lists that each have to be
+  // cross-referenced by system name) ──
+  const _modelStr = (systemName) => {
+    const sys = targetSystems.find(s => s.systemName === systemName);
+    return sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
+  };
   const fieldActions = [];
   targetSystems.forEach(s => {
     if (s.fieldActions) s.fieldActions.forEach(fa => fieldActions.push({ systemName: s.systemName, ...fa }));
   });
-  const faLines = fieldActions.length > 0
-    ? fieldActions.map(fa => {
-      const sys = targetSystems.find(s => s.systemName === fa.systemName);
-      const modelStr = sys && sys.platform && sys.platform !== sys.systemName && !sys.systemName?.includes(sys.platform) ? ` (${sys.platform})` : '';
-      return `   ${fa.systemName}${modelStr}: ${fa.title || fa.description || 'Field Action'} [${fa.status || 'Active'}]`;
-    }).join('\n')
-    : '  No active field actions.';
+  const _activityBySystem = new Map();
+  const _activitySystem = (name) => {
+    if (!_activityBySystem.has(name)) _activityBySystem.set(name, { cases: [], upgrades: [], fieldActions: [] });
+    return _activityBySystem.get(name);
+  };
+  allSupportCases.forEach(c => _activitySystem(c.systemName).cases.push(c));
+  allUpgrades.forEach(u => _activitySystem(u.systemName).upgrades.push(u));
+  fieldActions.forEach(fa => _activitySystem(fa.systemName).fieldActions.push(fa));
+
+  const recentActivityText = _activityBySystem.size === 0 ? '  No open support cases, pending upgrades, or active field actions.' :
+    [..._activityBySystem.entries()].map(([systemName, a]) => {
+      const lines = [`  SYSTEM: ${systemName}${_modelStr(systemName)}`];
+      if (a.cases.length > 0) {
+        lines.push('    Open Support Cases:');
+        a.cases.forEach(c => lines.push(`      • Case ${c.id} [${c.severity}]: ${c.title}\n        Next Action: ${(c.nextActionBy || 'Under Review').replace(/\s+/g, ' ').trim()}`));
+      }
+      if (a.upgrades.length > 0) {
+        lines.push('    Pending Upgrades:');
+        a.upgrades.forEach(u => lines.push(`      • ${u.currentVersion || 'current'} → ${u.targetVersion} (${u.urgency})`));
+      }
+      if (a.fieldActions.length > 0) {
+        lines.push('    Active Field Actions:');
+        a.fieldActions.forEach(fa => lines.push(`      • ${fa.title || fa.description || 'Field Action'} [${fa.status || 'Active'}]`));
+      }
+      return lines.join('\n');
+    }).join('\n\n');
   // ── Key Talking Points ──
   const talkingPoints = [];
 
@@ -25336,16 +25409,9 @@ ${topIssues}
 ${contractDetailLines}
 
 --------------------------------------------------------------------------------
-7. RECENT ACTIVITY
+7. RECENT ACTIVITY (by system)
 --------------------------------------------------------------------------------
-  Open Support Cases:
-${caseLines}
-
-  Pending Upgrades:
-${upgradeLines}
-
-  Active Field Actions:
-${faLines}
+${recentActivityText}
 
 --------------------------------------------------------------------------------
 8. DATA PROTECTION & DR POSTURE
@@ -31816,7 +31882,19 @@ function generateActionPlan() {
   if (allRisks.length === 0) {
     html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ No technical risk signatures identified across the monitored scope.</p>`;
   } else {
-    allRisks.forEach((r, idx) => {
+    // Grouped by system -- so a reader looking at one system sees every risk
+    // for it together before the next system starts, instead of a flat list
+    // that has to be scanned for a repeated system name.
+    const _riskBySystem = new Map();
+    allRisks.forEach(r => {
+      if (!_riskBySystem.has(r.systemName)) _riskBySystem.set(r.systemName, []);
+      _riskBySystem.get(r.systemName).push(r);
+    });
+    let _riskGlobalIdx = 0;
+    [..._riskBySystem.entries()].forEach(([_riskSystemName, _riskGroup]) => {
+      html += `<div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 10px 0 4px; border-top: 1px solid var(--border-color); margin-top: 10px;">SYSTEM: ${_riskSystemName}</div>`;
+      _riskGroup.forEach(r => {
+      const idx = _riskGlobalIdx++;
       let badgeColor = "var(--status-info)";
       if (r.severity === "critical" || r.severity === "high") badgeColor = "var(--status-critical)";
       else if (r.severity === "medium") badgeColor = "var(--status-warning)";
@@ -31865,6 +31943,7 @@ function generateActionPlan() {
           })() : ''}
         </div>
       `;
+      });
     });
   }
 
@@ -31882,7 +31961,14 @@ function generateActionPlan() {
   if (allSecurityAdvisories.length === 0) {
     html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ No security vulnerabilities mapped against the target system release baselines.</p>`;
   } else {
-    allSecurityAdvisories.forEach((s, idx) => {
+    const _advBySystem = new Map();
+    allSecurityAdvisories.forEach(s => {
+      if (!_advBySystem.has(s.systemName)) _advBySystem.set(s.systemName, []);
+      _advBySystem.get(s.systemName).push(s);
+    });
+    [..._advBySystem.entries()].forEach(([_advSystemName, _advGroup]) => {
+      html += `<div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 10px 0 4px; border-top: 1px solid var(--border-color); margin-top: 10px;">SYSTEM: ${_advSystemName}</div>`;
+      _advGroup.forEach(s => {
       let badgeClass = "badge info";
       if (s.severity === "critical") badgeClass = "badge critical";
       else if (s.severity === "high") badgeClass = "badge warning";
@@ -31914,7 +32000,7 @@ function generateActionPlan() {
       html += `
         <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 16px; border-radius: var(--radius-sm); margin-bottom: 12px;">
           <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <strong>${s.id} — ${s.systemName}</strong>
+            <strong>${s.id}</strong>
             <span class="${badgeClass}" style="font-size: 0.7rem;">${s.severity === 'unknown' ? 'Not Reported' : s.severity}</span>
           </div>
           <div style="font-size: 0.85rem; font-weight: 600; color: #fff; margin-bottom: 6px;">${s.title}</div>
@@ -31927,6 +32013,7 @@ function generateActionPlan() {
           </div>
         </div>
       `;
+      });
     });
   }
 
@@ -32163,6 +32250,29 @@ function generateActionPlan() {
             <strong>Expected Upgrade Benefits:</strong> ${u.benefits}
             ${u.source === 'heuristic' ? '<div style="font-size:0.72rem; color:var(--status-warning); margin-top:6px;">⚠ Active IQ did not report a target version for this platform -- generic version-based guidance shown, not a confirmed Active IQ recommendation.</div>' : ''}
           </div>
+          ${(() => {
+            // Security Fix Floor + CQV: minVer above is Active IQ's general recommended
+            // target (source: 'active-iq'/'heuristic'), a DIFFERENT signal from "the
+            // version needed to clear every critical/high CVE on this system" -- they can
+            // disagree in either direction. Surfaced here as a supplementary note rather
+            // than replacing minVer/the hop-path calculation above, which is built around
+            // Active IQ's own recommended target and shouldn't be swapped for a different
+            // target version without its own dedicated pass.
+            const _sys = targetSystems.find(s => s.serialNumber === u.serialNumber);
+            if (!_sys) return '';
+            const _floor = _dfCriticalHighFixFloor(_sys);
+            if (!_floor || _floor.alreadyMet) return '';
+            const _cqv = _sys.swCQV || '';
+            const _cqvVer = _cqv ? _dfVerParse(_cqv) : null;
+            const _floorVer = _dfVerParse(_floor.version);
+            const _conflict = !!(_cqvVer && _floorVer && _dfVerCmp(_cqvVer, _floorVer) < 0);
+            const _color = _conflict ? '#ef4444' : '#f59e0b';
+            return `
+          <div style="margin-top:10px; padding:10px 14px; background:${_conflict ? 'rgba(239,68,68,0.08)' : 'rgba(245,158,11,0.06)'}; border:1px solid ${_color}44; border-radius:6px; font-size:0.78rem;">
+            <strong style="color:${_color};">Security Fix Floor:</strong> ${_dfPlural(_floor.cveIds.length, 'critical/high CVE')} on this system need${_floor.cveIds.length === 1 ? 's' : ''} at least <code style="color:${_color};">${_floor.version}</code> to be cleared.
+            ${_cqv ? `<br>Customer Qualified Version is <code>${_cqv}</code>${_conflict ? ` -- <strong style="color:${_color};">below the fix floor</strong>. The customer's qualified version does not clear these findings; this needs a decision from the account team, not a silent override in either direction.` : ', which already meets the fix floor.'}` : ''}
+          </div>`;
+          })()}
           ${u.serialNumber && minVer && minVer !== 'N/A' ? (() => {
             const _sn = u.serialNumber.replace(/'/g, "\\'");
             const _ver = minVer.replace(/'/g, "\\'");
@@ -32192,10 +32302,17 @@ function generateActionPlan() {
   if (switchAlerts.length === 0) {
     html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ All interconnect and storage network fabric switches match validated firmware baselines.</p>`;
   } else {
+    const _swBySystemHtml = new Map();
     switchAlerts.forEach(sw => {
+      if (!_swBySystemHtml.has(sw.systemName)) _swBySystemHtml.set(sw.systemName, []);
+      _swBySystemHtml.get(sw.systemName).push(sw);
+    });
+    [..._swBySystemHtml.entries()].forEach(([_swSystemName, _swGroup]) => {
+      html += `<div style="font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--text-muted); padding: 10px 0 4px; border-top: 1px solid var(--border-color); margin-top: 10px;">SYSTEM: ${_swSystemName}</div>`;
+      _swGroup.forEach(sw => {
       let badgeClass = "badge warning";
       if (sw.status === "Critical") badgeClass = "badge critical";
-      
+
       let stepGuide = "";
       const swModelLower = (sw.model || "").toLowerCase();
       if (swModelLower.includes("nexus")) {
@@ -32234,7 +32351,7 @@ function generateActionPlan() {
       html += `
         <div style="background: rgba(255,255,255,0.01); border: 1px solid var(--border-color); padding: 18px; border-radius: var(--radius-sm); margin-bottom: 16px; font-size: 0.85rem; line-height: 1.4;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-            <strong style="font-size: 0.95rem; color: #fff;">System: ${sw.systemName} | ${sw.model} (${sw.type})</strong>
+            <strong style="font-size: 0.95rem; color: #fff;">${sw.model} (${sw.type})</strong>
             <span class="${badgeClass}" style="font-size: 0.7rem;">${sw.status}</span>
           </div>
           <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px;">
@@ -32255,6 +32372,7 @@ function generateActionPlan() {
           </div>
         </div>
       `;
+      });
     });
   }
 
@@ -32987,11 +33105,21 @@ METRICS SUMMARY:
 This document compiles the high-level metrics generated from telemetry data analyzed by NetApp Active IQ Digital Advisor.`;
   } else if (index === 2) {
     filename = `prioritized_risks_${cleanScope}.txt`;
+    const _rkSevRank = { critical: 0, high: 1, medium: 2, low: 3 };
+    const _rkBySev = (a, b) => (_rkSevRank[(a.severity || '').toLowerCase()] ?? 4) - (_rkSevRank[(b.severity || '').toLowerCase()] ?? 4);
+    const _rkBySystem = new Map();
+    allRisks.forEach(r => {
+      if (!_rkBySystem.has(r.systemName)) _rkBySystem.set(r.systemName, []);
+      _rkBySystem.get(r.systemName).push(r);
+    });
     text = `NETAPP PRIORITIZED TECHNICAL RISKS REPORT
 Scope: ${scopeTitle}
 
-${allRisks.length === 0 ? "✓ No technical risk signatures identified across the monitored scope." : 
-  allRisks.map((r, idx) => `Item 2.${idx + 1}: ${r.category} Risk - ${r.systemName} [Severity: ${r.severity.toUpperCase()}]
+${allRisks.length === 0 ? "✓ No technical risk signatures identified across the monitored scope." :
+  [..._rkBySystem.entries()].map(([systemName, risks]) => `================================================================================
+SYSTEM: ${systemName}
+================================================================================
+${risks.slice().sort(_rkBySev).map((r, idx) => `${r.category} Risk [Severity: ${r.severity.toUpperCase()}]
 - Safety Classification: ${getRiskSafetyTier(r).toUpperCase()}
 - Issue: ${r.description}
 - Root Cause: ${r.remediationPlan ? r.remediationPlan.cause : "Undetermined"}
@@ -32999,32 +33127,47 @@ ${allRisks.length === 0 ? "✓ No technical risk signatures identified across th
 - Remediation steps:
 ${r.remediationPlan ? r.remediationPlan.steps.map((s, i) => `   ${i+1}. ${s}`).join("\n") : "   1. Review standard operating guidelines."}
 - Trade-offs:
-${r.remediationPlan ? r.remediationPlan.options.map(o => `   * ${o}`).join("\n") : "   * Contact NetApp Support."}
-`).join("\n\n")}`;
+${r.remediationPlan ? r.remediationPlan.options.map(o => `   * ${o}`).join("\n") : "   * Contact NetApp Support."}`).join("\n\n")}`).join("\n\n")}`;
   } else if (index === 3) {
     filename = `security_advisories_${cleanScope}.txt`;
+    const _saSevRank = { critical: 0, high: 1, medium: 2, low: 3 };
+    const _saBySev = (a, b) => (_saSevRank[(a.severity || '').toLowerCase()] ?? 4) - (_saSevRank[(b.severity || '').toLowerCase()] ?? 4);
+    const _saBySystem = new Map();
+    allSecurityAdvisories.forEach(s => {
+      if (!_saBySystem.has(s.systemName)) _saBySystem.set(s.systemName, []);
+      _saBySystem.get(s.systemName).push(s);
+    });
     text = `NETAPP SECURITY ADVISORIES REPORT
 Scope: ${scopeTitle}
 
 ${allSecurityAdvisories.length === 0 ? "✓ No security vulnerabilities mapped against release baselines." :
-  allSecurityAdvisories.map((s, idx) => `SA-ID: ${s.id} - ${s.systemName} [Severity: ${s.severity.toUpperCase()}]
+  [..._saBySystem.entries()].map(([systemName, advisories]) => `================================================================================
+SYSTEM: ${systemName}
+================================================================================
+${advisories.slice().sort(_saBySev).map(s => `CVE: ${s.cve || s.id} [Severity: ${(s.severity || '').toUpperCase()}]
 - Title: ${s.title}
 - Mitigation: ${s.mitigation}
-- Status: ${s.status}
-`).join("\n\n")}`;
+- Status: ${s.status}`).join("\n\n")}`).join("\n\n")}`;
   } else if (index === 4) {
     filename = `support_cases_${cleanScope}.txt`;
+    const _scBySystem = new Map();
+    allSupportCases.forEach(c => {
+      if (!_scBySystem.has(c.systemName)) _scBySystem.set(c.systemName, []);
+      _scBySystem.get(c.systemName).push(c);
+    });
     text = `NETAPP ACTIVE SUPPORT CASES REPORT
 Scope: ${scopeTitle}
 
 ${allSupportCases.length === 0 ? "✓ No active support cases open in the NetApp Support portal." :
-  allSupportCases.map((c, idx) => `Case ID: ${c.id} - ${c.systemName} [Severity: ${c.severity}]
+  [..._scBySystem.entries()].map(([systemName, cases]) => `================================================================================
+SYSTEM: ${systemName}
+================================================================================
+${cases.map(c => `Case ID: ${c.id} [Severity: ${c.severity}]
 - Title: ${c.title}
 - Criticality: ${c.criticality || "Normal"}
 - Next Action Owner: ${c.nextActionBy || "Under Review"}
 - Latest TAM Notes: ${c.ownerNotes}
-- Status: ${c.status} | Opened: ${c.createdDate} | Updated: ${c.lastUpdated}
-`).join("\n\n")}`;
+- Status: ${c.status} | Opened: ${c.createdDate} | Updated: ${c.lastUpdated}`).join("\n\n")}`).join("\n\n")}`;
   } else if (index === 5) {
     filename = `os_upgrades_${cleanScope}.txt`;
     text = `NETAPP RECOMMENDED OS UPGRADES ROADMAP
@@ -33065,15 +33208,22 @@ ${hopsText}`;
   }).join("\n\n")}`;
   } else if (index === 6) {
     filename = `switch_validation_${cleanScope}.txt`;
+    const _swBySystem = new Map();
+    switchAlerts.forEach(sw => {
+      if (!_swBySystem.has(sw.systemName)) _swBySystem.set(sw.systemName, []);
+      _swBySystem.get(sw.systemName).push(sw);
+    });
     text = `NETAPP NETWORK SWITCH & FABRIC VALIDATION CHECKLIST
 Scope: ${scopeTitle}
 
 ${switchAlerts.length === 0 ? "✓ All interconnect and storage network fabric switches match validated firmware baselines." :
-  switchAlerts.map(sw => `System: ${sw.systemName} | Switch: ${sw.model} (${sw.type}) [Status: ${sw.status}]
+  [..._swBySystem.entries()].map(([systemName, switches]) => `================================================================================
+SYSTEM: ${systemName}
+================================================================================
+${switches.map(sw => `Switch: ${sw.model} (${sw.type}) [Status: ${sw.status}]
 - Switch S/N: ${sw.serialNumber} | IP: ${sw.ipAddress}
 - Current Firmware: ${sw.firmware} | Target Firmware: ${sw.targetFirmware} | Latest Supported: ${getSwitchLatestSupportedVersion(sw)}
-- Validation Drift Details: ${sw.validationDetails}
-`).join("\n\n")}`;
+- Validation Drift Details: ${sw.validationDetails}`).join("\n\n")}`).join("\n\n")}`;
   } else if (index === 7) {
     filename = `site_logistics_${cleanScope}.txt`;
     text = `NETAPP SITE LOGISTICS & CUSTOMER HEALTH REPORT

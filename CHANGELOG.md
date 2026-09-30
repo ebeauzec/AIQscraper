@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.192] - 2026-09-30
+
+### Changed
+- Security Advisories, Prioritized Risks, and Switch Validation (both the quick-download TXT reports and the Action Planner's live UI sections) now group every finding by system instead of listing them flat -- see every issue for one system together before the next system starts. Dropped the internal "SA-ID" label in the Security Advisories report in favor of the CVE number itself.
+- TAM Success Plan's support-ticket list and Account Handover Brief's "Recent Activity" section (open cases, pending upgrades, active field actions -- previously three separate flat lists) are now grouped the same way, one system at a time.
+
+---
+
+## [5.6.191] - 2026-09-30
+
+### Added
+- The OS Upgrade Roadmap card now shows the real Security Fix Floor (critical/high CVE minimum) alongside Active IQ's general recommendation, and flags by name when a system's Customer Qualified Version sits below it. Confirmed live the two figures can genuinely disagree.
+
+---
+
 ## [5.6.190] - 2026-09-30
 
 ### Added
