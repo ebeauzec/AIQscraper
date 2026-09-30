@@ -31,6 +31,21 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.201",
+    date: "30 September 2026",
+    title: "Fixed: Feature Matrix Column Headers Didn't Line Up With Their Data",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Header/Data Alignment Mismatch",
+        color: "#ef4444",
+        items: [
+          "The Per-System Feature Matrix's ARP/SnapMirror/HA/AutoSupport/Score data cells are centered, but their `<th>` headers were always left-aligned (inherited from the shared `_sth()` helper's default style), so each row's ✅/❌ icon sat visibly right of its own header label -- worse for wider column labels like 'SnapMirror' and 'AutoSupport'. Headers now use the same alignment as their column's data.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.200",
     date: "30 September 2026",
     title: "New Health Score/Issue-Ranking Sections Now Use Real Tables",
@@ -30618,6 +30633,13 @@ function _renderFeatureAdoptionSection(systems) {
   const thStyle = 'text-align:left;padding:8px 10px;border-bottom:2px solid var(--border-color);color:var(--accent-cyan);font-size:0.75rem;text-transform:uppercase;letter-spacing:0.5px;';
   const tdStyle = 'padding:6px 10px;border-bottom:1px solid rgba(255,255,255,0.04);font-size:0.8rem; text-align:center;';
   const tdLeft = tdStyle.replace('text-align:center;', 'text-align:left;');
+  // ARP/SnapMirror/HA/AutoSupport/Score data cells are text-align:center
+  // (tdStyle above), but their <th> headers were built from thStyle, which is
+  // always text-align:left -- confirmed from a screenshot: the icon in each
+  // data row sat visibly right of its own header label, worse the wider the
+  // column (SnapMirror/AutoSupport). Headers now match their column's data
+  // alignment; 'System' (tdLeft) keeps the plain left-aligned thStyle.
+  const thCenter = thStyle.replace('text-align:left;', 'text-align:center;');
 
   // ── Helper: resolve feature flags across enrichment + raw field names ──
   // Returns true (confirmed on), false (confirmed off), or null (unknown/not reported)
@@ -30756,11 +30778,11 @@ function _renderFeatureAdoptionSection(systems) {
         <thead>
           <tr>
             ${_sth(thStyle, 'System')}
-            ${_sth(thStyle, 'ARP')}
-            ${_sth(thStyle, 'SnapMirror')}
-            ${_sth(thStyle, 'HA')}
-            ${_sth(thStyle, 'AutoSupport')}
-            ${_sth(thStyle, 'Score')}
+            ${_sth(thCenter, 'ARP')}
+            ${_sth(thCenter, 'SnapMirror')}
+            ${_sth(thCenter, 'HA')}
+            ${_sth(thCenter, 'AutoSupport')}
+            ${_sth(thCenter, 'Score')}
           </tr>
         </thead>
         <tbody>

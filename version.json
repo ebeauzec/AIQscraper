@@ -1,8 +1,8 @@
 {
-  "version": "5.6.200",
+  "version": "5.6.201",
   "major": 5,
   "minor": 6,
-  "patch": 200,
+  "patch": 201,
   "date": "2026-09-30",
-  "notes": "The new Systems Ranked by Issue Severity and per-system Active IQ Health Score sections (v5.6.198/199) now render as real tables via the same shared _dfTable() column-width builder every other deliverable table uses, instead of comma-joined prose lines -- consistent with this session's earlier fix for tables that were rendering as run-on paragraphs."
+  "notes": "Fixed a column-header misalignment on the Per-System Feature Matrix (Action Planner > Feature Adoption): the ARP/SnapMirror/HA/AutoSupport/Score column headers were left-aligned while their data cells were centered, so each icon sat visibly right of its own header label. Headers now match their column's alignment."
 }

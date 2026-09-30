@@ -22,9 +22,21 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.200)
+## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.201)
 
-Nine threads this session, all triggered by screenshots of generated deliverables.
+Ten threads this session, all triggered by screenshots of generated deliverables.
+
+**23. Feature Matrix header/data misalignment (shipped, v5.6.201).** User screenshot: Action Planner's
+Per-System Feature Matrix (`_renderFeatureAdoptionSection()`, GUI-only, not a Word export) showed each row's
+ARP/SnapMirror/HA/AutoSupport/Score icon sitting well to the right of its own column header. Root cause: data
+cells use `tdStyle` (`text-align:center`), but the `<th>` headers were built via `_sth(thStyle, ...)` where
+`thStyle` is always `text-align:left` -- a plain CSS alignment mismatch between header and data, not a
+`_dxParse`/docx-table-parsing issue (this table is GUI-only HTML, no Word export path touches it). Added
+`thCenter` (`thStyle` with `text-align:center`) and used it for the ARP/SnapMirror/HA/AutoSupport/Score
+headers, keeping `thStyle` (left) for 'System' to match its `tdLeft` data cells. Verified live via a real DOM
+path (Action Planner > New Clicks scope > Generate Plan > real click on the "✅ Feature Adoption" tab button,
+not a direct function call) by reading `getComputedStyle(...).textAlign` on both the header and first-row data
+cells for every column -- all 6 now match exactly (System: left/left, the other 5: center/center).
 
 **22. New health-score/issue-ranking sections converted to real tables (shipped, v5.6.200).** User: "make the
 changes to the deliverables comply with the standard document formats... we need consistency" -- flagged that
@@ -385,14 +397,14 @@ two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, f
 none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
 matrix does.
 
-**Git:** branch `main`. v5.6.192 through v5.6.200 each committed individually after this session's work
+**Git:** branch `main`. v5.6.192 through v5.6.201 each committed individually after this session's work
 (app.js, CHANGELOG.md, version.json, CLAUDE.md, and the synced `dist/app.js` +
 `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time; v5.6.197 and v5.6.198 also synced
-`dist/NetApp_AIQ_Advisor/_internal/server.py` since both touched the harvester (v5.6.199/v5.6.200 were
+`dist/NetApp_AIQ_Advisor/_internal/server.py` since both touched the harvester (v5.6.199 through v5.6.201 were
 app.js-only, no server.py sync needed) -- note PyInstaller does NOT produce a loose `server.py` in its own
 build output (it's compiled into the exe), so that sync step copies directly from the repo root's `server.py`,
 matching what past sessions did). Exe rebuilt via PyInstaller (`build/AIQscraper.spec`, note the spec lives
-under `build/`, not the repo root) to `%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild200`, never
+under `build/`, not the repo root) to `%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild201`, never
 `build/build_windows.bat`. No HTML changes this
 session.
 

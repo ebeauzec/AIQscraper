@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.201] - 2026-09-30
+
+### Fixed
+- The Per-System Feature Matrix (Action Planner > Feature Adoption tab) had misaligned column headers: the ARP/SnapMirror/HA/AutoSupport/Score data cells are centered, but the headers built from the shared `_sth()` sortable-header helper were always left-aligned, so each row's icon sat visibly to the right of its own column header. Headers now match their column's data alignment.
+
+---
+
 ## [5.6.200] - 2026-09-30
 
 ### Changed
