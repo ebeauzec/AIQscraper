@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.187";
+const APP_VERSION = "5.6.188";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.188",
+    date: "30 September 2026",
+    title: "Three More Severity-Breakdown Tables Fixed",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- More 'Prose Pretending to Be a Table' Instances",
+        color: "#22c55e",
+        items: [
+          "Finished the sweep for the same bug fixed in v5.6.187: a Critical/High/Medium(/Low) severity breakdown packed onto one line, reading as a run-on bold-label paragraph instead of a table. Fixed in the TAM Success Plan's Risk Posture Summary, the QBR Pack's Risk Posture section, and the Technical Solution Proposal's Finding Breakdown -- all now use the same shared table-builder as the Executive Risk Assessment fix.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.187",
     date: "30 September 2026",
@@ -23678,7 +23693,7 @@ ${platformLines}
   HA Configuration              ${_fmtAdopt(haCount, haKnownSys.length, _ontapN)} cluster ha show
 
 * RISK POSTURE SUMMARY:
-  - Critical: ${critCount}  |  High: ${highCount}  |  Medium: ${medCount}
+${_dfTable(['Critical', 'High', 'Medium'], [[critCount, highCount, medCount]])}
   - Security-Related Risk Findings: ${secCount} (distinct from the unique CVE count in Section 3 below -- one CVE can produce multiple findings across systems)
   - Switch Firmware Drift: ${switchDrift.length} switch${switchDrift.length !== 1 ? 'es' : ''} below validated baseline
   - Shelf Firmware Drift: ${shelfDrift.length} shelf module${shelfDrift.length !== 1 ? 's' : ''} below recommended version
@@ -24290,7 +24305,7 @@ ${trendSection}
 --------------------------------------------------------------------------------
 3. RISK POSTURE [RISK EXPOSURE]
 --------------------------------------------------------------------------------
-  Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
+${_dfTable(['Critical', 'High', 'Medium', 'Low'], [[critCount, highCount, medCount, lowCount]])}
   Security-Related Risk Findings: ${secCount} (see Cost of Inaction below for the unique CVE count)
   Open Support Cases:  ${allSupportCases.length}
 
@@ -27442,7 +27457,9 @@ Prepared By:  ${personnel.sam !== 'Not Assigned' ? personnel.sam + ' (SAM)' : pe
 EXECUTIVE SUMMARY
 --------------------------------------------------------------------------------
 This proposal addresses ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''} resolving ${totalDeduped} Active IQ finding${totalDeduped !== 1 ? 's' : ''} across ${_archAffSysCount} system${_archAffSysCount !== 1 ? 's' : ''}.
-Finding breakdown: Critical: ${critCount}  High: ${highCount}  Medium: ${medCount}
+
+Finding breakdown:
+${_dfTable(['Critical', 'High', 'Medium'], [[critCount, highCount, medCount]])}
 
 OPERATIONAL HEALTH BASELINE:
   AutoSupport Compliance: ${pctAsup}% (${asupCompliant}/${sysCount} systems)

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.188] - 2026-09-30
+
+### Fixed
+- Three more instances of the v5.6.187 severity-breakdown table bug: TAM Success Plan (Risk Posture Summary), QBR Pack (Risk Posture), Technical Solution Proposal (Finding Breakdown). All use the shared `_dfTable()` helper now.
+
+---
+
 ## [5.6.187] - 2026-09-30
 
 ### Fixed

@@ -353,14 +353,27 @@ treats the output as a real table block (`_dxParse(...).blocks.filter(b => b.t =
 the text looks aligned.
 **A background agent was mid-task on a broader sweep for the same "multi-metric line" pattern across every
 other deliverable when it hit a weekly API rate limit and failed (no partial edits landed, confirmed via git
-diff before proceeding) -- the requested full sweep across ALL documents is NOT done, only the two locations
-above (RISK SUMMARY here, plus the earlier-in-session MSP/Security Brief/Sustainability Report fixes from
-v5.6.185) are fixed. Next session: re-run that sweep (the agent's brief, preserved in this conversation's
-history, is still valid and can be reused) once the rate limit resets (per the failure message: Oct 3, 5pm
-Asia/Riyadh) or by doing it directly rather than delegating.**
+diff before proceeding).** User then said "finish all outstanding and incomplete tasks" -- did the sweep
+directly instead of re-delegating (grepped for `Label: ${...}` pairs separated by 2+ literal spaces across the
+whole file, ~25 hits). **Judgment call, not exhaustive**: only converted the ones matching the SAME pattern as
+the confirmed bug -- a same-type severity/count breakdown clearly meant to read as a small stat grid (Critical/
+High/Medium(/Low), 3-4 items) -- into real tables via `_dfTable()`. Left alone every 2-item "Label: X | Label2:
+Y" prose line (Fleet Avg Utilization %, Customer/Date headers, Account/TAM lines, etc.) -- those are single
+facts in a sentence, not a grid, and forcing them into tiny tables would make those documents worse, not
+better. Fixed (v5.6.188): TAM Success Plan's Risk Posture Summary (`compileCustomerSuccessPlanText`), QBR
+Pack's Risk Posture section (`compileQBRPack`), Technical Solution Proposal's Finding Breakdown (inside
+`compileExtendedDeliverables`). Verified each parses as a real `_dxParse(...)` table block, not just that the
+text looks aligned. **If another squished-metrics-grid line turns up later, it's the same bug class and the
+fix is the same one-line `_dfTable(...)` swap** -- but don't assume every "X: ... | Y: ..." line in this
+codebase is broken; most of the remaining ones are fine as prose by design.
 
-**Git:** branch `main`, v5.6.178 through v5.6.187 committed and pushed individually (exe rebuilt each time via
-PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild187`, synced into `dist/NetApp_AIQ_Advisor/` +
+Also checked the `.gitignore` `aiq_config.json$` bug flagged early in this engagement's history: **already
+fixed** (no trailing `$` in the current file, confirmed via `git log -- .gitignore` showing a real fix
+committed at v5.6.50, well before this session) -- nothing to do here, the earlier handoff note describing it
+as still-broken was stale.
+
+**Git:** branch `main`, v5.6.178 through v5.6.188 committed and pushed individually (exe rebuilt each time via
+PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild188`, synced into `dist/NetApp_AIQ_Advisor/` +
 `dist/app.js`; v5.6.180-181 and v5.6.184 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
 harvester; v5.6.183 also synced `dist/NetApp_AIQ_Advisor/_internal/index.html` since that's the first fix this
 session that touched HTML). Working tree otherwise shows harvest data files modified by the running server

@@ -1,8 +1,8 @@
 {
-  "version": "5.6.187",
+  "version": "5.6.188",
   "major": 5,
   "minor": 6,
-  "patch": 187,
+  "patch": 188,
   "date": "2026-09-30",
-  "notes": "Security fix: other real customers were named inside exportable documents (Portfolio Exposure/Refresh Overlap) -- now counts only. Also fixed IMT system-name/count bugs and another table-alignment bug."
+  "notes": "Finished the severity-breakdown table sweep: TAM Success Plan, QBR Pack, and Technical Solution Proposal fixed the same way as the Executive Risk Assessment."
 }
