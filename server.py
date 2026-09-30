@@ -1629,7 +1629,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                   ... on ONTAPSystem {
                     isMetroCluster isAllFlashOptimized operatingMode
                     drCluster { id name }
-                    downtimeEvents { totalCount events { category code emsDate summary outageSeconds } }
+                    healthScore { overallHealthScore calculatedAt }
                     propensityCategory serviceProcessorIPAddress
                     isARPEnabled autoUpdateEnabled nextBestAction
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
@@ -1710,7 +1710,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                   ... on ONTAPSystem {
                     isMetroCluster isAllFlashOptimized operatingMode
                     drCluster { id name }
-                    downtimeEvents { totalCount events { category code emsDate summary outageSeconds } }
+                    healthScore { overallHealthScore calculatedAt }
                     propensityCategory serviceProcessorIPAddress
                     isARPEnabled autoUpdateEnabled nextBestAction
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
@@ -3791,19 +3791,18 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 # clusters under the old name-inference heuristic).
                 "mcDrClusterName": ((s.get("drCluster") or {}).get("name") or ""),
                 "mcDrClusterId": ((s.get("drCluster") or {}).get("id") or ""),
-                # Real recorded downtime/takeover events (ONTAPSystem.downtimeEvents --
-                # confirmed live via GraphQL introspection + a real fleet query: a real
-                # system showed a genuine "Takeover" event with EMS code, timestamp,
-                # summary and outage duration). Not previously queried. Mostly empty in
-                # practice (1 of 165 systems in a real test account had any), but where
-                # present this is real evidence a switchover/takeover actually happened --
-                # previously the app could only say "DR is configured", never whether a
-                # failover was ever actually tested/triggered.
-                "downtimeEvents": [
-                    {"category": e.get("category", ""), "code": e.get("code", ""), "emsDate": e.get("emsDate", ""),
-                     "summary": e.get("summary", ""), "outageSeconds": e.get("outageSeconds")}
-                    for e in ((s.get("downtimeEvents") or {}).get("events") or [])
-                ],
+                # Real per-system Active IQ Health Score (ONTAPSystem.healthScore --
+                # confirmed live: same 0-100 scoring already used fleet-wide/per-
+                # customer via summary(nagpId).healthScore (see tam_official_health_score/
+                # tam_customer_health_scores below), just at system granularity, which
+                # neither of those can give you (which SPECIFIC system is dragging a
+                # customer's score down). KPI breakdown (asup/firmware/security/etc.,
+                # same shape as the fleet-wide query) was tried and confirmed LIVE to
+                # push this query over Active IQ's "Maximum height (field count)" limit
+                # on the TAM tier -- kept to just the overall score to stay safe; the
+                # KPI detail is still available fleet-wide/per-customer.
+                "aiqHealthScore": (s.get("healthScore") or {}).get("overallHealthScore"),
+                "aiqHealthScoreDate": (s.get("healthScore") or {}).get("calculatedAt") or "",
                 "isAllFlashOptimized": s.get("isAllFlashOptimized"),
                 "isARPEnabled": s.get("isARPEnabled"),
                 "operatingMode": s.get("operatingMode", ""),

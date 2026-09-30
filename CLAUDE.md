@@ -22,9 +22,62 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.197)
+## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.198)
 
-Six threads this session, all triggered by screenshots of generated deliverables.
+Seven threads this session, all triggered by screenshots of generated deliverables.
+
+**20. Real per-system Active IQ Health Score + two self-inflicted bugs found and fixed (shipped, v5.6.198).**
+User: "wire in ONTAPSystem.healthScore... i want to report on this in all the metrics and deliverables."
+**Before writing anything, checked whether this already substantially existed** (the exact discipline point
+19 below says to follow, and almost didn't this time) -- searched for `healthScore` and found it VERY MUCH
+already did: `summary(nagpId).healthScore` (a per-CUSTOMER 0-100 NetApp-calculated score with a 9-factor KPI
+breakdown) was already fully wired into the Overview tile, QBR Pack, and Risk & Remediation Brief from an
+EARLIER session (state.tamCustomerHealthScores / state.tamOfficialHealthScore, `_officialHs` in app.js). The
+genuinely new thing `ONTAPSystem.healthScore` offers is PER-SYSTEM granularity -- the existing customer/fleet
+scores can't tell you which specific system is dragging the number down.
+- **Checked the field-count limit live before shipping** (the exact hazard this codebase's own comments warn
+  about, "Maximum height (field count) limit exceeded"): the full KPI breakdown (same shape already used for
+  the per-customer score) pushed BOTH of the harvester's main system-detail query tiers (`SYSTEMS_FIELDS_TAM`
+  and `SYSTEMS_FIELDS_EFFICIENCY`) over Active IQ's limit -- confirmed live with a standalone test script
+  reusing `server.py`'s `_gql`/token-exchange. Trimmed to just `healthScore { overallHealthScore calculatedAt }`
+  (no `kpis`), re-tested live, both tiers pass with real data (81, 86, 64, 60, 70, 77... -- real, varied scores).
+  KPI-level detail remains available only at the fleet-wide/per-customer level, which already had it.
+- **Found and fixed two real bugs in my OWN v5.6.197 work while doing this** (both would have shipped
+  silently broken if this session hadn't continued):
+  1. A duplicate Python dict key: v5.6.197 added a second `"downtimeEvents"` key to the `systems_out` dict
+     (wrongly shaped -- a plain list) when a CORRECT, pre-existing `"downtimeEvents"` mapping (the real
+     `{totalCount, events}` shape `computeFleetUptimeSummary()` already consumes) was already there from an
+     even earlier session. Python dict literals are last-key-wins, so the earlier session's correct mapping
+     silently won and my new key was dead code -- but the app.js code I wrote to consume it
+     (`_lastFailoverEvent`) assumed MY wrong shape, so it would have thrown `.filter is not a function` at
+     runtime the first time a real takeover event was encountered. Found by re-discovering that
+     `computeFleetUptimeSummary()` (a whole existing, shipped fleet-uptime-rollup feature I hadn't noticed) was
+     ALREADY reading `s.downtimeEvents.events`. Removed the duplicate key; fixed `_lastFailoverEvent` to read
+     the correct shape.
+  2. `enrichSystemTelemetry()` was silently dropping `mcDrClusterName`/`mcDrClusterId` -- that function rebuilds
+     an explicit new object rather than spreading the harvested source (documented in its own code comment,
+     which I read but the implication didn't register at the time), so any field not explicitly listed in its
+     `return {...}` is silently discarded. v5.6.197's whole MetroCluster real-partner fix was tested only
+     against hand-built synthetic objects that bypassed this function entirely, so the test passed while the
+     real feature was dead on arrival -- `s.mcDrClusterName` was always `undefined` on real enriched systems,
+     silently falling back to name-inference every time. Added both fields to the `return` object; re-verified
+     by round-tripping a synthetic raw object through the REAL `enrichSystemTelemetry()` this time.
+  **Lesson for next session, stated plainly so it isn't repeated a third time: a new harvested field is not
+  "verified" until it's been round-tripped through `enrichSystemTelemetry()` (not tested against a hand-built
+  object that skips it), and a new query field is not "safe" until tested live against the ACTUAL query tier
+  text in `server.py` (not a minimal standalone query) for Active IQ's field-count limit.**
+- Wired the (corrected) per-system score into: the Overview tile's health-score subtitle (appended "Lowest
+  system: X (N)", no new DOM element needed), TAM Success Plan, QBR Pack, Executive Risk Assessment (new
+  "ACTIVE IQ PER-SYSTEM HEALTH SCORES" section), and Account Handover Brief (new section 7a). Shared logic in
+  one new function, `_dfSystemHealthScores(systems)` (app.js, right after `_dfNonCveParityVersion`).
+- **Verified end-to-end against real data**, not just synthetic: took 4 real systems from a real customer
+  scope (New Clicks), temporarily set synthetic-but-realistic `aiqHealthScore` values on them (42/88/65/70,
+  average 66), and confirmed via real `downloadDeliverable()` calls that all 4 deliverable text outputs AND
+  the real Overview tile DOM element show the correct average and lowest-scoring systems, then cleaned up the
+  temporary test values from `state.systems`.
+
+**19. Real MetroCluster DR partners + recorded downtime events (shipped, v5.6.197 -- see point 20 above for two
+bugs found in this work and fixed in v5.6.198).** User, from a screenshot
 
 **19. Real MetroCluster DR partners + recorded downtime events (shipped, v5.6.197).** User, from a screenshot
 of the MetroCluster Configuration & DR Health card showing all 4 real clusters as "0 + 4 unpaired" / "not
@@ -81,11 +134,14 @@ node identity -- not used.)
   back to "not identifiable") -- correct in both directions. `_lastFailoverEvent`'s detail-string construction
   verified against the exact real event fields returned live. Syntax-checked both `app.js` (`new Function()`
   in the browser) and `server.py` (`python -m py_compile`). **The running dev server's CACHED harvest data
-  does not yet have `mcDrClusterName`/`downtimeEvents` populated** -- it was verified via direct one-off
-  GraphQL calls (same `_gql`/token-exchange reuse pattern as every other live-schema check this session), not
-  through the app itself; a real harvest re-run (server restart + `/api/harvest?force=1`, several minutes) is
-  needed before the running dev instance's own UI shows this live, though the code is correct and the packaged
-  `dist/` build is fully synced.
+  does not yet have `mcDrClusterName`/`downtimeEvents`/`aiqHealthScore` populated** (the last one added in
+  v5.6.198, see point 20 above) -- both were verified via direct one-off GraphQL calls (same `_gql`/token-
+  exchange reuse pattern as every other live-schema check this session) and, for the app.js side, by feeding
+  synthetic-but-realistic values through the REAL `enrichSystemTelemetry()` and real deliverable-compile
+  functions -- not by loading real data through a fresh harvest in the running app. A real harvest re-run
+  (server restart + `/api/harvest?force=1`, several minutes) is needed before the running dev instance's own
+  UI shows any of this live from a real harvest, though the code is correct and the packaged `dist/` build is
+  fully synced.
 
 **18. Table swallowing the line right after it in Word exports (shipped, v5.6.196).** User screenshot: TAM
 Success Plan's Risk Posture Summary table (`_dfTable(['Critical','High','Medium'], ...)`) rendered fine, but
@@ -271,14 +327,14 @@ two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, f
 none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
 matrix does.
 
-**Git:** branch `main`. v5.6.192 through v5.6.197 each committed individually after this session's work
+**Git:** branch `main`. v5.6.192 through v5.6.198 each committed individually after this session's work
 (app.js, CHANGELOG.md, version.json, CLAUDE.md, and the synced `dist/app.js` +
-`dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time; v5.6.197 also synced
-`dist/NetApp_AIQ_Advisor/_internal/server.py` since it touched the harvester -- note PyInstaller does NOT
+`dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time; v5.6.197 and v5.6.198 also synced
+`dist/NetApp_AIQ_Advisor/_internal/server.py` since both touched the harvester -- note PyInstaller does NOT
 produce a loose `server.py` in its own build output (it's compiled into the exe), so that sync step copies
 directly from the repo root's `server.py`, matching what past sessions did). Exe rebuilt via PyInstaller
 (`build/AIQscraper.spec`, note the spec lives under `build/`, not the repo root) to
-`%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild197`, never `build/build_windows.bat`. No HTML changes this
+`%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild198`, never `build/build_windows.bat`. No HTML changes this
 session.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir via

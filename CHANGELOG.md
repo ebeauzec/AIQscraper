@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.198] - 2026-09-30
+
+### Added
+- Real per-system Active IQ Health Score (`ONTAPSystem.healthScore`) wired into the Overview tile, TAM Success Plan, QBR Pack, Executive Risk Assessment, and Account Handover Brief. This is the same 0-100 NetApp-calculated score already shown fleet-wide and per-customer, now broken out per system so the lowest-scoring systems in an account are visible by name instead of only the aggregate number. Deliberately kept to just the overall score (no KPI breakdown) after confirming live that adding the KPI detail pushes the harvester's main systems query over Active IQ's field-count limit -- the KPI breakdown remains available at the fleet-wide/per-customer level, which already had it.
+
+### Fixed
+- Two bugs in last release's (v5.6.197) MetroCluster/downtime-event work, found while implementing this feature: a duplicate Python dict key in the harvester silently discarded the correct, pre-existing `downtimeEvents` data with a wrongly-shaped duplicate; and `enrichSystemTelemetry()` was silently dropping `mcDrClusterName`/`mcDrClusterId` (it rebuilds an explicit object rather than spreading the source), so the real MetroCluster DR-partner data from v5.6.197 never actually reached the rest of the app -- the feature always fell back to name-inference in practice, only working in isolated testing. Both fixed and re-verified end-to-end.
+
+---
+
 ## [5.6.197] - 2026-09-30
 
 ### Added

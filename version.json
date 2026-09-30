@@ -1,8 +1,8 @@
 {
-  "version": "5.6.197",
+  "version": "5.6.198",
   "major": 5,
   "minor": 6,
-  "patch": 197,
+  "patch": 198,
   "date": "2026-09-30",
-  "notes": "MetroCluster DR partner clusters are now identified from Active IQ's own reported data (ONTAPSystem.drCluster) instead of guessed from cluster naming, wherever that data is real -- confirmed live it existed all along and was never queried. Also started harvesting real recorded downtime/takeover events (ONTAPSystem.downtimeEvents), used to show real evidence when a DR failover was actually tested instead of always saying there's no record. SnapMirror relationship-level detail (destination, lag, health) was checked live and confirmed genuinely not exposed by the API -- no change there."
+  "notes": "Wired in real per-system Active IQ Health Scores (ONTAPSystem.healthScore) across the Overview tile, TAM Success Plan, QBR Pack, Executive Risk Assessment, and Account Handover Brief -- shows which specific systems are dragging an account's score down, alongside the existing fleet-wide/per-customer score. Also fixed two bugs introduced earlier this session: a duplicate Python dict key silently discarded the correct downtimeEvents data, and enrichSystemTelemetry was silently dropping mcDrClusterName/mcDrClusterId, so the v5.6.197 MetroCluster real-partner fix never actually activated against real harvested data until now."
 }

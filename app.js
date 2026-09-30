@@ -31,6 +31,29 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.198",
+    date: "30 September 2026",
+    title: "Real Per-System Active IQ Health Scores + Two Bugs Fixed",
+    sections: [
+      {
+        icon: "📄",
+        label: "Added -- See Which Systems Are Dragging an Account's Score Down",
+        color: "#3b82f6",
+        items: [
+          "Real per-system Active IQ Health Score (`ONTAPSystem.healthScore`) is now shown on the Overview tile, TAM Success Plan, QBR Pack, Executive Risk Assessment, and Account Handover Brief -- the same 0-100 NetApp-calculated score already shown fleet-wide/per-customer, now broken out per system. Kept to just the overall score after confirming live that the KPI breakdown pushes the harvester's main query over Active IQ's field-count limit.",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- Two Bugs From Last Release's MetroCluster Work",
+        color: "#ef4444",
+        items: [
+          "A duplicate Python dict key silently discarded the real `downtimeEvents` data behind a wrongly-shaped duplicate, and `enrichSystemTelemetry()` was silently dropping `mcDrClusterName`/`mcDrClusterId` entirely (it rebuilds an explicit object rather than spreading the source system). Net effect: last release's MetroCluster real-DR-partner fix never actually activated against real harvested data -- it always silently fell back to name-inference in the real app, despite testing correctly in isolation. Both fixed and re-verified end-to-end this time.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.197",
     date: "30 September 2026",
     title: "Real MetroCluster DR Partners + Recorded Downtime Events",
@@ -10575,7 +10598,14 @@ function updateOverviewKpis() {
       kpiHsEl.innerText = `${_score}/100`;
       kpiHsEl.style.color = _score >= 80 ? "var(--status-normal)" : (_score >= 60 ? "var(--status-warning)" : "var(--status-critical)");
       const _asOf = _officialHs.calculatedAt ? `As of ${new Date(_officialHs.calculatedAt).toLocaleDateString()}` : "Reported by Active IQ";
-      kpiHsSubEl.innerText = _officialHsIsFleetWide ? `${_asOf} (fleet-wide, not this customer)` : _asOf;
+      // Real per-system score (ONTAPSystem.healthScore) breaks out WHICH system
+      // is dragging this account/customer-level number down -- the account-
+      // level score alone can't say that. Appended to the existing subtitle
+      // rather than a new DOM element, since index.html/index_src.html don't
+      // have a dedicated slot for it and this keeps the change to app.js only.
+      const _sysHsTile = _dfSystemHealthScores(state.activeFilterType === "CUSTOMER" && state.activeFilterValue ? state.systems.filter(s => s.customerName === state.activeFilterValue) : state.systems);
+      const _sysHsNote = _sysHsTile && _sysHsTile.worst[0] ? ` • Lowest system: ${_sysHsTile.worst[0].systemName} (${_sysHsTile.worst[0].score})` : '';
+      kpiHsSubEl.innerText = (_officialHsIsFleetWide ? `${_asOf} (fleet-wide, not this customer)` : _asOf) + _sysHsNote;
     } else {
       kpiHsEl.innerText = "--";
       kpiHsEl.style.color = "var(--text-secondary)";
@@ -19323,6 +19353,25 @@ function _dfNonCveParityVersion(systems) {
   return { results, issueSystemCount: nc.rows.length, totalIssueCount: nc.totalCount };
 }
 
+// Real per-system Active IQ Health Score (ONTAPSystem.healthScore, harvested
+// as s.aiqHealthScore -- confirmed live). This is the SAME 0-100 scoring
+// Active IQ already reports fleet-wide (state.tamOfficialHealthScore) and
+// per-customer (state.tamCustomerHealthScores), just at system granularity --
+// what neither of those can tell you is WHICH system is dragging a
+// customer's score down. Coverage is often partial (not every system reports
+// a score), so this is honest about how many of the systems in scope
+// actually have one.
+function _dfSystemHealthScores(systems) {
+  const rows = (systems || []).filter(s => s.aiqHealthScore != null).map(s => ({
+    systemName: s.systemName || s.serialNumber, customerName: s.customerName || '',
+    score: s.aiqHealthScore, date: s.aiqHealthScoreDate || ''
+  }));
+  if (!rows.length) return null;
+  const avg = Math.round(rows.reduce((a, r) => a + r.score, 0) / rows.length);
+  const worst = [...rows].sort((a, b) => a.score - b.score).slice(0, 5);
+  return { rows, avg, worst, coverage: rows.length, total: (systems || []).length };
+}
+
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
 // ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57
 // critical/high + the rest). A bulletin that lists several CVEs contributes each of them.
@@ -20927,6 +20976,20 @@ function enrichSystemTelemetry(s) {
     swCQV:             s.swCQV || '',
     // ── ONTAP Flags ──
     isMetroCluster:    s.isMetroCluster,
+    // Real MetroCluster DR partner cluster (ONTAPSystem.drCluster) and real
+    // per-system Active IQ Health Score (ONTAPSystem.healthScore) -- both
+    // harvested in server.py's systems_out dict, but this function rebuilds
+    // an explicit new object rather than spreading ...s (see the account
+    // field note above), so both were being silently dropped here until this
+    // line existed. Confirmed by testing _dfMcPairs() only against synthetic
+    // objects built by hand (bypassing this function entirely) -- against
+    // real harvested-then-enriched systems, s.mcDrClusterName was always
+    // undefined and the "confirmed by Active IQ" MetroCluster pairing never
+    // actually activated, silently falling back to name-inference every time.
+    mcDrClusterName:   s.mcDrClusterName || '',
+    mcDrClusterId:     s.mcDrClusterId || '',
+    aiqHealthScore:    s.aiqHealthScore != null ? s.aiqHealthScore : null,
+    aiqHealthScoreDate: s.aiqHealthScoreDate || '',
     isAllFlashOptimized: s.isAllFlashOptimized,
     isARPEnabled:      _isARPEnabled,
     operatingMode:     s.operatingMode || '',
@@ -24047,6 +24110,7 @@ ${(() => { const ff = _dfCriticalHighFixFloorSummary(targetSystems); if (!ff) re
   return `  - Security Fix Floor (Critical/High CVEs): ${_dfPlural(ff.rows.length, 'system')} below the version needed to clear all critical/high CVEs (highest requirement: ${worst.fixedIn})${ff.conflictCount > 0 ? ` -- ${_dfPlural(ff.conflictCount, 'system')} with a Customer Qualified Version set BELOW that floor (decision point for the account team)` : (ff.cqvSetCount > 0 ? ` -- ${_dfPlural(ff.cqvSetCount, 'system')} with a Customer Qualified Version set, none conflicting` : '')}`; })()}
 ${(() => { const nc = _dfCriticalHighNonCveIssuesSummary(targetSystems); if (!nc) return ''; const parity = _dfNonCveParityVersion(targetSystems);
   return `  - Critical NetApp Issues (Non-CVE): ${_dfPlural(nc.rows.length, 'system')} with ${_dfPlural(nc.totalCount, 'critical/high finding')} that don't reduce to a single required software version (hardware, firmware, configuration, or lifecycle fixes instead) -- see Section 2 / As-Built for individual findings${parity ? `. To maintain cross-site version parity, all systems for this customer should match at: ${parity.results.map(r => `${r.label} ${r.version}`).join(', ')} (the highest Active IQ-recommended target among the affected systems)` : ''}`; })()}
+${(() => { const hs = _dfSystemHealthScores(targetSystems); if (!hs) return ''; return `  - Active IQ Per-System Health Scores: ${hs.coverage}/${hs.total} systems reporting a real Active IQ health score, average ${hs.avg}/100. Lowest-scoring: ${hs.worst.map(r => `${r.systemName} (${r.score})`).join(', ')}`; })()}
 
 ${compileSvmLifSummaryText(targetSystems)}
 
@@ -24375,9 +24439,12 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
   const officialHs = (_qbrNagpIds.length === 1 ? (state.tamCustomerHealthScores || []).find(h => h.nagpId === _qbrNagpIds[0]) : null)
     || (state.tamOfficialHealthScore || [])[0];
   const _officialHsIsFleetWide = !(_qbrNagpIds.length === 1 && officialHs && officialHs.nagpId === _qbrNagpIds[0]);
-  const officialHsLine = officialHs && officialHs.overallHealthScore != null
+  const _sysHs = _dfSystemHealthScores(targetSystems);
+  const officialHsLine = (officialHs && officialHs.overallHealthScore != null
     ? `  Active IQ Official Health Score: ${officialHs.overallHealthScore}/100 (NetApp-calculated${officialHs.calculatedAt ? `, as of ${officialHs.calculatedAt.slice(0, 10)}` : ''}${_officialHsIsFleetWide ? ', fleet-wide -- no single-customer score available for this scope' : ''} -- factors in AutoSupport freshness, firmware, security hardening, uptime, EOS exposure, sustainability, tech refresh, add-on adoption)\n`
-    : '';
+    : '') + (_sysHs
+    ? `  Per-System Health Scores: ${_sysHs.coverage}/${_sysHs.total} systems reporting a score, average ${_sysHs.avg}/100. Lowest: ${_sysHs.worst.map(r => `${r.systemName} (${r.score})`).join(', ')}\n`
+    : '');
 
   // ── Risks ──
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
@@ -25594,6 +25661,13 @@ ${contractDetailLines}
 7. RECENT ACTIVITY (by system)
 --------------------------------------------------------------------------------
 ${recentActivityText}
+
+--------------------------------------------------------------------------------
+7a. ACTIVE IQ HEALTH SCORE (per system)
+--------------------------------------------------------------------------------
+${(() => { const hs = _dfSystemHealthScores(targetSystems); if (!hs) return '  No system in scope currently reports a real Active IQ Health Score.'; return `  ${hs.coverage}/${hs.total} systems report a real, NetApp-calculated Active IQ Health Score. Fleet average: ${hs.avg}/100.
+  Lowest-scoring systems:
+${hs.worst.map(r => `    ${r.systemName}: ${r.score}/100`).join('\n')}`; })()}
 
 --------------------------------------------------------------------------------
 8. DATA PROTECTION & DR POSTURE
@@ -27527,6 +27601,11 @@ ${parity ? `  Cross-Site Version Parity Recommendation: to maintain a consistent
 ${parity.results.map(r => `    ${r.label}: ${r.version} (highest requirement, driven by: ${r.driverSystems.slice(0, 5).join(', ')}${r.driverSystems.length > 5 ? ` +${r.driverSystems.length - 5} more` : ''})`).join('\n')}` : ''}
 ${nc.rows.map(r => `  SYSTEM: ${r.systemName}${r.customerName ? ` (${r.customerName})` : ''}
 ${r.items.map(it => `    - [${it.severity.toUpperCase()}/${it.category}] ${it.description}`).join('\n')}`).join('\n')}
+`; })()}
+
+${(() => { const hs = _dfSystemHealthScores(targetSystems); if (!hs) return ''; return `ACTIVE IQ PER-SYSTEM HEALTH SCORES
+  ${hs.coverage}/${hs.total} systems in scope report a real Active IQ Health Score (the same NetApp-calculated 0-100 score shown at the account level elsewhere in this document, here broken out per system so the lowest-scoring systems are visible by name). Fleet average: ${hs.avg}/100.
+${hs.worst.map(r => `  ${r.systemName}: ${r.score}/100${r.date ? ` (as of ${r.date.slice(0, 10)})` : ''}`).join('\n')}
 `; })()}
 
 ${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (IMT)
@@ -38329,19 +38408,13 @@ async function importTrackerItemsFromScope() {
   // DR/failover TEST verification -- Active IQ mostly only tells us DR is
   // CONFIGURED (MetroCluster pair exists, SnapMirror relationships exist),
   // not whether a failover was ever actually tested. It DOES separately
-  // record real takeover/switchover events (s.downtimeEvents, confirmed live
-  // via GraphQL introspection -- rare in practice, but a genuine EMS-sourced
-  // event with a date and outage duration where it exists), which this now
-  // surfaces as real evidence when present; the tracker's manual notes/
-  // status/due-date remain the record of record when it doesn't. Deduped by
-  // cluster (not per-node) for MetroCluster so a 2-node MC pair doesn't
-  // generate two identical test items.
-  // Real evidence a takeover/switchover actually happened, from Active IQ's
-  // recorded downtime events (s.downtimeEvents -- confirmed live). Rare in
-  // practice, but where present it answers "was this ever actually tested"
-  // with a real date/summary instead of "Active IQ has no record" -- only
-  // fall back to the no-record language when there's genuinely nothing.
-  const _lastFailoverEvent = s => (s.downtimeEvents || []).filter(e => /takeover|switchover|giveback|switchback/i.test(e.category || '')).sort((a, b) => new Date(b.emsDate || 0) - new Date(a.emsDate || 0))[0];
+  // record real takeover/switchover events (s.downtimeEvents.events -- same
+  // field computeFleetUptimeSummary() already uses), which this surfaces as
+  // real evidence when present; the tracker's manual notes/status/due-date
+  // remain the record of record when it doesn't. Deduped by cluster (not
+  // per-node) for MetroCluster so a 2-node MC pair doesn't generate two
+  // identical test items.
+  const _lastFailoverEvent = s => ((s.downtimeEvents && s.downtimeEvents.events) || []).filter(e => /takeover|switchover|giveback|switchback/i.test(e.category || '')).sort((a, b) => new Date(b.emsDate || 0) - new Date(a.emsDate || 0))[0];
   const mcClustersSeen = new Set();
   systems.forEach(s => {
     if (s.isMetroCluster) {
