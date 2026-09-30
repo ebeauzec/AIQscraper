@@ -1,8 +1,8 @@
 {
-  "version": "5.6.195",
+  "version": "5.6.196",
   "major": 5,
   "minor": 6,
-  "patch": 195,
+  "patch": 196,
   "date": "2026-09-30",
-  "notes": "Added a cross-site version parity recommendation for critical/high NetApp issues that aren't CVEs: per customer, the highest real Active IQ-recommended target version among affected systems, so every system can converge on one baseline -- shown alongside (not replacing) the per-system finding detail in the OS Upgrade card, Executive Risk Assessment, and TAM Success Plan."
+  "notes": "Fixed a table-parsing bug in the Word export pipeline: a one-row summary table (e.g. TAM Success Plan / QBR Pack Risk Posture) with no blank line before the next paragraph swept that paragraph in as another table row and sliced it at the table's column offsets, corrupting the text. Swept all downloadable deliverables for the same issue -- confirmed fixed, no other instances found."
 }

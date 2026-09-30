@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.196] - 2026-09-30
+
+### Fixed
+- A segmented-rule table (`_dfTable()`-built, e.g. the TAM Success Plan / QBR Pack Risk Posture Summary) immediately followed by a plain summary line with no blank line in between (e.g. "Security-Related Risk Findings: ...", "Support Cases: ...") had that line swept in as another table row and sliced mid-word at the table's column offsets, corrupting the text in the exported Word document. The table-continuation parser now only accepts a following line as another data row when it actually has a space character at each column boundary (the way a real `_dfTable()` row does), rather than accepting any non-blank line. Swept every downloadable deliverable for the same pattern after fixing it -- confirmed no other instances remain.
+
+---
+
 ## [5.6.195] - 2026-09-30
 
 ### Added

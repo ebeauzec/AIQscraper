@@ -31,6 +31,21 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.196",
+    date: "30 September 2026",
+    title: "Fixed: Table Swallowing the Line Right After It in Word Exports",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- A Summary Line With No Blank Line Before It Got Sliced Into the Table Above",
+        color: "#ef4444",
+        items: [
+          "A one-row summary table (Risk Posture Summary and similar) immediately followed by a plain line with no blank line in between (e.g. 'Security-Related Risk Findings: ...') had that line swept in as another table row and sliced mid-word at the table's column positions -- visible as words like 'Security-Related' splitting into fragments across cells in the exported Word document. The parser now only treats a following line as another table row when it genuinely has a space at each column boundary, the way a real data row does. Checked every downloadable deliverable for the same pattern -- confirmed no other instances.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.195",
     date: "30 September 2026",
     title: "Cross-Site Version Parity Recommendation for Non-CVE NetApp Issues",
@@ -34367,8 +34382,16 @@ function _dxParse(text, isMd, ctx) {
     }
     if (segNext && segNext.length >= 3) {   // column table whose columns are marked by the underline segments (single-space gaps in the header are fine)
       const cut = line => segNext.map((r, ci) => (ci === segNext.length - 1 ? line.slice(r[0]) : line.slice(r[0], segNext[ci + 1][0])).trim());
+      // A genuine data row (built by _dfTable's padEnd()+join(' ')) always has
+      // a space character exactly at each internal column boundary; prose
+      // that merely overflows past that offset does not. Real bug this
+      // caught: _dfTable() is sometimes followed immediately (no blank line)
+      // by a plain summary line ("Security-Related Risk Findings: ..." /
+      // "Support Cases: ..."), which the old "any non-blank line" check swept
+      // in as another row and sliced mid-word at the table's column offsets.
+      const looksLikeRow = line => segNext.slice(1).every(seg => { const b = seg[0]; return b - 1 >= line.length || line[b - 1] === ' '; });
       const rows = [cut(l).map(_dxClean)]; let j = i + 2;
-      while (j < L.length && L[j].trim()) { if (!_dxIsRule(L[j])) rows.push(cut(L[j]).map(_dxClean)); j++; }
+      while (j < L.length && L[j].trim() && !_dxIsRule(L[j]) && looksLikeRow(L[j])) { rows.push(cut(L[j]).map(_dxClean)); j++; }
       if (rows.length >= 2) { i = j - 1; push({ t: 'table', header: true, rows }); continue; }
     }
     { const sc = _dxSpecialCard(L, i); if (sc) { i = sc.next - 1; push(sc.block); continue; } }   // decisions, roadmap actions, upgrade plans, support cases, drift lists

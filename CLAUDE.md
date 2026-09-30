@@ -22,9 +22,52 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.195)
+## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.196)
 
-Four threads this session, all triggered by screenshots of generated deliverables.
+Five threads this session, all triggered by screenshots of generated deliverables.
+
+**18. Table swallowing the line right after it in Word exports (shipped, v5.6.196).** User screenshot: TAM
+Success Plan's Risk Posture Summary table (`_dfTable(['Critical','High','Medium'], ...)`) rendered fine, but
+the very next line -- "Security-Related Risk Findings: 74 (...)" -- came out sliced into fragments ("Securit"
+/ "y-Relat" / "ed Risk Findings: ..."). Root cause, in `_dxParse()`'s segmented-rule table branch (app.js
+~34368-34379): once a segmented-rule header/rule pair is detected, the continuation loop kept consuming ANY
+non-blank line as another table row and slicing it at the header's column offsets -- it had no way to tell
+"another real data row" apart from "the next paragraph, which just happens to follow with no blank line in
+between." Real trigger: several deliverables put a one-row `_dfTable()` immediately before a plain summary
+line with no blank line separating them. Fixed by requiring a genuine data row (from `_dfTable()`'s
+`padEnd()`+`join(' ')`) to have a literal space character at every internal column boundary; prose that
+merely overflows past that offset doesn't, so it now correctly stops the table there. First fix attempt
+(reject lines starting with `- `) was too narrow -- caught the TAM Success Plan instance but missed QBR Pack's
+"Security-Related Risk Findings: ..." / "Support Cases: ..." lines, which use plain indentation with no dash;
+replaced with the general word-boundary check. **Verified exhaustively, not just the one screenshot**: wrote a
+harness (`_dxParse()` called directly on each deliverable's real generated text, scanning every table block
+for cells starting mid-word) and ran it against all 15 downloadable deliverable types (SUCCESS_PLAN,
+QBR_PACK, PROBLEM_STATEMENTS, SOLUTION_PROPOSAL, SALES_PROPOSAL, MSP_REPORT, SECURITY_BRIEF,
+RISK_REMEDIATION_BRIEF, SUSTAINABILITY_REPORT, HANDOVER_BRIEF, VALUE_REPORT, CUSTOMER_REPORT, TICKET,
+IMPLEMENTATION, EMAIL) against the real 1052-system fleet -- zero remaining instances of this bug; confirmed
+the fix doesn't over-trigger by checking a genuine 3-row segmented table (Feature Adoption Scorecard) still
+parses as 3 real rows, not 1. Also built and validated a REAL .docx end-to-end (not just the parsed
+intermediate form): captured `_buildDocx()`'s output via a `_dlBlob` monkeypatch, moved the bytes out of the
+browser as chunked base64 (a direct real-file-download attempt didn't land in any locatable folder in this
+sandboxed preview browser -- worth remembering if this comes up again, don't rely on triggering the actual
+save dialog for verification, capture the Blob instead), decoded with Python, and opened it with `python-docx`
+(223 paragraphs, 38 tables, no errors) per this repo's standing OOXML-verification rule. **LibreOffice
+(`soffice`) is NOT installed on this machine** -- the docx skill's visual PDF-render step doesn't work here;
+python-docx/openpyxl structural validation is the only verification available locally, consistent with
+CLAUDE.md's existing standing note. Found and deliberately did NOT fix a much smaller, different
+inconsistency while sweeping: a support-contract inventory table has 2 rows (StorageGRID systems, which have
+no service-level field at all) with one fewer field than the rest -- confirmed benign by reading
+`_docxTable()`'s renderer, which always emits the max column count across all rows and fills a missing cell
+with an empty string, so this just shows one blank cell for those two systems, not corrupted text.
+**Also hit and resolved a self-inflicted false alarm while debugging**: spent significant time chasing why a
+direct call to the real `triggerFileDownload` produced no `_dlBlob`/`_buildDocx` calls and no error -- turned
+out `window.__origTFD2 = window.__origTFD2 || triggerFileDownload` had captured one of my OWN earlier
+capture-only stub functions (from a previous browser-console monkeypatch in the same session) instead of the
+real original, because I'd left `window.triggerFileDownload` overridden at the time that line ran. Not an app
+bug; reloading the page for a clean reference resolved it. Lesson for next time doing this kind of
+monkeypatch-and-capture verification: reload before capturing an "original" reference if the global may
+already be patched from earlier in the same session, or capture it once at the very top of the session before
+any overrides.
 
 **17. Cross-site version parity recommendation added on top of point 16 (shipped, v5.6.195).** Immediate
 follow-up to point 16 below, same conversation: user first asked to make a "minimum ONTAP recommendation"
@@ -167,11 +210,11 @@ two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, f
 none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
 matrix does.
 
-**Git:** branch `main`. v5.6.192 through v5.6.195 each committed individually after this session's work
+**Git:** branch `main`. v5.6.192 through v5.6.196 each committed individually after this session's work
 (app.js, CHANGELOG.md, version.json, CLAUDE.md, and the synced `dist/app.js` +
 `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time). Exe rebuilt via PyInstaller
 (`build/AIQscraper.spec`, note the spec lives under `build/`, not the repo root) to
-`%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild195`, never `build/build_windows.bat`. No `server.py`
+`%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild196`, never `build/build_windows.bat`. No `server.py`
 or HTML changes this session, so only `app.js` + the exe + `base_library.zip` needed re-syncing into `dist/`.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir via
