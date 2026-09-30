@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.193] - 2026-09-30
+
+### Fixed
+- The IMT "Interop Compatibility Warnings" section (Technical Solution Proposal / Action Planner OS Upgrades) misattributed Cisco switch findings: Cisco Nexus NX-OS and Cisco MDS 9000 share one fleet-wide "a Cisco switch exists somewhere" detection signal, so a system with only a Nexus switch (or no switch at all) could still show an MDS end-of-life finding, and vice versa -- purely because its ONTAP version happened to fall in that unrelated integration's version range. Both integrations now match against the system's actual switch model/firmware text before a finding is attributed to it.
+
+---
+
 ## [5.6.192] - 2026-09-30
 
 ### Changed

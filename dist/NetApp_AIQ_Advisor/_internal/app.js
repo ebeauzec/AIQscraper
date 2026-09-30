@@ -31,6 +31,21 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.193",
+    date: "30 September 2026",
+    title: "Fixed: Cisco Nexus/MDS Interop Findings Were Cross-Attributed",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- A System Could Show an MDS Finding With No MDS Switch Attached",
+        color: "#ef4444",
+        items: [
+          "The IMT 'Interop Compatibility Warnings' section shares one fleet-wide detection signal between Cisco Nexus NX-OS and Cisco MDS 9000 (both are 'a Cisco switch exists somewhere in the fleet'), so a system's ONTAP version alone decided whether it appeared in a Nexus or an MDS finding -- regardless of which switch, if any, it actually had. Confirmed live: a system with zero switches attached appeared in both a Nexus and an MDS end-of-life finding. Both integrations now check the system's own switch model/firmware text before attributing a finding to it.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.192",
     date: "30 September 2026",
     title: "Deliverables Now Group Findings by System, Not in One Flat List",
@@ -12379,6 +12394,14 @@ const IMT_INTEROP_MATRIX = {
   cisco_nxos: {
     name: "Cisco Nexus NX-OS (Cluster/Storage Switch)",
     signal: "cisco_san",
+    // Nexus and MDS both set the fleet-wide "cisco_san" signal (same vendor,
+    // different switch families) -- this pattern narrows a finding down to
+    // systems that actually have a Nexus switch attached, not just any Cisco
+    // switch anywhere in the fleet. Matched against both model and firmware
+    // text since a real switch's model field can be a generic classification
+    // ("OTHER (Cluster Interconnect)") while its firmware string reliably says
+    // "Cisco Nexus...".
+    switchMatch: /nexus/i,
     currentRecommended: "10.4.2",
     versions: {
       "10.4.2":  { minOntap: "9.14.1", maxOntap: "9.19.1", status: "current", notes: "Recommended for AFX 1K (9332D-GX2B, 9364D-GX2A)" },
@@ -12392,6 +12415,7 @@ const IMT_INTEROP_MATRIX = {
   cisco_mds: {
     name: "Cisco MDS 9000 (FC SAN Switch)",
     signal: "cisco_san",
+    switchMatch: /mds/i,
     currentRecommended: "9.2(2)",
     versions: {
       "9.2(2)": { minOntap: "9.8",  maxOntap: "9.19.1", status: "current" },
@@ -14208,10 +14232,20 @@ function runIMTInteropCheck(systems, detectedSignals) {
     const recommended = integration.versions[integration.currentRecommended];
     if (!recommended) continue;
 
+    // When multiple switch families share one fleet-wide signal (Nexus and MDS
+    // both set "cisco_san"), narrow to systems that actually have a matching
+    // switch attached -- otherwise a system with only a Nexus switch gets
+    // flagged for an MDS EOL finding (and vice versa) purely because its ONTAP
+    // version happens to fall in that unrelated integration's version range.
+    const scopedSystems = integration.switchMatch
+      ? systems.filter(s => getSystemSwitches(s).some(sw => integration.switchMatch.test(sw.model || '') || integration.switchMatch.test(sw.firmware || '')))
+      : systems;
+    if (integration.switchMatch && scopedSystems.length === 0) continue;
+
     // Deduplicate: track one finding per integration (worst case across fleet)
     let worstFinding = null;
 
-    for (const sys of systems) {
+    for (const sys of scopedSystems) {
       const ontapVer = sys.ontapVersion;
       if (!ontapVer) continue;
 
@@ -14245,7 +14279,7 @@ function runIMTInteropCheck(systems, detectedSignals) {
       if (compat.status !== 'eol-imminent') continue;
       // System is in range if: ontapVer >= minOntap AND ontapVer <= maxOntap
       // i.e., NOT below min AND NOT above max
-      const affectedSystems = systems.filter(s => {
+      const affectedSystems = scopedSystems.filter(s => {
         const v = s.ontapVersion;
         if (!v) return false;
         return !versionLt(v, compat.minOntap) && !versionLt(compat.maxOntap, v);
@@ -14271,7 +14305,7 @@ function runIMTInteropCheck(systems, detectedSignals) {
     }
 
     // Check for CVE urgency
-    if (integration.cve && systems.some(s => s.ontapVersion)) {
+    if (integration.cve && scopedSystems.some(s => s.ontapVersion)) {
       findings.push({
         type: 'cve_advisory',
         severity: 'critical',

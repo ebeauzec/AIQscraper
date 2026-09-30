@@ -22,9 +22,11 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.192)
+## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.193)
 
-Single-thread session: user gave a screenshot of the Security Advisories report (flat "Sa-Id: CVE-... -
+Two threads this session, both triggered by screenshots of generated deliverables.
+
+**14b. User gave a screenshot of the Security Advisories report (flat "Sa-Id: CVE-... -
 SYSTEMNAME" entries, no structure) and asked to reformat it grouped by system, drop the Sa-Id label, and
 under each system list CVE/Title/Mitigation/Status. That escalated in three follow-up messages to: group
 tasks/actions by system in **all** other deliverables, then "scan all of the downloadable, formatted
@@ -91,11 +93,30 @@ time (confirmed: they still had the pre-rewrite `_renderCheckColumn` with no `_r
 that was irrelevant to what the dev-mode browser was actually loading -- it only matters for the packaged EXE,
 which the standard rebuild-and-sync step at the end of this session addressed anyway.
 
-**Git:** branch `main`. v5.6.192 committed after this session's work (app.js, CHANGELOG.md, version.json,
-CLAUDE.md, and the synced `dist/app.js` + `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe`). Exe rebuilt via
-PyInstaller (`build/AIQscraper.spec`, note the spec lives under `build/`, not the repo root) to
-`%LOCALAPPDATA%\Temp\aiqbuild192`, never `build/build_windows.bat`. No `server.py` or HTML changes this
-session, so only `app.js` + the exe + `base_library.zip` needed re-syncing into `dist/`.
+**15. Cisco Nexus/MDS interop findings cross-attributed (shipped, v5.6.193).** Second thread, same session:
+user gave a screenshot of the Technical Solution Proposal's "Interop Compatibility Warnings" table asking "why
+are switches still showing ontap?" -- the Finding column for BOTH a Cisco Nexus row and a Cisco MDS row was
+prefixed with the same raw serial number (`90820130000000001272:`). Root cause, confirmed live:
+`IMT_INTEROP_MATRIX`'s `cisco_nxos` and `cisco_mds` entries (app.js ~12379-12403) both key off one fleet-wide
+`signal: "cisco_san"` (set true in `_buildDetectedSignals()` whenever ANY Cisco switch of ANY model exists
+anywhere in the fleet), and `runIMTInteropCheck()` (~14205) then ran BOTH integrations' checks against every
+system's ONTAP version with no per-system check of which switch, if any, that system actually has. Confirmed
+live: the flagged system (`90820130000000001272`) has `switches: []` -- zero switches attached -- yet appeared
+in both a Nexus and an MDS finding purely because its ONTAP version (9.12.1) fell inside both integrations'
+trigger ranges. Fixed by adding a `switchMatch` regex to each integration (`/nexus/i`, `/mds/i` -- matched
+against both `sw.model` and `sw.firmware`, since a real switch's model field can be a generic classification
+while firmware reliably names the product) and filtering to `scopedSystems` (systems with a matching switch)
+before running the below-minimum and EOL-imminent checks for that integration. Verified live: the zero-switch
+system now produces 0 Nexus/MDS findings (its 2 remaining findings are legitimate VMware/OTV ones, unaffected);
+two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, for their own switch type only,
+none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
+matrix does.
+
+**Git:** branch `main`. v5.6.192 and v5.6.193 both committed after this session's work (app.js, CHANGELOG.md,
+version.json, CLAUDE.md, and the synced `dist/app.js` + `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe`
+each time). Exe rebuilt via PyInstaller (`build/AIQscraper.spec`, note the spec lives under `build/`, not the
+repo root) to `%LOCALAPPDATA%\Temp\aiqbuild192`/`aiqbuild193`, never `build/build_windows.bat`. No `server.py`
+or HTML changes this session, so only `app.js` + the exe + `base_library.zip` needed re-syncing into `dist/`.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir via
 `build/AIQscraper.spec`, never `build/build_windows.bat` -- destructive). Server.py changes need an actual

@@ -1,8 +1,8 @@
 {
-  "version": "5.6.192",
+  "version": "5.6.193",
   "major": 5,
   "minor": 6,
-  "patch": 192,
+  "patch": 193,
   "date": "2026-09-30",
-  "notes": "Deliverables (Security Advisories, Prioritized Risks, Switch Validation, TAM Success Plan, Account Handover Brief, and the Action Planner UI) now group every finding by system instead of listing them flat, so a reader sees all of one system's issues before the next system starts. Security Advisories also dropped the internal SA-ID label in favor of the CVE number."
+  "notes": "Fixed the IMT Interop Compatibility Warnings incorrectly flagging systems for a Cisco Nexus or Cisco MDS finding when they only had the other switch type (or no switch at all) attached -- both integrations shared one fleet-wide 'a Cisco switch exists somewhere' signal instead of being matched per-system against the actual switch model."
 }
