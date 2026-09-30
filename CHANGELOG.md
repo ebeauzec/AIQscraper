@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.199] - 2026-09-30
+
+### Added
+- Every system with at least one open critical/high risk, critical/high security advisory, or open support case is now ranked worst-first by a combined severity score (critical/high risks, critical/high CVEs, open support cases, and how far below par its real Active IQ Health Score sits when Active IQ reports one) via a new shared `_dfSystemIssueRanking()`. Wired into the Overview tab's "Needs Attention" card (now expandable to the full ranked list instead of a fixed top 5, and using the same composite score as everywhere else instead of its own simpler risk-count sort) and into the TAM Success Plan, QBR Pack, Executive Risk Assessment, and Account Handover Brief as a new "Systems Ranked by Issue Severity" section.
+
+---
+
 ## [5.6.198] - 2026-09-30
 
 ### Added

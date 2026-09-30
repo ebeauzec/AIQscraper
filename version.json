@@ -1,8 +1,8 @@
 {
-  "version": "5.6.198",
+  "version": "5.6.199",
   "major": 5,
   "minor": 6,
-  "patch": 198,
+  "patch": 199,
   "date": "2026-09-30",
-  "notes": "Wired in real per-system Active IQ Health Scores (ONTAPSystem.healthScore) across the Overview tile, TAM Success Plan, QBR Pack, Executive Risk Assessment, and Account Handover Brief -- shows which specific systems are dragging an account's score down, alongside the existing fleet-wide/per-customer score. Also fixed two bugs introduced earlier this session: a duplicate Python dict key silently discarded the correct downtimeEvents data, and enrichSystemTelemetry was silently dropping mcDrClusterName/mcDrClusterId, so the v5.6.197 MetroCluster real-partner fix never actually activated against real harvested data until now."
+  "notes": "Every system with at least one open critical/high risk, critical/high security advisory, or open support case is now ranked worst-first by a combined severity score (risks + CVEs + open cases + how far below par its real Active IQ Health Score sits), in both the Overview tab's Needs Attention card (now expandable to the full list, not just the top 5) and in the TAM Success Plan, QBR Pack, Executive Risk Assessment, and Account Handover Brief."
 }

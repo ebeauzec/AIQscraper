@@ -22,9 +22,42 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.198)
+## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.199)
 
-Seven threads this session, all triggered by screenshots of generated deliverables.
+Eight threads this session, all triggered by screenshots of generated deliverables.
+
+**21. Systems ranked by issue severity, worst first (shipped, v5.6.199).** User, immediate follow-up to point
+20: "give a breakdown in the tool, and the reports/deliverables of the issues identified with the individual
+systems, worst first." Checked what already existed first (again -- this is now the standing discipline for
+every "wire in X" ask this session, after getting burned twice on point 20): found `renderNeedsAttention()`
+(Overview tab's "Needs Attention" card) already ranked systems by risk count, but capped at a fixed top 5, GUI-
+only, no deliverable equivalent, and using only critical/high RISK counts (not CVEs, cases, or the new Health
+Score). Nothing else in the codebase ranked systems by combined issue severity.
+- New shared `_dfSystemIssueRanking(systems)` (app.js, right after `_dfSystemHealthScores`): a composite score
+  per system -- critical risks x10, high risks x4, medium risks x1, critical CVEs x6, high CVEs x2, open
+  support cases x2, plus (when Active IQ reports a Health Score) `max(0, 70 - score) x 0.3` so a system that
+  scores badly on Active IQ's own metric for reasons this app's risk list doesn't separately raise (lifecycle,
+  firmware currency, uptime, etc.) still surfaces. Same weighting SHAPE as the pre-existing Customer Portfolio
+  ranking (`riskScore` at ~line 10724, customer granularity) -- there was no system-granularity equivalent of
+  that before this. Only returns systems with score > 0 (a clean system doesn't appear as a trailing zero).
+  `_dfSystemIssueRankingText(systems, limit)` is the shared plain-text renderer every deliverable below uses,
+  capped (default 15) with an explicit "+N more" rather than dumping a multi-thousand-line list for a large
+  fleet -- confirmed live against the real 1052-system fleet this needed (886 systems had at least one issue).
+- **GUI**: `renderNeedsAttention()` now uses this same composite score instead of its own simpler risk-count
+  sort (so "worst" means the same thing here as everywhere else), and instead of hard-capping at 5, shows the
+  top 5 plus a native `<details>`/`<summary>` "Show N more systems" expander revealing the full ranked list --
+  deliberately no new DOM element/HTML file change, since a `<details>` block works inside the card's existing
+  container. Preserved the pre-existing behavior that a system with ONLY a soon-expiring contract (zero issue
+  score) still surfaces here, by merging the ranking back over every filtered system rather than only the ones
+  `_dfSystemIssueRanking()` itself returns (contract urgency isn't part of that score).
+- **Deliverables**: new "SYSTEMS RANKED BY ISSUE SEVERITY (Worst First)" section added to the TAM Success
+  Plan, QBR Pack, Executive Risk Assessment, and Account Handover Brief -- the same 4 documents point 20's
+  Health Score work touched, for consistency.
+- **Verified against real data**: called `_dfSystemIssueRanking(state.systems)` directly against the real
+  1052-system fleet (top-ranked system: CTPNAPROD-N1, 4 critical risks/45 high risks/14 critical CVEs/77 high
+  CVEs, score 502) and confirmed via real `downloadDeliverable()` calls that all 4 deliverables and the real
+  Overview tab DOM (`renderNeedsAttention()` called via a real function call after `switchTab('overview')`,
+  confirming the `<details>` element and its "Show 898 more systems" summary text) render correctly.
 
 **20. Real per-system Active IQ Health Score + two self-inflicted bugs found and fixed (shipped, v5.6.198).**
 User: "wire in ONTAPSystem.healthScore... i want to report on this in all the metrics and deliverables."
@@ -327,14 +360,14 @@ two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, f
 none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
 matrix does.
 
-**Git:** branch `main`. v5.6.192 through v5.6.198 each committed individually after this session's work
+**Git:** branch `main`. v5.6.192 through v5.6.199 each committed individually after this session's work
 (app.js, CHANGELOG.md, version.json, CLAUDE.md, and the synced `dist/app.js` +
 `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time; v5.6.197 and v5.6.198 also synced
-`dist/NetApp_AIQ_Advisor/_internal/server.py` since both touched the harvester -- note PyInstaller does NOT
-produce a loose `server.py` in its own build output (it's compiled into the exe), so that sync step copies
-directly from the repo root's `server.py`, matching what past sessions did). Exe rebuilt via PyInstaller
-(`build/AIQscraper.spec`, note the spec lives under `build/`, not the repo root) to
-`%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild198`, never `build/build_windows.bat`. No HTML changes this
+`dist/NetApp_AIQ_Advisor/_internal/server.py` since both touched the harvester (v5.6.199 was app.js-only, no
+server.py sync needed) -- note PyInstaller does NOT produce a loose `server.py` in its own build output (it's
+compiled into the exe), so that sync step copies directly from the repo root's `server.py`, matching what past
+sessions did). Exe rebuilt via PyInstaller (`build/AIQscraper.spec`, note the spec lives under `build/`, not
+the repo root) to `%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild199`, never `build/build_windows.bat`. No HTML changes this
 session.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir via

@@ -31,6 +31,23 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.199",
+    date: "30 September 2026",
+    title: "Systems Ranked by Issue Severity, Worst First",
+    sections: [
+      {
+        icon: "📄",
+        label: "Added -- One Combined Ranking of Every System's Issues, Across the Tool and Every Major Deliverable",
+        color: "#3b82f6",
+        items: [
+          "New shared `_dfSystemIssueRanking()`: every system with at least one open critical/high risk, critical/high security advisory (CVE), or open support case is ranked worst-first by a combined severity score, which also folds in how far below par a system's real Active IQ Health Score sits when Active IQ reports one.",
+          "The Overview tab's 'Needs Attention' card now uses this same composite score (previously a simpler risk-count-only sort) and expands to show every system with an issue, not just a fixed top 5.",
+          "TAM Success Plan, QBR Pack, Executive Risk Assessment, and Account Handover Brief each gained a new 'Systems Ranked by Issue Severity' section listing the worst systems by name with their specific issue counts.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.198",
     date: "30 September 2026",
     title: "Real Per-System Active IQ Health Scores + Two Bugs Fixed",
@@ -10772,43 +10789,62 @@ function renderNeedsAttention() {
   if (!card) return;
   const filtered = getFilteredSystems(true);
 
+  // Reuses the shared _dfSystemIssueRanking() composite score (risks + CVEs +
+  // open cases + real Active IQ Health Score shortfall) instead of this
+  // card's own risk-count-only sort, so "worst" means the same thing here as
+  // it does in the fuller Technical Audit breakdown and in every deliverable.
+  // A system with a soon-expiring contract but otherwise a zero issue score
+  // still needs to surface here (contract urgency isn't part of that score),
+  // so this merges the ranking back over every filtered system rather than
+  // only the ones _dfSystemIssueRanking() itself returns.
+  const scoreByKey = {}; _dfSystemIssueRanking(filtered).forEach(r => { scoreByKey[r.systemName] = r; });
   const ranked = filtered.map(sys => {
-    const critCount = (sys.risks || []).filter(r => r.severity === 'critical').length;
-    const highCount = (sys.risks || []).filter(r => r.severity === 'high').length;
+    const key = sys.systemName || sys.serialNumber;
+    const r = scoreByKey[key] || { critRisks: 0, highRisks: 0, critCves: 0, openCases: 0, aiqHealthScore: sys.aiqHealthScore != null ? sys.aiqHealthScore : null, score: 0 };
     const daysRemaining = sys.contracts ? sys.contracts.daysRemaining : null;
-    const contractExpiringSoon = daysRemaining != null && daysRemaining <= 30;
-    return { sys, critCount, highCount, contractExpiringSoon, daysRemaining };
-  }).filter(r => r.critCount > 0 || r.highCount > 0 || r.contractExpiringSoon)
-    .sort((a, b) => (b.critCount - a.critCount) || (b.highCount - a.highCount) || ((a.daysRemaining ?? 999) - (b.daysRemaining ?? 999)))
-    .slice(0, 5);
+    return { sys, ...r, contractExpiringSoon: daysRemaining != null && daysRemaining <= 30, daysRemaining };
+  }).filter(r => r.score > 0 || r.contractExpiringSoon)
+    .sort((a, b) => b.score - a.score || ((a.daysRemaining ?? 999) - (b.daysRemaining ?? 999)));
 
   if (ranked.length === 0) {
     card.style.display = "none";
     return;
   }
   card.style.display = "block";
+  const rowHtml = r => {
+    const parts = [];
+    if (r.critRisks > 0) parts.push(`<span style="color: var(--status-critical); font-weight: 600;">${r.critRisks} critical</span>`);
+    if (r.highRisks > 0) parts.push(`<span style="color: var(--status-warning); font-weight: 600;">${r.highRisks} high</span>`);
+    if (r.critCves > 0) parts.push(`<span style="color: var(--status-critical);">${r.critCves} critical CVE${r.critCves !== 1 ? 's' : ''}</span>`);
+    if (r.openCases > 0) parts.push(`<span style="color: var(--text-secondary);">${r.openCases} open case${r.openCases !== 1 ? 's' : ''}</span>`);
+    if (r.aiqHealthScore != null) parts.push(`<span style="color: var(--text-secondary);">AIQ score ${r.aiqHealthScore}</span>`);
+    if (r.contractExpiringSoon) parts.push(`<span style="color: var(--status-warning);">contract expires in ${r.daysRemaining}d</span>`);
+    return `
+      <div onclick="focusOnSystem('${r.sys.serialNumber}'); switchTab('tam');" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
+        <div>
+          <span style="font-weight: 600;">${r.sys.systemName}</span>
+          <span style="color: var(--text-muted); font-size: 0.78rem; margin-left: 8px;">${r.sys.customerName || ''}</span>
+        </div>
+        <div style="font-size: 0.78rem; display: flex; gap: 10px;">${parts.join(' · ')}</div>
+      </div>
+    `;
+  };
+  const head = ranked.slice(0, 5), rest = ranked.slice(5);
   card.innerHTML = `
     <div class="table-header-row" style="margin-bottom: 12px;">
       <div class="section-title" style="color: var(--status-critical);">⚠ Needs Attention</div>
-      <div style="font-size: 0.72rem; color: var(--text-muted);">Highest-risk systems in current scope — click to open in Technical Audit</div>
+      <div style="font-size: 0.72rem; color: var(--text-muted);">Worst-first by risk/CVE/case severity + Active IQ Health Score — click a system to open it in Technical Audit</div>
     </div>
     <div style="display: flex; flex-direction: column; gap: 6px;">
-      ${ranked.map(r => {
-        const parts = [];
-        if (r.critCount > 0) parts.push(`<span style="color: var(--status-critical); font-weight: 600;">${r.critCount} critical</span>`);
-        if (r.highCount > 0) parts.push(`<span style="color: var(--status-warning); font-weight: 600;">${r.highCount} high</span>`);
-        if (r.contractExpiringSoon) parts.push(`<span style="color: var(--status-warning);">contract expires in ${r.daysRemaining}d</span>`);
-        return `
-          <div onclick="focusOnSystem('${r.sys.serialNumber}'); switchTab('tam');" style="display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: rgba(255,255,255,0.02); border: 1px solid var(--border-color); border-radius: var(--radius-sm); cursor: pointer;" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='rgba(255,255,255,0.02)'">
-            <div>
-              <span style="font-weight: 600;">${r.sys.systemName}</span>
-              <span style="color: var(--text-muted); font-size: 0.78rem; margin-left: 8px;">${r.sys.customerName || ''}</span>
-            </div>
-            <div style="font-size: 0.78rem; display: flex; gap: 10px;">${parts.join(' · ')}</div>
-          </div>
-        `;
-      }).join('')}
+      ${head.map(rowHtml).join('')}
     </div>
+    ${rest.length ? `
+    <details style="margin-top: 8px;">
+      <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-muted); padding: 4px 0;">Show ${rest.length} more system${rest.length !== 1 ? 's' : ''} needing attention</summary>
+      <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+        ${rest.map(rowHtml).join('')}
+      </div>
+    </details>` : ''}
   `;
 }
 
@@ -19372,6 +19408,60 @@ function _dfSystemHealthScores(systems) {
   return { rows, avg, worst, coverage: rows.length, total: (systems || []).length };
 }
 
+// Ranks every system in scope by a composite issue-severity score, worst
+// first: critical/high risk findings, critical/high security advisories
+// (CVEs), open support cases, and -- when Active IQ reports one -- how far
+// below 70 the system's own real Health Score sits (folds in whatever the
+// official score is weighing that this app's own risk list doesn't
+// separately raise as a discrete finding: lifecycle, firmware currency,
+// uptime, etc.). Same weighting shape as the existing Customer Portfolio
+// ranking's riskScore (critRisks*10 + highRisks*3 + ...), just at system
+// rather than customer granularity -- there was no per-system equivalent of
+// that ranking before this. Only returns systems with at least one issue
+// (score > 0); a clean system doesn't appear at all, not as a 0 at the
+// bottom of a long list.
+function _dfSystemIssueRanking(systems) {
+  const rows = (systems || []).map(s => {
+    const risks = s.risks || [];
+    const critRisks = risks.filter(r => (r.severity || '').toLowerCase() === 'critical').length;
+    const highRisks = risks.filter(r => (r.severity || '').toLowerCase() === 'high').length;
+    const medRisks = risks.filter(r => (r.severity || '').toLowerCase() === 'medium').length;
+    const bulletins = s.securityBulletins || [];
+    const critCves = bulletins.filter(b => (b.severity || '').toLowerCase() === 'critical').length;
+    const highCves = bulletins.filter(b => (b.severity || '').toLowerCase() === 'high').length;
+    const openCases = (s.supportCases || []).filter(c => c._isActive).length;
+    const hs = s.aiqHealthScore != null ? s.aiqHealthScore : null;
+    const score = critRisks * 10 + highRisks * 4 + medRisks * 1 + critCves * 6 + highCves * 2 + openCases * 2 + (hs != null ? Math.max(0, 70 - hs) * 0.3 : 0);
+    return {
+      systemName: s.systemName || s.serialNumber, customerName: s.customerName || '',
+      critRisks, highRisks, medRisks, critCves, highCves, openCases, aiqHealthScore: hs, score
+    };
+  }).filter(r => r.score > 0);
+  rows.sort((a, b) => b.score - a.score);
+  return rows;
+}
+
+// Plain-text rendering of _dfSystemIssueRanking(), shared by every deliverable
+// that surfaces it -- one line per system, worst first, capped so a large
+// fleet doesn't turn into a multi-thousand-line dump (the ranking itself is
+// unbounded; only this text rendering truncates, with an explicit "+N more").
+function _dfSystemIssueRankingText(systems, limit) {
+  const rows = _dfSystemIssueRanking(systems);
+  if (!rows.length) return '';
+  const lim = limit || 15;
+  const line = r => {
+    const parts = [];
+    if (r.critRisks) parts.push(`${r.critRisks} critical risk${r.critRisks !== 1 ? 's' : ''}`);
+    if (r.highRisks) parts.push(`${r.highRisks} high risk${r.highRisks !== 1 ? 's' : ''}`);
+    if (r.critCves) parts.push(`${r.critCves} critical CVE${r.critCves !== 1 ? 's' : ''}`);
+    if (r.highCves) parts.push(`${r.highCves} high CVE${r.highCves !== 1 ? 's' : ''}`);
+    if (r.openCases) parts.push(`${r.openCases} open case${r.openCases !== 1 ? 's' : ''}`);
+    if (r.aiqHealthScore != null) parts.push(`AIQ Health Score ${r.aiqHealthScore}/100`);
+    return `  ${r.systemName}${r.customerName ? ` (${r.customerName})` : ''}: ${parts.join(', ') || 'issues present'}`;
+  };
+  return rows.slice(0, lim).map(line).join('\n') + (rows.length > lim ? `\n  +${rows.length - lim} more system${rows.length - lim !== 1 ? 's' : ''} with at least one issue` : '');
+}
+
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
 // ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57
 // critical/high + the rest). A bulletin that lists several CVEs contributes each of them.
@@ -24112,6 +24202,9 @@ ${(() => { const nc = _dfCriticalHighNonCveIssuesSummary(targetSystems); if (!nc
   return `  - Critical NetApp Issues (Non-CVE): ${_dfPlural(nc.rows.length, 'system')} with ${_dfPlural(nc.totalCount, 'critical/high finding')} that don't reduce to a single required software version (hardware, firmware, configuration, or lifecycle fixes instead) -- see Section 2 / As-Built for individual findings${parity ? `. To maintain cross-site version parity, all systems for this customer should match at: ${parity.results.map(r => `${r.label} ${r.version}`).join(', ')} (the highest Active IQ-recommended target among the affected systems)` : ''}`; })()}
 ${(() => { const hs = _dfSystemHealthScores(targetSystems); if (!hs) return ''; return `  - Active IQ Per-System Health Scores: ${hs.coverage}/${hs.total} systems reporting a real Active IQ health score, average ${hs.avg}/100. Lowest-scoring: ${hs.worst.map(r => `${r.systemName} (${r.score})`).join(', ')}`; })()}
 
+* SYSTEMS RANKED BY ISSUE SEVERITY (Worst First):
+${(() => { const t = _dfSystemIssueRankingText(targetSystems); return t || '  No system in scope currently has an open critical/high risk, critical/high CVE, or open support case.'; })()}
+
 ${compileSvmLifSummaryText(targetSystems)}
 
 * WORKLOAD EFFICIENCY HYGIENE:
@@ -24440,10 +24533,13 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     || (state.tamOfficialHealthScore || [])[0];
   const _officialHsIsFleetWide = !(_qbrNagpIds.length === 1 && officialHs && officialHs.nagpId === _qbrNagpIds[0]);
   const _sysHs = _dfSystemHealthScores(targetSystems);
+  const _sysRankText = _dfSystemIssueRankingText(targetSystems);
   const officialHsLine = (officialHs && officialHs.overallHealthScore != null
     ? `  Active IQ Official Health Score: ${officialHs.overallHealthScore}/100 (NetApp-calculated${officialHs.calculatedAt ? `, as of ${officialHs.calculatedAt.slice(0, 10)}` : ''}${_officialHsIsFleetWide ? ', fleet-wide -- no single-customer score available for this scope' : ''} -- factors in AutoSupport freshness, firmware, security hardening, uptime, EOS exposure, sustainability, tech refresh, add-on adoption)\n`
     : '') + (_sysHs
     ? `  Per-System Health Scores: ${_sysHs.coverage}/${_sysHs.total} systems reporting a score, average ${_sysHs.avg}/100. Lowest: ${_sysHs.worst.map(r => `${r.systemName} (${r.score})`).join(', ')}\n`
+    : '') + (_sysRankText
+    ? `  Systems Ranked by Issue Severity (worst first):\n${_sysRankText}\n`
     : '');
 
   // ── Risks ──
@@ -25668,6 +25764,11 @@ ${recentActivityText}
 ${(() => { const hs = _dfSystemHealthScores(targetSystems); if (!hs) return '  No system in scope currently reports a real Active IQ Health Score.'; return `  ${hs.coverage}/${hs.total} systems report a real, NetApp-calculated Active IQ Health Score. Fleet average: ${hs.avg}/100.
   Lowest-scoring systems:
 ${hs.worst.map(r => `    ${r.systemName}: ${r.score}/100`).join('\n')}`; })()}
+
+--------------------------------------------------------------------------------
+7b. SYSTEMS RANKED BY ISSUE SEVERITY (Worst First)
+--------------------------------------------------------------------------------
+${(() => { const t = _dfSystemIssueRankingText(targetSystems); return t || '  No system in scope currently has an open critical/high risk, critical/high CVE, or open support case.'; })()}
 
 --------------------------------------------------------------------------------
 8. DATA PROTECTION & DR POSTURE
@@ -27606,6 +27707,11 @@ ${r.items.map(it => `    - [${it.severity.toUpperCase()}/${it.category}] ${it.de
 ${(() => { const hs = _dfSystemHealthScores(targetSystems); if (!hs) return ''; return `ACTIVE IQ PER-SYSTEM HEALTH SCORES
   ${hs.coverage}/${hs.total} systems in scope report a real Active IQ Health Score (the same NetApp-calculated 0-100 score shown at the account level elsewhere in this document, here broken out per system so the lowest-scoring systems are visible by name). Fleet average: ${hs.avg}/100.
 ${hs.worst.map(r => `  ${r.systemName}: ${r.score}/100${r.date ? ` (as of ${r.date.slice(0, 10)})` : ''}`).join('\n')}
+`; })()}
+
+${(() => { const t = _dfSystemIssueRankingText(targetSystems); if (!t) return ''; return `SYSTEMS RANKED BY ISSUE SEVERITY (Worst First)
+  Every system with at least one open critical/high risk, critical/high security advisory, or open support case, ranked by a combined severity score.
+${t}
 `; })()}
 
 ${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (IMT)
