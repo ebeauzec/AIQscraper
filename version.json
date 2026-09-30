@@ -1,8 +1,8 @@
 {
-  "version": "5.6.196",
+  "version": "5.6.197",
   "major": 5,
   "minor": 6,
-  "patch": 196,
+  "patch": 197,
   "date": "2026-09-30",
-  "notes": "Fixed a table-parsing bug in the Word export pipeline: a one-row summary table (e.g. TAM Success Plan / QBR Pack Risk Posture) with no blank line before the next paragraph swept that paragraph in as another table row and sliced it at the table's column offsets, corrupting the text. Swept all downloadable deliverables for the same issue -- confirmed fixed, no other instances found."
+  "notes": "MetroCluster DR partner clusters are now identified from Active IQ's own reported data (ONTAPSystem.drCluster) instead of guessed from cluster naming, wherever that data is real -- confirmed live it existed all along and was never queried. Also started harvesting real recorded downtime/takeover events (ONTAPSystem.downtimeEvents), used to show real evidence when a DR failover was actually tested instead of always saying there's no record. SnapMirror relationship-level detail (destination, lag, health) was checked live and confirmed genuinely not exposed by the API -- no change there."
 }

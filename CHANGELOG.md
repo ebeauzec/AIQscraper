@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.197] - 2026-09-30
+
+### Added
+- MetroCluster DR partner clusters are now identified from Active IQ's own reported data (`ONTAPSystem.drCluster`, confirmed live via GraphQL schema introspection and a real fleet query -- reciprocal, cluster A's `drCluster` is cluster B and vice versa) instead of only guessed from cluster naming conventions. This closed a real gap: a live customer's 4-cluster MetroCluster fleet showed as 4 unpaired clusters under name-inference alone even though Active IQ reports each one's real DR partner. Falls back to name-inference only where Active IQ doesn't report a partner for a cluster; the MetroCluster Configuration & DR Health card and every deliverable's MetroCluster table now mark each pair "confirmed by Active IQ" or "(inferred)".
+- Started harvesting real recorded downtime/takeover events (`ONTAPSystem.downtimeEvents`, confirmed live -- rare in practice, but a genuine EMS-sourced event with a date, category and outage duration where it exists). The Remediation Tracker's DR-failover-test verification items now cite the real event when Active IQ has recorded one, instead of always saying there's no record.
+
+### Investigated, no change
+- Checked live whether SnapMirror relationship-level detail (destination, lag, health) is available via the GraphQL API beyond the aggregate count this app already uses -- confirmed it genuinely is not (`SnapMirrorRelationships.totalCount` is the only field on that type; no relationship-detail connection or root query field exists anywhere in the schema). The app's existing "SnapMirror status not reported by Active IQ" language was already accurate.
+
+---
+
 ## [5.6.196] - 2026-09-30
 
 ### Fixed

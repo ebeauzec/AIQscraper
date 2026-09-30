@@ -1628,6 +1628,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                   autoSupports { asupId generatedDate receivedDate subject type isManual }
                   ... on ONTAPSystem {
                     isMetroCluster isAllFlashOptimized operatingMode
+                    drCluster { id name }
+                    downtimeEvents { totalCount events { category code emsDate summary outageSeconds } }
                     propensityCategory serviceProcessorIPAddress
                     isARPEnabled autoUpdateEnabled nextBestAction
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
@@ -1707,6 +1709,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                   autoSupports { asupId generatedDate receivedDate subject type isManual }
                   ... on ONTAPSystem {
                     isMetroCluster isAllFlashOptimized operatingMode
+                    drCluster { id name }
+                    downtimeEvents { totalCount events { category code emsDate summary outageSeconds } }
                     propensityCategory serviceProcessorIPAddress
                     isARPEnabled autoUpdateEnabled nextBestAction
                     lifecycleEvents { workflowCategory typeCode typeName criticalityCode daysToEvent talkingPoint }
@@ -3776,6 +3780,30 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 "swCQV": (srd.get("cqvDetails") or {}).get("qualifiedVersion", ""),
                 # ── ONTAP flags ──
                 "isMetroCluster": s.get("isMetroCluster"),
+                # Real MetroCluster DR partner CLUSTER, straight from Active IQ
+                # (ONTAPSystem.drCluster) -- confirmed live via GraphQL schema
+                # introspection + a real fleet query (reciprocal: cluster A's
+                # drCluster is cluster B and vice versa). Not previously
+                # queried; the app used to only guess the partner from cluster
+                # naming conventions, which fails for fleets that don't follow
+                # a site-prefix naming pattern (confirmed live: a real 4-cluster
+                # MetroCluster fleet named PRDSAN01-04 showed as 4 unpaired
+                # clusters under the old name-inference heuristic).
+                "mcDrClusterName": ((s.get("drCluster") or {}).get("name") or ""),
+                "mcDrClusterId": ((s.get("drCluster") or {}).get("id") or ""),
+                # Real recorded downtime/takeover events (ONTAPSystem.downtimeEvents --
+                # confirmed live via GraphQL introspection + a real fleet query: a real
+                # system showed a genuine "Takeover" event with EMS code, timestamp,
+                # summary and outage duration). Not previously queried. Mostly empty in
+                # practice (1 of 165 systems in a real test account had any), but where
+                # present this is real evidence a switchover/takeover actually happened --
+                # previously the app could only say "DR is configured", never whether a
+                # failover was ever actually tested/triggered.
+                "downtimeEvents": [
+                    {"category": e.get("category", ""), "code": e.get("code", ""), "emsDate": e.get("emsDate", ""),
+                     "summary": e.get("summary", ""), "outageSeconds": e.get("outageSeconds")}
+                    for e in ((s.get("downtimeEvents") or {}).get("events") or [])
+                ],
                 "isAllFlashOptimized": s.get("isAllFlashOptimized"),
                 "isARPEnabled": s.get("isARPEnabled"),
                 "operatingMode": s.get("operatingMode", ""),

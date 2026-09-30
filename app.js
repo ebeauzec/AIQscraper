@@ -31,6 +31,23 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.197",
+    date: "30 September 2026",
+    title: "Real MetroCluster DR Partners + Recorded Downtime Events",
+    sections: [
+      {
+        icon: "📄",
+        label: "Added -- Active IQ Actually Reports the MetroCluster Partner Cluster",
+        color: "#3b82f6",
+        items: [
+          "MetroCluster DR partner clusters are now identified from Active IQ's own reported data (confirmed live via GraphQL schema introspection: `ONTAPSystem.drCluster` -- never previously queried) instead of only guessed from cluster naming. A real 4-cluster MetroCluster fleet that showed as 4 unpaired clusters under the old name-inference logic now correctly shows its real DR partners, marked '✓ confirmed' by Active IQ. Falls back to name-inference only where Active IQ genuinely doesn't report a partner.",
+          "Started harvesting real recorded downtime/takeover events (`ONTAPSystem.downtimeEvents`, confirmed live against a real system: a genuine Takeover event with date, EMS code and outage duration). The Remediation Tracker's DR-failover-test items now cite this real evidence when Active IQ has recorded one, instead of always saying there's no record.",
+          "Checked live whether SnapMirror relationship-level detail (destination, lag, health) exists beyond the aggregate count already used -- confirmed it genuinely doesn't (only a `totalCount` field anywhere in the schema for this). No change needed there; the existing 'not reported by Active IQ' language was already accurate.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.196",
     date: "30 September 2026",
     title: "Fixed: Table Swallowing the Line Right After It in Word Exports",
@@ -26015,18 +26032,51 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `    
 // compilers. These functions expose dashboard-level intelligence
 // (Tabs 14–17) to all 13 downloadable deliverables.
 
-// MetroCluster per cluster and per pair. Active IQ reports isMetroCluster per node but not which
-// clusters are partners, so a pair is INFERRED from names (two clusters differing only by a site
-// prefix, e.g. ECC-MCC1 / CDC-MCC1). Mediator and AUSO are only ever reported as findings, so
-// "no issue reported" is the absence of a finding, not a live check.
+// Pairs MetroCluster clusters using the REAL DR partner cluster Active IQ
+// reports (ONTAPSystem.drCluster, harvested as s.mcDrClusterName -- confirmed
+// live via GraphQL schema introspection and a real fleet query: reciprocal,
+// cluster A's drCluster is cluster B and vice versa), falling back to
+// inferring from cluster names (two clusters differing only by a site
+// prefix) only for a cluster where no system reports real partner data. This
+// closes a real gap: a live customer's 4-cluster MetroCluster fleet
+// (PRDSAN01-04) showed as 4 unpaired clusters under name-inference alone,
+// even though Active IQ actually reports each one's real DR partner cluster.
+// Returns pairs as [clusterA, clusterB, isRealData] tuples.
+function _dfMcPairs(clusterNames, byCluster) {
+  const realPartner = {};
+  clusterNames.forEach(c => {
+    const found = (byCluster[c] || []).map(s => s.mcDrClusterName).find(Boolean);
+    if (found) realPartner[c] = found;
+  });
+  const seen = new Set(), pairs = [];
+  clusterNames.forEach(c => {
+    if (seen.has(c)) return;
+    const p = realPartner[c];
+    if (p && clusterNames.includes(p) && !seen.has(p)) { pairs.push([c, p, true]); seen.add(c); seen.add(p); }
+  });
+  const key = c => String(c).toLowerCase().replace(/^[a-z0-9]{2,5}[-_]/, '');
+  const groups = {};
+  clusterNames.filter(c => !seen.has(c)).forEach(c => { (groups[key(c)] = groups[key(c)] || []).push(c); });
+  const unpaired = [];
+  Object.values(groups).forEach(g => {
+    if (g.length === 2) { pairs.push([g[0], g[1], false]); seen.add(g[0]); seen.add(g[1]); }
+    else unpaired.push(...g);
+  });
+  return { pairs, unpaired };
+}
+// MetroCluster per cluster and per pair. Mediator and AUSO are only ever
+// reported as findings, so "no issue reported" is the absence of a finding,
+// not a live check (confirmed live: no Mediator/AUSO/switchover field exists
+// anywhere in Active IQ's GraphQL schema -- root query, Cluster type, or
+// System type -- so this can't be turned into a live check from this API).
 function _dfMetroClusters(systems, mediatorIssues, ausoDisabled) {
   const mc = (systems || []).filter(s => _platformFamily(s) === 'ontap' && s.isMetroCluster);
   const byC = {}; mc.forEach(s => { const k = s.clusterName || s.systemName || s.serialNumber; (byC[k] = byC[k] || []).push(s); });
-  const names = Object.keys(byC).sort(), key = c => String(c).toLowerCase().replace(/^[a-z0-9]{2,5}[-_]/, '');
-  const groups = {}; names.forEach(c => { (groups[key(c)] = groups[key(c)] || []).push(c); });
-  const pairs = Object.values(groups).filter(g => g.length === 2), unpaired = Object.values(groups).filter(g => g.length !== 2).flat();
+  const names = Object.keys(byC).sort();
+  const { pairs, unpaired } = _dfMcPairs(names, byC);
+  const realCount = pairs.filter(p => p[2]).length;
   const iss = (mediatorIssues || []).length, aus = (ausoDisabled || []).length;
-  const summary = `${_dfPlural(pairs.length, 'MetroCluster configuration')}${unpaired.length ? ` plus ${_dfPlural(unpaired.length, 'cluster')} with no identifiable partner` : ''} (${_dfPlural(names.length, 'cluster')}, ${_dfPlural(mc.length, 'node')})${pairs.length ? '; pairs inferred from cluster names: ' + pairs.map(g => g.join(' <-> ')).join('; ') : ''}`;
+  const summary = `${_dfPlural(pairs.length, 'MetroCluster configuration')}${pairs.length ? ` (${realCount} confirmed by Active IQ${pairs.length - realCount ? `, ${pairs.length - realCount} inferred from cluster names` : ''})` : ''}${unpaired.length ? ` plus ${_dfPlural(unpaired.length, 'cluster')} with no identifiable partner` : ''} (${_dfPlural(names.length, 'cluster')}, ${_dfPlural(mc.length, 'node')})${pairs.length ? '; pairs: ' + pairs.map(([a, b, real]) => `${a} <-> ${b}${real ? '' : ' (inferred)'}`).join('; ') : ''}`;
   const health = `Mediator: ${iss ? 'UNREACHABLE (' + mediatorIssues.join(', ') + ')' : 'no issue reported'} | Auto switchover (AUSO): ${aus ? 'DISABLED (' + ausoDisabled.join(', ') + ')' : 'no issue reported'}${(iss || aus) ? '' : ' -- absence of a finding in Active IQ, not a live check'}`;
   return { clusters: names, byCluster: byC, pairs, unpaired, nodes: mc.length, summary, health };
 }
@@ -27138,7 +27188,11 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
     o += `## 7. Data Protection\n\n- SnapMirror: ${dr.relText}.\n- Replication status: ${dr.unprotectedText}.\n- Replication lag: ${dr.rpoText}.\n`;
     if (dr.mcSystems > 0) {
       o += `- MetroCluster: ${dr.mcView.summary}.\n- MetroCluster health: ${dr.mcView.health}. Run a switchover/switchback test at least annually to confirm the design behaves as expected.\n`;
-      o += `\n| MetroCluster cluster | Likely partner | Nodes | Model | ONTAP |\n|---|---|---|---|---|\n` + dr.mcView.clusters.map(c => { const ns = dr.mcView.byCluster[c], g = dr.mcView.pairs.find(x => x.includes(c)); return `| ${c} | ${g ? g.find(x => x !== c) : 'not identifiable'} | ${ns.length} (${ns.map(x => x.systemName || x.serialNumber).slice(0, 6).join(', ')}${ns.length > 6 ? ', ...' : ''}) | ${[...new Set(ns.map(x => x.model || x.platform).filter(Boolean))].join(', ')} | ${[...new Set(ns.map(x => x.ontapVersion || x.osVersion).filter(Boolean))].join(', ')} |`; }).join('\n') + '\n\n_Active IQ does not report which clusters are partners; pairs are inferred from cluster names -- confirm with `metrocluster show` on each cluster._\n';
+      o += `\n| MetroCluster cluster | DR partner | Nodes | Model | ONTAP |\n|---|---|---|---|---|\n` + dr.mcView.clusters.map(c => {
+        const ns = dr.mcView.byCluster[c], p = dr.mcView.pairs.find(x => x[0] === c || x[1] === c);
+        const partner = p ? `${p[0] === c ? p[1] : p[0]}${p[2] ? '' : ' (inferred)'}` : 'not identifiable';
+        return `| ${c} | ${partner} | ${ns.length} (${ns.map(x => x.systemName || x.serialNumber).slice(0, 6).join(', ')}${ns.length > 6 ? ', ...' : ''}) | ${[...new Set(ns.map(x => x.model || x.platform).filter(Boolean))].join(', ')} | ${[...new Set(ns.map(x => x.ontapVersion || x.osVersion).filter(Boolean))].join(', ')} |`;
+      }).join('\n') + `\n\n_${dr.mcView.pairs.some(p => p[2]) ? 'DR partner reported directly by Active IQ except where marked "(inferred)" (inferred from cluster naming)' : 'Active IQ did not report a DR partner cluster for these systems; pairs shown are inferred from cluster names'} -- confirm with \`metrocluster show\` on each cluster._\n`;
     }
     o += '\nActive IQ reports SnapMirror as a relationship count; destination and lag should be confirmed on the clusters.\n\n';
   }
@@ -38272,41 +38326,52 @@ async function importTrackerItemsFromScope() {
     return;
   }
   const items = [];
-  // DR/failover TEST verification -- Active IQ can only tell us DR is
-  // CONFIGURED (MetroCluster pair exists, SnapMirror relationships exist);
-  // it has no field anywhere for whether a failover was ever actually
-  // tested. Configuration presence is not the same as verified recovery
-  // capability, and that gap is invisible without a place to record it.
-  // Rather than fabricate a "last tested" status Active IQ can't provide,
-  // this creates a trackable action item per DR-configured cluster/system --
-  // the tracker's manual notes/status/due-date ARE the honest record of
-  // whether and when it was actually tested, since only a human can know
-  // that. Deduped by cluster (not per-node) for MetroCluster so a 2-node MC
-  // pair doesn't generate two identical test items.
+  // DR/failover TEST verification -- Active IQ mostly only tells us DR is
+  // CONFIGURED (MetroCluster pair exists, SnapMirror relationships exist),
+  // not whether a failover was ever actually tested. It DOES separately
+  // record real takeover/switchover events (s.downtimeEvents, confirmed live
+  // via GraphQL introspection -- rare in practice, but a genuine EMS-sourced
+  // event with a date and outage duration where it exists), which this now
+  // surfaces as real evidence when present; the tracker's manual notes/
+  // status/due-date remain the record of record when it doesn't. Deduped by
+  // cluster (not per-node) for MetroCluster so a 2-node MC pair doesn't
+  // generate two identical test items.
+  // Real evidence a takeover/switchover actually happened, from Active IQ's
+  // recorded downtime events (s.downtimeEvents -- confirmed live). Rare in
+  // practice, but where present it answers "was this ever actually tested"
+  // with a real date/summary instead of "Active IQ has no record" -- only
+  // fall back to the no-record language when there's genuinely nothing.
+  const _lastFailoverEvent = s => (s.downtimeEvents || []).filter(e => /takeover|switchover|giveback|switchback/i.test(e.category || '')).sort((a, b) => new Date(b.emsDate || 0) - new Date(a.emsDate || 0))[0];
   const mcClustersSeen = new Set();
   systems.forEach(s => {
     if (s.isMetroCluster) {
       const clusterKey = s.clusterName || s.systemName || s.serialNumber;
       if (mcClustersSeen.has(clusterKey)) return;
       mcClustersSeen.add(clusterKey);
+      const ev = _lastFailoverEvent(s);
       const title = `Verify MetroCluster failover test — ${clusterKey}`;
       items.push({
         itemKey: _trackerItemKey('dr_test', clusterKey, title),
         accountId: s.accountId || '', customerName: s.customerName || s.accountLabel || '',
         systemSerial: s.serialNumber || '', systemName: clusterKey,
         sourceType: 'dr_test', severity: 'medium', title,
-        detail: 'MetroCluster is configured, but Active IQ has no record of whether a switchover/switchback was ever actually tested. Record the test date and outcome in notes, then mark resolved.'
+        detail: ev
+          ? `MetroCluster is configured. Active IQ recorded a real ${ev.category} event on ${(ev.emsDate || '').split('T')[0]} (${ev.outageSeconds != null ? ev.outageSeconds + 's outage' : 'outage duration not reported'}) -- confirm this was a deliberate test, not an unplanned failover, and record the outcome in notes.`
+          : 'MetroCluster is configured, but Active IQ has no record of whether a switchover/switchback was ever actually tested. Record the test date and outcome in notes, then mark resolved.'
       });
     } else {
       const smCount = (s.snapmirror && s.snapmirror.totalCount) || s.snapMirrorCount || s.snapmirrorCount || 0;
       if (smCount > 0) {
+        const ev = _lastFailoverEvent(s);
         const title = `Verify SnapMirror DR failover test — ${s.systemName}`;
         items.push({
           itemKey: _trackerItemKey('dr_test', s.serialNumber, title),
           accountId: s.accountId || '', customerName: s.customerName || s.accountLabel || '',
           systemSerial: s.serialNumber || '', systemName: s.systemName || '',
           sourceType: 'dr_test', severity: 'medium', title,
-          detail: `${smCount} SnapMirror relationship(s) configured, but Active IQ has no record of whether a DR failover was ever actually tested. Record the test date and outcome in notes, then mark resolved.`
+          detail: ev
+            ? `${smCount} SnapMirror relationship(s) configured. Active IQ recorded a real ${ev.category} event on ${(ev.emsDate || '').split('T')[0]} (${ev.outageSeconds != null ? ev.outageSeconds + 's outage' : 'outage duration not reported'}) -- confirm this was a deliberate test, not an unplanned failover, and record the outcome in notes.`
+            : `${smCount} SnapMirror relationship(s) configured, but Active IQ has no record of a DR failover ever being triggered on this system. Record the test date and outcome in notes, then mark resolved.`
         });
       }
     }
@@ -40651,31 +40716,34 @@ function renderMetroClusterStatus(mcSystems) {
   const hasMediatorIssue = allMcRisks.some(r => (r.description || '').toLowerCase().includes('mediator unreachable'));
   const hasMausoDisabled = allMcRisks.some(r => (r.description || '').toLowerCase().includes('mauso disabled'));
   // ── per-cluster breakdown ──
-  // Active IQ reports each node with isMetroCluster but not which clusters form a MetroCluster
-  // pair, so pairs are INFERRED from the names (two clusters that differ only in a site prefix,
-  // e.g. ECC-MCC1 / CDC-MCC1) and labelled as such. Mediator and AUSO are only ever reported as
-  // findings, so "OK"/"enabled" means "no issue reported", not "verified" -- the card says so.
+  // Partners come from Active IQ's own reported DR partner cluster
+  // (s.mcDrClusterName, harvested from ONTAPSystem.drCluster -- confirmed
+  // live) when available, falling back to name-inference (two clusters
+  // differing only in a site prefix) only where Active IQ doesn't report it.
+  // Mediator and AUSO are only ever reported as findings, so "OK"/"enabled"
+  // means "no issue reported", not "verified" -- the card says so.
   const byCluster = {};
   mcSystems.forEach(sys => { const k = sys.clusterName || sys.systemName || sys.serialNumber; (byCluster[k] = byCluster[k] || []).push(sys); });
   const clusterNames = Object.keys(byCluster).sort();
-  const _pairKey = nm => String(nm).toLowerCase().replace(/^[a-z0-9]{2,5}[-_]/, '');
-  const pairGroups = {}; clusterNames.forEach(c => { (pairGroups[_pairKey(c)] = pairGroups[_pairKey(c)] || []).push(c); });
-  const pairs = Object.values(pairGroups).filter(g => g.length === 2), unpaired = Object.values(pairGroups).filter(g => g.length !== 2).flat();
+  const { pairs, unpaired } = _dfMcPairs(clusterNames, byCluster);
+  const realCount = pairs.filter(p => p[2]).length;
   const riskFor = c => allMcRisks.filter(r => byCluster[c].some(x => x.systemName === r.systemName));
   const stat = (label, val, color, sub) => `<div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${color};"><div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${label}</div><div style="font-size:1.1rem;font-weight:700;color:${color};">${val}</div>${sub ? `<div style="font-size:0.62rem;color:var(--text-muted);margin-top:2px;">${sub}</div>` : ''}</div>`;
   let html = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px;">` +
-    stat('MetroCluster configurations', pairs.length + (unpaired.length ? ' + ' + unpaired.length + ' unpaired' : ''), '#ff9800', 'pairs inferred from cluster names') +
+    stat('MetroCluster configurations', pairs.length + (unpaired.length ? ' + ' + unpaired.length + ' unpaired' : ''), '#ff9800', pairs.length ? `${realCount} confirmed by Active IQ${pairs.length - realCount ? `, ${pairs.length - realCount} inferred` : ''}` : 'pairs inferred from cluster names') +
     stat('Clusters / nodes', clusterNames.length + ' / ' + mcSystems.length, '#ff9800') +
     stat('Mediator', hasMediatorIssue ? '⚠ UNREACHABLE' : 'No issue reported', hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)', hasMediatorIssue ? 'from an Active IQ finding' : 'absence of a finding, not a live check') +
     stat('Auto switchover (AUSO)', hasMausoDisabled ? '⚠ DISABLED' : 'No issue reported', hasMausoDisabled ? 'var(--status-warning)' : 'var(--status-normal)', hasMausoDisabled ? 'from an Active IQ finding' : 'absence of a finding, not a live check') +
     stat('MC findings', allMcRisks.length, allMcRisks.length > 0 ? '#ff9800' : 'var(--status-normal)') + `</div>`;
 
   const th = 'text-align:left;padding:6px 8px;font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border-color);', td = 'padding:6px 8px;font-size:0.78rem;border-bottom:1px solid rgba(255,255,255,0.05);';
-  const partnerOf = c => { const g = pairGroups[_pairKey(c)]; return g && g.length === 2 ? g.find(x => x !== c) : ''; };
-  html += `<div style="overflow-x:auto;margin-bottom:14px;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Cluster</th><th style="${th}">Likely partner (from names)</th><th style="${th}">Nodes</th><th style="${th}">Model</th><th style="${th}">ONTAP</th><th style="${th}">Site</th><th style="${th}">MC findings</th></tr></thead><tbody>` +
+  const partnerOf = c => { const p = pairs.find(x => x[0] === c || x[1] === c); return p ? { name: p[0] === c ? p[1] : p[0], real: p[2] } : null; };
+  html += `<div style="overflow-x:auto;margin-bottom:14px;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Cluster</th><th style="${th}">DR partner</th><th style="${th}">Nodes</th><th style="${th}">Model</th><th style="${th}">ONTAP</th><th style="${th}">Site</th><th style="${th}">MC findings</th></tr></thead><tbody>` +
     clusterNames.map(c => { const ns = byCluster[c], f = riskFor(c).length; const vers = [...new Set(ns.map(x => x.ontapVersion || x.osVersion).filter(Boolean))].join(', '), models = [...new Set(ns.map(x => x.model || x.platform).filter(Boolean))].join(', '), site = [...new Set(ns.map(x => x.siteCity).filter(Boolean))].join(', ');
-      return `<tr><td style="${td}font-weight:600;">${c}</td><td style="${td}">${partnerOf(c) || '<span style="color:var(--text-muted);">not identifiable</span>'}</td><td style="${td}">${ns.length}<div style="font-size:0.68rem;color:var(--text-muted);">${ns.map(x => x.systemName || x.serialNumber).join(', ')}</div></td><td style="${td}">${models || '—'}</td><td style="${td}">${vers || '—'}</td><td style="${td}">${site || '—'}</td><td style="${td}color:${f ? '#ff9800' : 'var(--status-normal)'};">${f ? f : '0'}</td></tr>`; }).join('') + `</tbody></table></div>`;
-  html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:14px;">MetroCluster provides zero-RPO disaster recovery through synchronous replication across two sites. Active IQ does not report which clusters are partners, or the live state of the Mediator and switchover; verify each pair on-cluster with <code>metrocluster check run</code> and <code>metrocluster show</code>.</div>`;
+      const p = partnerOf(c);
+      const partnerCell = p ? `${p.name}${p.real ? ' <span style="color:var(--status-normal);font-size:0.68rem;" title="Reported directly by Active IQ (ONTAPSystem.drCluster)">✓ confirmed</span>' : ' <span style="color:var(--text-muted);font-size:0.68rem;">(inferred from name)</span>'}` : '<span style="color:var(--text-muted);">not identifiable</span>';
+      return `<tr><td style="${td}font-weight:600;">${c}</td><td style="${td}">${partnerCell}</td><td style="${td}">${ns.length}<div style="font-size:0.68rem;color:var(--text-muted);">${ns.map(x => x.systemName || x.serialNumber).join(', ')}</div></td><td style="${td}">${models || '—'}</td><td style="${td}">${vers || '—'}</td><td style="${td}">${site || '—'}</td><td style="${td}color:${f ? '#ff9800' : 'var(--status-normal)'};">${f ? f : '0'}</td></tr>`; }).join('') + `</tbody></table></div>`;
+  html += `<div style="font-size:0.75rem;color:var(--text-secondary);margin-bottom:14px;">MetroCluster provides zero-RPO disaster recovery through synchronous replication across two sites. ${realCount ? 'DR partner clusters marked ✓ confirmed are reported directly by Active IQ; ' : ''}Active IQ does not report the live state of the Mediator and switchover; verify each pair on-cluster with <code>metrocluster check run</code> and <code>metrocluster show</code>.</div>`;
 
   if (allMcRisks.length > 0) {
     html += `<div style="display:flex;flex-direction:column;gap:8px;">`;

@@ -22,9 +22,70 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.196)
+## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.197)
 
-Five threads this session, all triggered by screenshots of generated deliverables.
+Six threads this session, all triggered by screenshots of generated deliverables.
+
+**19. Real MetroCluster DR partners + recorded downtime events (shipped, v5.6.197).** User, from a screenshot
+of the MetroCluster Configuration & DR Health card showing all 4 real clusters as "0 + 4 unpaired" / "not
+identifiable": "make something meaningful from the metrocluster information. there must be something in the
+api" -- pushed back on the app's existing claim that Active IQ doesn't report MC partners. **Did a live
+GraphQL schema introspection before assuming the user was right or wrong** (same discipline as every other
+live-data feature this session): checked `Cluster` and `System`/`ONTAPSystem` type fields and the root Query
+type for anything metro/mediator/switchover/partner/auso-related. Confirmed Mediator/AUSO/switchover
+genuinely have NO field anywhere in the schema (the app's claim about those was already correct, unchanged).
+**But found `ONTAPSystem.drCluster` (and `drPartner`/`partner`/`cluster`) -- never previously queried by this
+app.** Verified live against the real fleet (not just schema presence): queried 16 real MetroCluster systems
+and confirmed `drCluster` is genuinely populated and reciprocal (PRDSAN04's `drCluster.name` is "PRDSAN03",
+PRDSAN03's is "PRDSAN04"; same for a second real pair, NACLUSA50-A/B). This explains the original bug report
+exactly: the old cluster-name-inference heuristic (`s/^[a-z0-9]{2,5}[-_]//` prefix strip) fails for a fleet
+named PRDSAN01/02/03/04, which don't follow a "site-prefix + shared suffix" naming convention at all.
+(`drPartner`/`partner` turned out to just duplicate the in-cluster HA partner node, not a genuine cross-site
+node identity -- not used.)
+- **server.py**: added `drCluster { id name }` to the `ONTAPSystem` query (both occurrences,
+  `replace_all`), output as `mcDrClusterName`/`mcDrClusterId` on each system.
+- **app.js**: new shared `_dfMcPairs(clusterNames, byCluster)` (app.js, right before `_dfMetroClusters`) pairs
+  clusters using real `mcDrClusterName` data first, falling back to the old name-inference heuristic only for
+  a cluster Active IQ doesn't report a partner for. Returns `[clusterA, clusterB, isRealData]` tuples. Used by
+  `_dfMetroClusters()` (deliverable text), `renderMetroClusterStatus()` (the Technical Audit tab's GUI card --
+  column renamed "DR partner", each row marked "✓ confirmed" or "(inferred from name)"), and the
+  Technical Solution Proposal's MetroCluster markdown table. All three previously had their own separate
+  copy-pasted name-inference logic; now share one function.
+- User immediately followed up: "do the same for snapmirror, and all the other gaps in the tool." **Checked
+  SnapMirror live first**: `Cluster.snapMirrorRelationships` and any root-level SnapMirror field -- confirmed
+  the ONLY field anywhere is `SnapMirrorRelationships.totalCount` (an aggregate count). No relationship-level
+  detail (destination, lag, health) exists in this API at all. The app's existing "SnapMirror status not
+  reported by Active IQ" language was already accurate -- **no fix needed, confirmed a genuine limit, not
+  another oversight.**
+- While auditing broadly for "other gaps," found two more real, previously-unused fields on `ONTAPSystem`:
+  `downtimeEvents` (real recorded downtime/takeover events -- confirmed live: a real system, OOBA-C30-02, had
+  a genuine `category: "Takeover"` event on 2026-06-17 with EMS code `wafl_replay_completed_1`, a summary, and
+  a 1-second outage duration; rare in practice, only 1 of 165 systems in the test account had any recorded
+  events, but genuinely populated where present) and `healthScore` (a real Active-IQ-computed
+  `overallHealthScore` 0-100 with a `kpis` breakdown by category -- asup/osFreshness/firmware/
+  securityHardening/sustainability/uptime/eos/addon/techRefresh -- confirmed live with real varied values:
+  81, 86, 64, 60, 70, 77...). **Wired in `downtimeEvents` this session** (directly fills an explicitly-flagged
+  gap in the code itself, `importTrackerItemsFromScope()`'s DR-failover-test tracker items, which used to
+  unconditionally say "Active IQ has no record of whether a failover was ever actually tested" -- now cites
+  the real event with date/category/outage duration when Active IQ has recorded one). **Did NOT wire in
+  `healthScore`** -- that's a bigger, more architectural decision (whether/how to show Active IQ's own
+  computed score alongside or instead of this app's locally-computed `computeAccountHealthScore()` and
+  similar functions), left for a deliberate follow-up rather than a drive-by change. **"All the other gaps in
+  the tool" was NOT exhaustively swept** -- only MetroCluster (fixed) and SnapMirror (confirmed genuine) were
+  checked to completion this session; other "not reported by Active IQ" claims in the codebase (port/WWPN
+  detail for StorageGRID/E-Series, transit/logistics hub status, Success Plan outcome tracking) were NOT
+  re-verified against a live schema and should not be assumed either confirmed-accurate or newly-fixable
+  without doing the same live-introspection check first.
+- **Verified**: `_dfMcPairs`/`_dfMetroClusters` tested with synthetic data shaped exactly like the real live
+  API responses (both a case with real `mcDrClusterName` data confirming a pair, and a case with none falling
+  back to "not identifiable") -- correct in both directions. `_lastFailoverEvent`'s detail-string construction
+  verified against the exact real event fields returned live. Syntax-checked both `app.js` (`new Function()`
+  in the browser) and `server.py` (`python -m py_compile`). **The running dev server's CACHED harvest data
+  does not yet have `mcDrClusterName`/`downtimeEvents` populated** -- it was verified via direct one-off
+  GraphQL calls (same `_gql`/token-exchange reuse pattern as every other live-schema check this session), not
+  through the app itself; a real harvest re-run (server restart + `/api/harvest?force=1`, several minutes) is
+  needed before the running dev instance's own UI shows this live, though the code is correct and the packaged
+  `dist/` build is fully synced.
 
 **18. Table swallowing the line right after it in Word exports (shipped, v5.6.196).** User screenshot: TAM
 Success Plan's Risk Posture Summary table (`_dfTable(['Critical','High','Medium'], ...)`) rendered fine, but
@@ -210,12 +271,15 @@ two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, f
 none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
 matrix does.
 
-**Git:** branch `main`. v5.6.192 through v5.6.196 each committed individually after this session's work
+**Git:** branch `main`. v5.6.192 through v5.6.197 each committed individually after this session's work
 (app.js, CHANGELOG.md, version.json, CLAUDE.md, and the synced `dist/app.js` +
-`dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time). Exe rebuilt via PyInstaller
+`dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time; v5.6.197 also synced
+`dist/NetApp_AIQ_Advisor/_internal/server.py` since it touched the harvester -- note PyInstaller does NOT
+produce a loose `server.py` in its own build output (it's compiled into the exe), so that sync step copies
+directly from the repo root's `server.py`, matching what past sessions did). Exe rebuilt via PyInstaller
 (`build/AIQscraper.spec`, note the spec lives under `build/`, not the repo root) to
-`%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild196`, never `build/build_windows.bat`. No `server.py`
-or HTML changes this session, so only `app.js` + the exe + `base_library.zip` needed re-syncing into `dist/`.
+`%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild197`, never `build/build_windows.bat`. No HTML changes this
+session.
 
 **Standing rules:** rebuild and push the exe after every shipped change (PyInstaller to a temp dir via
 `build/AIQscraper.spec`, never `build/build_windows.bat` -- destructive). Server.py changes need an actual
