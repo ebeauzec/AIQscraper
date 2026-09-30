@@ -27,9 +27,40 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.186";
+const APP_VERSION = "5.6.187";
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.187",
+    date: "30 September 2026",
+    title: "Other-Customer Names Removed From Deliverables; IMT and Risk Summary Fixes",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Other Real Customers Named Inside Documents Sent to a Customer",
+        color: "#ef4444",
+        items: [
+          "The MSP Service Report and Security Posture Brief's 'Portfolio Exposure' section, and the Sales Proposal's 'Portfolio Refresh Overlap' section, named OTHER real customers by name (e.g. a document for one customer listing 'Airtel Tanzania, Allan Gray Ltd., Bharti Airtel Ltd.' as other accounts sharing a CVE or hardware refresh window). Both now show only the count of other affected/overlapping customers -- never a name -- in every exportable document. The full named breakdown is unchanged in the Action Planner's own Portfolio Dashboard tab, which never leaves the app.",
+        ],
+      },
+      {
+        icon: "📄",
+        label: "Fixed -- IMT Interoperability Findings Showed a Serial Number Instead of the System Name, and an Always-Wrong 'Integrations Checked' Count",
+        color: "#22c55e",
+        items: [
+          "IMT interoperability findings (ONTAP-vs-switch/tool version checks) read a system field, hostname, that doesn't exist anywhere in this app's data model -- every finding fell through to the serial number instead of the real system name. Fixed to use the real field. Also: 'Integrations Checked' in the Executive Risk Assessment always undercounted -- it only ever tracked VMware detection, never the Cisco/Brocade/Broadcom switch detection that the findings themselves are based on, so a document with real Cisco SAN switch findings could still say 'Integrations Checked: 0'.",
+        ],
+      },
+      {
+        icon: "📄",
+        label: "Fixed -- Another 'Prose Pretending to Be a Table' Column Bug",
+        color: "#22c55e",
+        items: [
+          "The Executive Risk Assessment's Risk Summary (Critical/High/Medium/Low, Security/AutoSupport/Open Cases, Upgrades/Contracts Expiring/Lapsed) packed multiple metrics onto single lines, which rendered as a run-on paragraph of bold mini-labels in the exported Word document instead of a table -- the same class of bug fixed in v5.6.185's column-alignment pass, in a spot that pass didn't reach. Added a small shared table-builder that computes every column's width from the actual content instead of a hardcoded rule line, removing this whole bug class for any table built with it going forward.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.186",
     date: "29 September 2026",
@@ -14112,14 +14143,14 @@ function runIMTInteropCheck(systems, detectedSignals) {
         const f = {
           type: 'ontap_below_minimum',
           severity: 'warning',
-          system: sys.hostname || sys.serialNumber || 'Unknown',
+          system: sys.systemName || sys.serialNumber || 'Unknown',
           ontapVersion: ontapVer,
           integration: integration.name,
           integrationKey: key,
           currentRecommended: integration.currentRecommended,
           minOntap: recommended.minOntap,
           maxOntap: recommended.maxOntap,
-          message: `${sys.hostname || sys.serialNumber || 'System'}: ONTAP ${ontapVer} is below minimum ONTAP ${recommended.minOntap} required for ${integration.name} ${integration.currentRecommended}`,
+          message: `${sys.systemName || sys.serialNumber || 'System'}: ONTAP ${ontapVer} is below minimum ONTAP ${recommended.minOntap} required for ${integration.name} ${integration.currentRecommended}`,
           recommendation: `Upgrade ONTAP to ${recommended.minOntap}+ to use ${integration.name} ${integration.currentRecommended}, or verify an older compatible version in IMT`,
           imtUrl: buildIMTUrl(integration.imtProduct, ontapVer),
           upgradeDoc: integration.upgradeDoc,
@@ -14144,7 +14175,7 @@ function runIMTInteropCheck(systems, detectedSignals) {
       });
       if (affectedSystems.length > 0) {
         const affectedLabel = affectedSystems.length <= 3
-          ? affectedSystems.map(s => s.hostname || s.serialNumber || 'Unknown').join(', ')
+          ? affectedSystems.map(s => s.systemName || s.serialNumber || 'Unknown').join(', ')
           : `${affectedSystems.length} systems`;
         findings.push({
           type: 'tool_eol_warning',
@@ -14153,7 +14184,7 @@ function runIMTInteropCheck(systems, detectedSignals) {
           integrationKey: key,
           toolVersion: toolVer,
           currentRecommended: integration.currentRecommended,
-          affectedSystems: affectedSystems.map(s => s.hostname || s.serialNumber || 'Unknown'),
+          affectedSystems: affectedSystems.map(s => s.systemName || s.serialNumber || 'Unknown'),
           message: `${affectedLabel}: ${integration.name} ${toolVer} is approaching end-of-life — upgrade to ${integration.currentRecommended}`,
           recommendation: `Upgrade ${integration.name} to ${integration.currentRecommended} (current). Check vendor support matrix.`,
           upgradeDoc: integration.upgradeDoc,
@@ -26197,6 +26228,24 @@ function estimateEffort(fixOrDesc) {
 // ═══ Planning helpers shared by the deliverables ═══════════════════════════
 // Turn the facts into a plan: what to do, why it matters, how disruptive it is, when, and who.
 function _dfPlural(n, w, w2) { return `${n} ${n === 1 ? w : (w2 || w + 's')}`; }
+
+// Builds a real plain-text table _dxParse()'s segmented-dash-rule column detector
+// understands (header row / rule row of space-separated dash runs / data row(s)),
+// with every column width computed programmatically from the actual label/value
+// content instead of hand-counted and hardcoded. A prior pass this session found
+// and fixed multiple real bugs where a hardcoded rule line's column widths didn't
+// match a data row's interpolated (variable-length) value, corrupting the parsed
+// table -- computing widths from the real strings every time removes that whole
+// bug class instead of relying on getting the arithmetic right by hand each time.
+// `rows` is an array of value-rows, each the same length as `headers`; every cell
+// is coerced to a string. Returns the 2+ line block (no leading/trailing blank).
+function _dfTable(headers, rows) {
+  const cells = rows.map(r => r.map(v => String(v == null ? '' : v)));
+  const widths = headers.map((h, i) => Math.max(String(h).length, ...cells.map(r => r[i].length), 3) + 2);
+  const padRow = r => r.map((c, i) => String(c).padEnd(widths[i])).join(' ').replace(/\s+$/, '');
+  const rule = widths.map(w => '─'.repeat(w)).join(' ');
+  return [padRow(headers), rule, ...cells.map(padRow)].join('\n');
+}
 function _dfDays(d) { const t = d ? Date.parse(d) : NaN; return isNaN(t) ? null : Math.ceil((t - Date.now()) / 86400000); }
 function _dfDate(d) { const t = d ? Date.parse(d) : NaN; return isNaN(t) ? 'not reported' : new Date(t).toISOString().split('T')[0]; }
 function _dfName(s) { return s.systemName || s.clusterName || s.serialNumber; }
@@ -26350,15 +26399,19 @@ function _dfPortfolioCveExposure(targetSystems) {
   }).sort((a, b) => (b.kev - a.kev) || (b.otherCustomerCount - a.otherCustomerCount) || (b.cvss - a.cvss));
 }
 // Plain-text "Portfolio Exposure" section for deliverables, or '' when this
-// scope's CVEs don't reach into any other managed customer.
+// scope's CVEs don't reach into any other managed customer. Counts only --
+// never names another customer. This document can be sent to the customer
+// named in the scope; naming OTHER real customers inside it would be exactly
+// the kind of leak this project has been careful to avoid since the
+// credential/watchlist security review earlier in this engagement.
 function _dfPortfolioCveExposureText(targetSystems) {
   const rows = _dfPortfolioCveExposure(targetSystems);
   if (!rows.length) return '';
   const lines = rows.map(c =>
-    `  ${c.id}  ${(c.sev || 'unknown').toUpperCase()}${c.kev ? ' [CISA KEV]' : ''} -- also affects ${c.otherCustomerCount} other customer${c.otherCustomerCount !== 1 ? 's' : ''} (${c.otherSystemCount} systems): ${c.otherCustomers.slice(0, 6).join(', ')}${c.otherCustomers.length > 6 ? ` +${c.otherCustomers.length - 6} more` : ''}`
+    `  ${c.id}  ${(c.sev || 'unknown').toUpperCase()}${c.kev ? ' [CISA KEV]' : ''} -- also affects ${c.otherCustomerCount} other monitored customer${c.otherCustomerCount !== 1 ? 's' : ''} (${c.otherSystemCount} systems)`
   ).join('\n');
-  return `\n## Portfolio Exposure (Also Affecting Other Managed Customers)\n\n` +
-    `${rows.length} CVE${rows.length !== 1 ? 's' : ''} in this scope also affect systems belonging to other customers in the managed fleet -- a shared remediation push or vendor escalation may be more efficient than handling each account separately.\n\n${lines}\n\n`;
+  return `\n## Portfolio Exposure\n\n` +
+    `${rows.length} CVE${rows.length !== 1 ? 's' : ''} in this scope also affect${rows.length === 1 ? 's' : ''} systems belonging to other customers NetApp monitors -- a shared remediation push or vendor escalation may be more efficient than handling each account separately. Other customers are not named here; ask your NetApp account team if a coordinated approach is relevant.\n\n${lines}\n\n`;
 }
 
 // ── Portfolio Executive Dashboard ─────────────────────────────────────────────
@@ -26975,7 +27028,16 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   // honest: it never claims what's actually installed, only what the recommended target
   // needs. vmware_vsphere is excluded here since the precise, version-matched check above
   // already covers it and is strictly better.
-  imtFindings.push(...runIMTInteropCheck(targetSystems, _buildDetectedSignals(targetSystems)).filter(f => f.integrationKey !== 'vmware_vsphere'));
+  // _buildDetectedSignals()'s own signals (cisco_san/brocade_fc/broadcom_eth/vmware from
+  // switch vendor + vcenter detection) were never merged into _fleetSignals -- only the
+  // vSphere-specific loop above ever set anything on it -- so "Integrations Checked" in
+  // the compiled text below undercounted: a real scope with 2 genuine Cisco SAN switch
+  // findings still showed "Integrations Checked: 0" because cisco_san was detected and
+  // used to gate runIMTInteropCheck() internally, but never recorded back onto the
+  // object this section actually displays. Confirmed live from a real generated document.
+  const _switchSignals = _buildDetectedSignals(targetSystems);
+  Object.keys(_switchSignals).forEach(k => { if (_switchSignals[k]) _fleetSignals[k] = true; });
+  imtFindings.push(...runIMTInteropCheck(targetSystems, _switchSignals).filter(f => f.integrationKey !== 'vmware_vsphere'));
   const imtCritical = imtFindings.filter(f => f.severity === 'critical');
   const imtWarnings = imtFindings.filter(f => f.severity === 'warning');
   const imtInfo = imtFindings.filter(f => f.severity === 'info' || f.type === 'tool_eol_warning');
@@ -26994,9 +27056,9 @@ ACCOUNT TEAM
   SAM:        ${personnel.sam}
 
 RISK SUMMARY
-  Critical: ${critCount}   High: ${highCount}   Medium: ${medCount}   Low: ${lowCount}
-  Security: ${allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length}   AutoSupport: ${asupIssues.length}   Open cases: ${allSupportCases.length}
-  Upgrades: ${allUpgrades.length}   Contracts Expiring: ${expiringContracts.length}   Lapsed: ${(expiringContracts._expired || []).length}
+${_dfTable(['Critical', 'High', 'Medium', 'Low'], [[critCount, highCount, medCount, lowCount]])}
+
+${_dfTable(['Security', 'AutoSupport', 'Open Cases', 'Upgrades', 'Contracts Expiring', 'Lapsed'], [[allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length, asupIssues.length, allSupportCases.length, allUpgrades.length, expiringContracts.length, (expiringContracts._expired || []).length]])}
 
 OPERATIONAL HEALTH
   ASUP Compliance:    ${asupCompliant}/${sysCount} (${pctAsup}%)
@@ -27194,7 +27256,7 @@ HEALTH METRICS:
 
 RISK POSTURE:
   Risks: ${allRisks.length} (${critCount}C / ${highCount}H / ${medCount}M / ${lowCount}L) -- the ${totalDeduped} critical/high consolidate into ${sortedRisks.length} corrective action${sortedRisks.length !== 1 ? 's' : ''}
-  Security: ${allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length}  |  Open cases: ${allSupportCases.length}  |  Upgrades: ${allUpgrades.length}
+${_dfTable(['Security', 'Open Cases', 'Upgrades'], [[allRisks.filter(r => (r.category || '').toLowerCase() === 'security').length, allSupportCases.length, allUpgrades.length]])}
 ${sustLatest.scorePercentage ? `\nSUSTAINABILITY (Active IQ score): ${sustLatest.scorePercentage}%` : ''}
 
 PRIORITY ACTIONS:
@@ -27844,15 +27906,15 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
     salesProposals += `No urgent hardware refreshes, contract renewals, or security gaps identified.\n`;
   }
 
-  // ── Portfolio EOS overlap -- other managed customers hitting the same model's
-  // end of support in the same window. A negotiating/consolidation angle only
-  // visible because this fleet spans multiple customers/accounts in one place.
+  // Portfolio EOS overlap (other managed customers hitting the same model's end
+  // of support in the same window): counts only, never names other customers --
+  // this document can be sent to the customer named in `scopeTitle`.
   { const _eosOverlap = _dfPortfolioEosOverlap(targetSystems);
     if (_eosOverlap.length) {
       salesProposals += `\nPORTFOLIO REFRESH OVERLAP [OWNERSHIP]
 --------------------------------------------------------------------------------
-The following hardware refresh(es) are not unique to this account -- other customers in your managed portfolio are approaching end of support on the same model within the same window, a potential angle for bundled pricing or a coordinated refresh conversation:
-${_eosOverlap.map(g => `  ${g.model}: also approaching EOS for ${g.customers.length} other customer${g.customers.length !== 1 ? 's' : ''} (${g.customers.slice(0, 5).join(', ')}${g.customers.length > 5 ? ' and ' + (g.customers.length - 5) + ' more' : ''})`).join('\n')}
+The following hardware refresh(es) are not unique to this account -- other customers NetApp monitors are approaching end of support on the same model within the same window, a potential angle for bundled pricing or a coordinated refresh conversation. Other customers are not named here; ask your NetApp account team if a coordinated approach is relevant.
+${_eosOverlap.map(g => `  ${g.model}: also approaching EOS for ${g.customers.length} other monitored customer${g.customers.length !== 1 ? 's' : ''}`).join('\n')}
 `;
     }
   }
@@ -27866,6 +27928,11 @@ ${_eosOverlap.map(g => `  ${g.model}: also approaching EOS for ${g.customers.len
 
   // 9. MSP Service Delivery Report
   let mspReport = compileMSPServiceReport(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
+  // Portfolio Exposure: counts only, never names other customers (see
+  // _dfPortfolioCveExposureText's own comment -- this document can be sent to
+  // the customer named in scopeTitle). Confirmed live: a real generated
+  // MSP/Security Brief for "AfroCentric Group" used to list "Airtel Tanzania,
+  // Allan Gray Ltd., Bharti Airtel Ltd." etc. by name as also-affected customers.
   mspReport += _dfPortfolioCveExposureText(targetSystems);
 
   // 10. Account Handover Brief
@@ -27878,6 +27945,8 @@ ${_eosOverlap.map(g => `  ${g.model}: also approaching EOS for ${g.customers.len
   // 12. Security Posture Executive Brief
   let securityBrief = compileSecurityBrief(targetSystems, allRisks, expiringContracts, allSupportCases, scopeTitle, fw);
   if (_riskTrendText) securityBrief += _riskTrendText;
+  // Portfolio Exposure: counts only, never names other customers -- see the comment
+  // on the MSP report above.
   securityBrief += _dfPortfolioCveExposureText(targetSystems);
 
   // 13. Sustainability & ESG Report

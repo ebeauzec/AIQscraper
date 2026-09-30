@@ -304,9 +304,64 @@ empty one. Also re-confirmed the server-side snapshot fields end-to-end against 
 accounts; a real system showed `volumeSnapshotReserveOverflowCount: 5`, `volumeSnapshotCountTotal: 11135`) by
 reading the raw SQLite row directly, not just trusting the harvest log line.
 
-**Git:** branch `main`, v5.6.178 through v5.6.186 committed and pushed individually (exe rebuilt each time via
-PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild186`, synced into `dist/NetApp_AIQ_Advisor/` +
-`dist/app.js`; v5.6.180-181, v5.6.184 and v5.6.186 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
+**11. Cross-customer name leak in exportable deliverables -- real security bug, fixed (shipped, v5.6.187).**
+User screenshotted the MSP/Security Brief's "Portfolio Exposure" section naming OTHER real customers
+("AfroCentric Group" document listing "Airtel Tanzania, Allan Gray Ltd., Bharti Airtel Ltd." as other accounts
+sharing a CVE), said "remove this from the deliverables, and only present it in the GUI", then broadened to
+"remove all information related to other customers in the customer deliverables". Found and initially removed
+THREE cross-customer name leaks in exportable text (all fed by `state.systems` reaching outside the current
+scope, not just `targetSystems`): `_dfPortfolioCveExposureText()` (called from the MSP Service Report AND the
+Security Posture Brief) and an inline "PORTFOLIO REFRESH OVERLAP" block in the Sales Proposal
+(`_dfPortfolioEosOverlap()`). **User then refined the instruction**: don't remove the insight entirely, keep
+a count-only version ("state that a CVE is impacting X number of other monitored customers, without naming
+them"). Re-added all three call sites with names stripped -- `_dfPortfolioCveExposureText()` and the EOS
+overlap block now say "N other monitored customers" with no name list. Verified live: generated a real MSP
+report and confirmed zero real customer names appear in ~600 chars around "Portfolio Exposure" while the counts
+still show correctly (117 CVEs, 48 other customers, etc.). **The GUI's own Portfolio Dashboard tab and
+Security tab's Portfolio Exposure table are untouched and still show full names** -- confirmed via
+`_dfPortfolioCveExposure()` (the shared data function, still called directly by both the removed-then-readded
+text helper AND the HTML render at ~line 31737) still returning full customer-name data; only the
+text-compiling wrapper strips names. `_dfPortfolioBenchmark()` (SLA-rate benchmarking against the rest of the
+portfolio) was checked and left alone -- it only ever returns aggregate percentages/counts, never a customer
+name, so it was never a leak. **Not exhaustively re-audited beyond these three** -- if the user finds another
+deliverable naming another customer, treat it as a new instance of the same bug class (reaches into
+`state.systems`/`allSystems` beyond the current scope's `targetSystems`), not assume this pass caught
+everything.
+
+**12. IMT system-name bug, `_fleetSignals` undercounting, and one more table-alignment bug (shipped, v5.6.187).**
+Same screenshot-driven session: user flagged an "Interoperability Validation (IMT)" section showing a raw
+serial number ("90820130000000001272: ONTAP 9.12.1 is below minimum...") instead of a system name, plus
+"Integrations Checked: 0" despite two real findings existing. Root causes, both confirmed live: (1)
+`runIMTInteropCheck()` (app.js ~line 14091) read `sys.hostname`, a field that doesn't exist anywhere in this
+app's system objects (confirmed via grep -- the only `hostname` in the whole file is `window.location.hostname`,
+unrelated) -- fixed to `sys.systemName`. For the SPECIFIC system in the screenshot this makes no visible
+difference (its real Active IQ systemName genuinely IS the numeric string -- confirmed live, no friendly
+hostname was ever set for it in Active IQ), but the fix is real and matters for every other system with an
+actual name. (2) `_fleetSignals` (the object "Integrations Checked" counts from) was only ever populated by
+the ad-hoc vSphere/vCenter detection loop; the broader switch-vendor detection from `_buildDetectedSignals()`
+(cisco_san/brocade_fc/broadcom_eth) was used to gate `runIMTInteropCheck()` internally but never written back
+onto `_fleetSignals` -- fixed by merging `_buildDetectedSignals()`'s output into `_fleetSignals` before the
+count is read. Verified live: a real scope with 2 Cisco SAN switch findings now shows "Integrations Checked: 1"
+(was 0). Also fixed a third instance of the column-table-misalignment bug class (v5.6.185's pass didn't reach
+it): the Executive Risk Assessment's "RISK SUMMARY" packed multiple metrics onto single lines (`Critical: 0
+High: 28 Medium: 42 Low: 0`), which rendered as a run-on bold-label paragraph, not a table, in the exported
+Word document. Added `_dfTable(headers, rows)` (app.js, right after `_dfPlural`, ~line 26199) -- a small
+shared table-builder that computes every column's width from the actual header/cell content instead of a
+hand-counted rule line, which removes the whole "hardcoded width didn't match a variable-length value" bug
+class for anything built with it going forward, not just this one instance. Verified the parser actually
+treats the output as a real table block (`_dxParse(...).blocks.filter(b => b.t === 'table')`), not just that
+the text looks aligned.
+**A background agent was mid-task on a broader sweep for the same "multi-metric line" pattern across every
+other deliverable when it hit a weekly API rate limit and failed (no partial edits landed, confirmed via git
+diff before proceeding) -- the requested full sweep across ALL documents is NOT done, only the two locations
+above (RISK SUMMARY here, plus the earlier-in-session MSP/Security Brief/Sustainability Report fixes from
+v5.6.185) are fixed. Next session: re-run that sweep (the agent's brief, preserved in this conversation's
+history, is still valid and can be reused) once the rate limit resets (per the failure message: Oct 3, 5pm
+Asia/Riyadh) or by doing it directly rather than delegating.**
+
+**Git:** branch `main`, v5.6.178 through v5.6.187 committed and pushed individually (exe rebuilt each time via
+PyInstaller to `%LOCALAPPDATA%\Temp\aiqbuild178`..`aiqbuild187`, synced into `dist/NetApp_AIQ_Advisor/` +
+`dist/app.js`; v5.6.180-181 and v5.6.184 also synced `dist/NetApp_AIQ_Advisor/_internal/server.py` since those touched the
 harvester; v5.6.183 also synced `dist/NetApp_AIQ_Advisor/_internal/index.html` since that's the first fix this
 session that touched HTML). Working tree otherwise shows harvest data files modified by the running server
 (`data/*.json`) and untracked docs images -- never commit those with code changes.

@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.187] - 2026-09-30
+
+### Fixed
+- **Security**: the MSP Service Report, Security Posture Brief, and Sales Proposal named OTHER real customers by name (Portfolio Exposure / Portfolio Refresh Overlap sections) inside documents that can be sent to a customer. Now shows counts only in every exportable document; full named detail remains in the Action Planner's Portfolio Dashboard tab (never exported).
+- IMT interoperability findings used a non-existent `hostname` field and always fell back to the serial number instead of the real system name. Fixed to use `systemName`.
+- "Integrations Checked" in the Executive Risk Assessment only ever tracked VMware detection, undercounting when Cisco/Brocade/Broadcom switch-based findings were the actual source.
+- The Executive Risk Assessment's Risk Summary rendered as a run-on paragraph instead of a table (same bug class as v5.6.185, missed by that pass). Added a shared table-builder that computes column widths from content instead of a hardcoded rule line.
+
+---
+
 ## [5.6.186] - 2026-09-29
 
 ### Added
