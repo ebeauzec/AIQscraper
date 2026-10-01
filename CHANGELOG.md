@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.202] - 2026-10-01
+
+### Fixed
+- Real performance regression from v5.6.199: the Overview tab's "Needs Attention" card eagerly rendered a DOM row (with inline `onclick`/`onmouseover`/`onmouseout` handlers) for every system with any issue, not just the visible ones -- on a real fleet this routinely built ~900+ extra DOM nodes on every single Overview tab visit, even though most of them stayed inside a collapsed `<details>`. A large DOM slows down event dispatch and reflow across the whole page, not just that card, which is consistent with the "delay clicking anywhere, got worse over the last few commits" report. Capped the card to 50 systems; the complete ranked list already exists, properly capped and tabular, in every deliverable's "Systems Ranked by Issue Severity" section (v5.6.199/v5.6.200).
+
+---
+
 ## [5.6.201] - 2026-09-30
 
 ### Fixed

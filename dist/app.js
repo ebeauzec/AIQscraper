@@ -31,6 +31,21 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.202",
+    date: "1 October 2026",
+    title: "Fixed: Overview Tab Was Rebuilding Hundreds of Extra DOM Nodes Every Visit",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Real Performance Regression From the Last Release",
+        color: "#ef4444",
+        items: [
+          "The Overview tab's 'Needs Attention' card was eagerly rendering a DOM row for EVERY system with any issue, not just the visible top 5 -- on a real fleet this built ~900+ extra DOM nodes (each with inline click/hover handlers) on every single Overview visit, most of them sitting inside a collapsed details element doing nothing but making the page heavier. A large DOM slows down click/event handling across the WHOLE page, not just that card. Capped to 50 systems; the complete ranked list already exists properly in every deliverable's 'Systems Ranked by Issue Severity' table.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.201",
     date: "30 September 2026",
     title: "Fixed: Feature Matrix Column Headers Didn't Line Up With Their Data",
@@ -10859,7 +10874,19 @@ function renderNeedsAttention() {
       </div>
     `;
   };
-  const head = ranked.slice(0, 5), rest = ranked.slice(5);
+  // Cap the expandable list rather than eagerly injecting a row div (with
+  // inline onclick/onmouseover/onmouseout handlers) for every system with any
+  // issue -- confirmed as a real regression: on the real 1052-system fleet
+  // this list routinely ran to ~900 systems, so every single Overview visit
+  // was rebuilding ~900 extra DOM nodes via innerHTML even though the
+  // <details> stayed collapsed, which is exactly the kind of change that
+  // makes the WHOLE page feel sluggish afterward (large DOM = slower event
+  // dispatch/reflow everywhere, not just on this card). A "quick glance"
+  // card was never meant to hold near the entire fleet -- the full list
+  // already exists properly, capped and tabular, in every deliverable's
+  // "Systems Ranked by Issue Severity" section.
+  const CAP = 50;
+  const head = ranked.slice(0, 5), rest = ranked.slice(5, CAP), overflow = ranked.length - Math.min(ranked.length, CAP);
   card.innerHTML = `
     <div class="table-header-row" style="margin-bottom: 12px;">
       <div class="section-title" style="color: var(--status-critical);">⚠ Needs Attention</div>
@@ -10870,11 +10897,11 @@ function renderNeedsAttention() {
     </div>
     ${rest.length ? `
     <details style="margin-top: 8px;">
-      <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-muted); padding: 4px 0;">Show ${rest.length} more system${rest.length !== 1 ? 's' : ''} needing attention</summary>
+      <summary style="cursor: pointer; font-size: 0.75rem; color: var(--text-muted); padding: 4px 0;">Show ${rest.length} more system${rest.length !== 1 ? 's' : ''} needing attention${overflow > 0 ? ` (+${overflow} more beyond that -- see a deliverable's "Systems Ranked by Issue Severity" section for the full list)` : ''}</summary>
       <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
         ${rest.map(rowHtml).join('')}
       </div>
-    </details>` : ''}
+    </details>` : (overflow > 0 ? `<div style="margin-top: 8px; font-size: 0.72rem; color: var(--text-muted);">+${overflow} more -- see a deliverable's "Systems Ranked by Issue Severity" section for the full list</div>` : '')}
   `;
 }
 

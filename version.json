@@ -1,8 +1,8 @@
 {
-  "version": "5.6.201",
+  "version": "5.6.202",
   "major": 5,
   "minor": 6,
-  "patch": 201,
-  "date": "2026-09-30",
-  "notes": "Fixed a column-header misalignment on the Per-System Feature Matrix (Action Planner > Feature Adoption): the ARP/SnapMirror/HA/AutoSupport/Score column headers were left-aligned while their data cells were centered, so each icon sat visibly right of its own header label. Headers now match their column's alignment."
+  "patch": 202,
+  "date": "2026-10-01",
+  "notes": "Fixed a real performance regression from v5.6.199: the Overview tab's 'Needs Attention' card was eagerly rendering a DOM row (with inline event handlers) for EVERY system with any issue -- on a real fleet this ran to ~900+ extra nodes rebuilt on every single Overview visit, even though most stayed inside a collapsed <details>. A large DOM makes the whole page feel sluggish, not just that card. Capped to 50 systems; the full ranked list already exists properly in every deliverable's 'Systems Ranked by Issue Severity' table."
 }

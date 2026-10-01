@@ -22,9 +22,35 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30 (Windows dev station, v5.6.191 -> v5.6.201)
+## Session handoff -- 2026-09-30/10-01 (Windows dev station, v5.6.191 -> v5.6.202)
 
-Ten threads this session, all triggered by screenshots of generated deliverables.
+Eleven threads this session (spanning midnight into 2026-10-01); the first ten were all triggered by
+screenshots of generated deliverables, the last one wasn't.
+
+**24. Real performance regression: unbounded DOM growth in the Overview "Needs Attention" card (shipped,
+v5.6.202).** User, NOT from a screenshot this time: "since the last few commits i'm noticing a clear delay
+when clicking anywhere in the interface. it used to be a lot more responsive." Investigated rather than
+guessing: grepped for anything that could run on every click (global `document.addEventListener('click'/
+'mouseover', ...)` handlers -- found two, both trivial/unrelated), then reasoned about what changed recently
+that scales with fleet size and runs on a common path. Found it: point 21's (v5.6.199) `renderNeedsAttention()`
+rewrite built a `<details>` "Show N more systems" expander by eagerly `.map(rowHtml).join('')`-ing EVERY system
+with any issue into the card's `innerHTML` -- each row a `<div>` with inline `onclick`/`onmouseover`/
+`onmouseout` handlers -- not just the ones actually visible before the (collapsed) `<details>` was opened.
+**Confirmed live, not just read the code and assumed**: on the real 1052-system fleet, this card was building
+964 row divs (5 visible + 919 inside a collapsed `<details>`) on every single visit to the Overview tab, which
+is the TAB THE APP LANDS ON. A ~900-extra-node DOM rebuild on a page the user returns to constantly, combined
+with a generally large DOM already (the Overview table itself lists every system), is a textbook cause of
+"everything feels sluggish" -- large DOM = slower event dispatch/reflow globally, not just on that one card,
+which matches "delay when clicking ANYWHERE" better than a localized bug would. Fixed by capping the card to
+50 systems total (5 visible + 45 in the expander), with an explicit "+N more -- see a deliverable's 'Systems
+Ranked by Issue Severity' section for the full list" pointer to where the COMPLETE list already properly lives
+(capped, tabular, from v5.6.199/200) -- a GUI "quick glance" card was never meant to hold nearly the entire
+fleet. Verified live: re-measured the same real fleet after the fix -- exactly 50 `div[onclick]` row elements
+now, down from 964. **Not yet confirmed this was the user's actual full felt experience** (couldn't measure
+click-to-paint latency directly from this environment) -- but it's a real, substantial, newly-introduced
+unbounded-DOM-growth bug on the landing tab, fixed and verified at the DOM-node-count level; worth asking the
+user to confirm the app feels responsive again after updating, and treating as NOT fully closed out until
+they do.
 
 **23. Feature Matrix header/data misalignment (shipped, v5.6.201).** User screenshot: Action Planner's
 Per-System Feature Matrix (`_renderFeatureAdoptionSection()`, GUI-only, not a Word export) showed each row's
@@ -397,14 +423,14 @@ two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, f
 none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
 matrix does.
 
-**Git:** branch `main`. v5.6.192 through v5.6.201 each committed individually after this session's work
+**Git:** branch `main`. v5.6.192 through v5.6.202 each committed individually after this session's work
 (app.js, CHANGELOG.md, version.json, CLAUDE.md, and the synced `dist/app.js` +
 `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time; v5.6.197 and v5.6.198 also synced
-`dist/NetApp_AIQ_Advisor/_internal/server.py` since both touched the harvester (v5.6.199 through v5.6.201 were
+`dist/NetApp_AIQ_Advisor/_internal/server.py` since both touched the harvester (v5.6.199 through v5.6.202 were
 app.js-only, no server.py sync needed) -- note PyInstaller does NOT produce a loose `server.py` in its own
 build output (it's compiled into the exe), so that sync step copies directly from the repo root's `server.py`,
 matching what past sessions did). Exe rebuilt via PyInstaller (`build/AIQscraper.spec`, note the spec lives
-under `build/`, not the repo root) to `%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild201`, never
+under `build/`, not the repo root) to `%LOCALAPPDATA%\Temp\aiqbuild192`..`aiqbuild202`, never
 `build/build_windows.bat`. No HTML changes this
 session.
 
