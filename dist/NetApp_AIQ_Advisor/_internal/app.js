@@ -31,6 +31,32 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.205",
+    date: "2 October 2026",
+    title: "Fixed: Success Plans Never Loaded; Plan Progress, FC Adapters, Cloud Insights Added",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Success Plans Harvest Was Silently Failing",
+        color: "#ef4444",
+        items: [
+          "The Success Plans query asked for 'objectives' without sub-fields and for a field that does not exist (tamNotes; the real field is notes), so Active IQ rejected the whole query and ARIA silently received no plans. Fixed: plans now load with their objectives, milestones, actions, notes and stakeholders.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "New -- Plan Progress, Adapter/FC Inventory, Cloud Insights, Talking Points",
+        color: "#22c55e",
+        items: [
+          "'Outcomes Lift: Coming soon' is replaced by real Milestone Progress computed from each plan's milestone and action statuses (complete, in progress, blocked, overdue). The per-plan progress cell and the Success Plan Alignment section of the deliverables show milestones complete and list open milestones with blockers.",
+          "ONTAP adapter inventory (slot, adapter, firmware, port count) with Fibre Channel port state and node name, Cloud Insights hosts (OS, hypervisor, VM count), and Active IQ's own capacity talking points per system, in the Platform Insights tab and the TAM Success Plan, MSP Service Report and Handover Brief.",
+          "StorageGRID ILM time periods are days (confirmed from the schema); rules with several periods now show each period's placement, and only the ingest period counts toward copy count.",
+          "Confirmed against the live schema, so documented rather than worked around: E-Series (SantricitySystem) and StorageGRID nodes expose no controller, port or WWPN fields, and Active IQ has no parts-logistics hub or depot status (only RMA part requests).",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.204",
     date: "2 October 2026",
     title: "New: Platform Insights (Power, Drives, Upgrade History, Headroom) for All Platforms",
@@ -9291,6 +9317,11 @@ function _demoHydrateSystem(s, ctx) {
       px.upgradeHistory = [{ from: '9.12.1P7', to: '9.14.1P8', date: _demoIso(now - 700 * _demoDay).slice(0, 10) }, { from: '9.14.1P8', to: '9.15.1P8', date: _demoIso(now - (80 + Math.floor(rng() * 600)) * _demoDay).slice(0, 10) }];
       px.hwLimits = { maxCapacityTB: Math.max(60, Math.round(rawTB * (1.05 + rng() * 2.5))), driveLimits: [{ class: 'SSD', max: 480 }], shelfLimits: [{ model: 'DS224C', max: 20 }] };
       if (rng() > 0.7) px.systemFiles = [{ type: 'TZDB', cur: '2024a', rec: '2025b', auto: true }];
+      const _wn = '50:0a:09:80:' + String(10 + _demoHash(s.serialNumber) % 89) + ':53:33:53';
+      px.adapters = [{ slot: '0', name: '10 Gigabit Ethernet Controller IX5-SFP+', type: 'ETHERNET', pn: null, serial: null, fw: '2.10-5.1', ports: 2 },
+        { slot: '0', name: 'FC Target Host Adapter (QLogic 8324 (8362) rev. 2)', type: 'FIBRE_CHANNEL', pn: null, serial: null, fw: '8.9.0', ports: 4, fc: [{ name: '0e', state: 'ONLINE', wwnn: _wn, addr: '010200' }, { name: '0f', state: 'ONLINE', wwnn: _wn, addr: '010300' }, { name: '0g', state: 'LINK_NOT_CONNECTED', wwnn: _wn, addr: '000000' }, { name: '0h', state: 'LINK_NOT_CONNECTED', wwnn: _wn, addr: '000000' }] }];
+      px.talkingPoints = ['The cluster capacity utilization is ' + (40 + Math.floor(rng() * 40)) + '%, and in 3 months will be ' + (45 + Math.floor(rng() * 40)) + '% full.'];
+      if (rng() > 0.7) px.ciHosts = [{ name: 'esx-prod-01', os: 'VMware ESXi', hypervisor: true, active: true, vms: 12 + Math.floor(rng() * 40) }];
     } else if (fam === 'eseries') {
       px.drives = [{ model: 'HUH721212AL5204', type: 'Hard Disk Drive', count: 24 + Math.floor(rng() * 90), capGB: 11750, rpm: null, eos: eosSoon, fwCur: 'NE01', fwRec: fwBehind ? 'NE02' : 'NE01' }];
       px.nvsram = { cur: 'N280X-890834-D02', rec: fwBehind ? 'N280X-890834-D04' : 'N280X-890834-D02' };
@@ -9481,7 +9512,7 @@ function _demoBuildRoots(systems, ctx) {
     objectiveOther: '', successMetrics: 'Health score above 80; zero critical risks older than 30 days; 100% of systems reporting AutoSupport',
     keyStakeholders: [{ name: 'Casey Nguyen', email: 'casey.nguyen@example.com', role: 'Storage Lead' }], internalTeamMembers: ['Jordan Lee', 'Sam Rivera'],
     tamNotes: 'Quarterly business review scheduled.', linkedAifId: '', lastUpdated: _demoIso(now - (3 + i * 4) * _demoDay), scope: [{ id: c.id, name: c.name }],
-    lastUpdatedBy: 'Jordan Lee', accountPlanId: '', objectives: ['Reduce risk exposure', 'Improve OS currency'], nagpId: c.nagpId, nagpName: c.name }));
+    lastUpdatedBy: 'Jordan Lee', accountPlanId: '', objectives: [{ name: 'Reduce risk exposure', milestones: [{ id: 'm1', name: 'Close critical risks', status: i % 2 ? 'IN_PROGRESS' : 'COMPLETE', blockerNotes: '', actions: [{ id: 'a1', name: 'Patch critical CVEs', actionOwner: 'Jordan Lee', dueDate: _demoIso(now + 20 * _demoDay), actionStatus: i % 2 ? 'IN_PROGRESS' : 'COMPLETE', objective: 'Reduce risk exposure' }] }] }, { name: 'Improve OS currency', milestones: [{ id: 'm2', name: 'Upgrade to recommended ONTAP', status: i % 3 === 0 ? 'BLOCKED' : 'NOT_STARTED', blockerNotes: i % 3 === 0 ? 'Awaiting change window' : '', actions: [] }] }], nagpId: c.nagpId, nagpName: c.name }));
   state.planProgress = [];
 }
 
@@ -19622,13 +19653,15 @@ function _dfSgRulePlacements(rule) {
   // Erasure it is the EC scheme ("4+2"). Site coverage comes from the
   // placement's storage pool(s); if pools carry no site info, sites stays empty.
   const sites = new Set(); let copies = 0; const ec = []; const parts = [];
-  ((rule && rule.timePeriodsAndPlacements) || []).forEach(tp => {
+  const _tps = (rule && rule.timePeriodsAndPlacements) || [];
+  _tps.forEach(tp => {
+    const _per = _tps.length > 1 ? `days ${tp.start}${tp.end != null ? '-' + tp.end : '+'}: ` : '';
     (tp.placements || []).forEach(pl => {
       const pools = (pl.storagePool || []).map(p => p && p.name).filter(Boolean);
       (pl.storagePool || []).forEach(p => ((p && p.sitesAndGrades) || []).forEach(sg => sg && sg.siteName && sites.add(sg.siteName)));
       const poolTxt = pools.length ? ` @ ${pools.join(', ')}` : '';
-      if (String(pl.placementType).toLowerCase() === 'erasure') { ec.push(pl.schema); parts.push(`EC ${pl.schema}${poolTxt}`); }
-      else { const n = parseInt(pl.schema, 10); const c = isNaN(n) ? 1 : n; copies += c; parts.push(`${c} cop${c === 1 ? 'y' : 'ies'}${poolTxt}`); }
+      if (String(pl.placementType).toLowerCase() === 'erasure') { ec.push(pl.schema); parts.push(`${_per}EC ${pl.schema}${poolTxt}`); }
+      else { const n = parseInt(pl.schema, 10); const c = isNaN(n) ? 1 : n; if (tp === _tps[0]) copies += c; parts.push(`${_per}${c} cop${c === 1 ? 'y' : 'ies'}${poolTxt}`); }
     });
   });
   return { copies, ec, sites, text: parts.join(' + ') || '—' };
@@ -19722,7 +19755,7 @@ function _dfStorageGridText(v, opts) {
 // hardware expansion limits, E-Series NVSRAM, ARP/AI + timezone files, per-site grid capacity.
 // One analysis feeds the Action Planner tab and every deliverable that cites it.
 function _dfPlatformInsights(systems) {
-  const energyRows = [], driveRows = [], histRows = [], hwRows = [], fileRows = [], findings = [];
+  const energyRows = [], driveRows = [], histRows = [], hwRows = [], fileRows = [], findings = [], adapterRows = [], ciRows = [], talkRows = [];
   const now = Date.now(); let withExtras = 0;
   const FAM = { ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID', element: 'Element' };
   (systems || []).forEach(s => {
@@ -19768,10 +19801,17 @@ function _dfPlatformInsights(systems) {
     // ARP/AI + timezone files
     [].concat(x.securityFiles || [], x.systemFiles || []).forEach(f => { if (f.cur && f.rec && f.cur !== f.rec) fileRows.push({ system: name, customer: cust, type: f.type, cur: f.cur, rec: f.rec, auto: f.auto }); });
   });
+  // Adapters / FC ports, Cloud Insights, talking points (ONTAP)
+  (systems || []).forEach(s => {
+    const x = s.platformExtras; if (!x) return; const name = s.systemName || s.serialNumber, cust = s.customerName || '';
+    (x.adapters || []).forEach(a => { const fc = a.fc || []; adapterRows.push({ system: name, customer: cust, slot: a.slot, name: a.name, type: a.type, fw: a.fw || '', ports: a.ports, fcOnline: fc.filter(f => f.state === 'ONLINE').length, fcTotal: fc.length, wwnn: fc[0] ? fc[0].wwnn : '' }); });
+    (x.ciHosts || []).forEach(h => ciRows.push({ system: name, customer: cust, host: h.name, os: h.os, hypervisor: h.hypervisor, active: h.active, vms: h.vms }));
+    if ((x.talkingPoints && x.talkingPoints.length) || (x.nextBestActions && x.nextBestActions.length)) talkRows.push({ system: name, customer: cust, points: x.talkingPoints || [], actions: x.nextBestActions || [] });
+  });
   const sum = (a, k) => a.reduce((t, r) => t + (r[k] || 0), 0);
   const order = { high: 0, medium: 1, info: 2 }; findings.sort((a, b) => order[a.severity] - order[b.severity]);
   const byFam = {}; energyRows.forEach(r => { const f = byFam[r.family] = byFam[r.family] || { n: 0, w: 0, heat: 0 }; f.n++; f.w += r.powerW; f.heat += r.heatBTU; });
-  return { withExtras, total: (systems || []).length, energyRows, driveRows, histRows, hwRows, fileRows, findings, byFam,
+  return { withExtras, total: (systems || []).length, energyRows, driveRows, histRows, hwRows, fileRows, adapterRows, ciRows, talkRows, findings, byFam,
     energy: { totalW: sum(energyRows, 'powerW'), totalHeat: sum(energyRows, 'heatBTU'), kwhYear: sum(energyRows, 'kwhYear'), n: energyRows.length },
     drives: { total: sum(driveRows, 'count'), models: new Set(driveRows.map(r => r.model)).size, behind: driveRows.filter(r => r.behind).reduce((t, r) => t + r.count, 0) } };
 }
@@ -19783,7 +19823,7 @@ function _dfPlatformInsightsSummaryLine(v) {
 // which: subset of ['energy','drives','history','headroom','files','findings']
 function _dfPlatformInsightsText(v, which, opts) {
   if (!v || !v.withExtras) return '';
-  which = which || ['energy', 'drives', 'history', 'headroom', 'files', 'findings']; opts = opts || {}; const lim = opts.limit || 15;
+  which = which || ['energy', 'drives', 'history', 'headroom', 'files', 'adapters', 'ci', 'talking', 'findings']; opts = opts || {}; const lim = opts.limit || 15;
   const more = (n, w) => n > lim ? `\n  +${n - lim} more ${w}` : '';
   let o = `  ${_dfPlatformInsightsSummaryLine(v)}.\n`;
   if (which.includes('energy') && v.energyRows.length) {
@@ -19806,6 +19846,16 @@ function _dfPlatformInsightsText(v, which, opts) {
   if (which.includes('files') && v.fileRows.length) {
     o += `\n  ARP/AI & Timezone Files Behind Recommended\n` + _dfTable(['System', 'File', 'Current', 'Recommended', 'Auto-update'], v.fileRows.slice(0, lim).map(r => [r.system, r.type, r.cur, r.rec, r.auto ? 'Yes' : 'No'])) + more(v.fileRows.length, 'files') + '\n';
   }
+  if (which.includes('adapters') && v.adapterRows.length) {
+    const rows = v.adapterRows.slice().sort((a, b) => (b.fcTotal - a.fcTotal) || String(a.system).localeCompare(b.system));
+    o += `\n  Adapter & FC Port Inventory (ONTAP)\n` + _dfTable(['System', 'Slot', 'Adapter', 'Type', 'Firmware', 'Ports', 'FC Online', 'FC Node Name (WWNN)'], rows.slice(0, lim).map(r => [r.system, r.slot, r.name, r.type, r.fw || '—', r.ports, r.fcTotal ? `${r.fcOnline}/${r.fcTotal}` : '—', r.wwnn || '—'])) + more(rows.length, 'adapters') + '\n';
+  }
+  if (which.includes('ci') && v.ciRows.length) {
+    o += `\n  Cloud Insights Hosts Using This Storage\n` + _dfTable(['System', 'Host', 'OS', 'Hypervisor', 'Active', 'VMs'], v.ciRows.slice(0, lim).map(r => [r.system, r.host, r.os || '—', r.hypervisor ? 'Yes' : 'No', r.active ? 'Yes' : 'No', r.vms])) + more(v.ciRows.length, 'hosts') + '\n';
+  }
+  if (which.includes('talking') && v.talkRows.length) {
+    o += `\n  Active IQ Talking Points (capacity and next-best-action)\n` + _dfTable(['System', 'Talking Point'], [].concat(...v.talkRows.slice(0, lim).map(t => t.actions.concat(t.points.slice(0, 2)).slice(0, 3).map(p => [t.system, p])))) + more(v.talkRows.length, 'systems') + '\n';
+  }
   if (which.includes('findings')) {
     const fs = v.findings;
     o += fs.length ? `\n  Platform Findings\n` + _dfTable(['Severity', 'System', 'Platform', 'Finding', 'Detail'], fs.slice(0, 25).map(f => [f.severity.toUpperCase(), f.system, f.family, f.title, f.detail])) + (fs.length > 25 ? `\n  +${fs.length - 25} more findings` : '') + '\n' : `\n  No platform findings.\n`;
@@ -19827,6 +19877,9 @@ function _platformInsightsHtml(v) {
   html += h('Drive inventory &amp; firmware') + table(['System', 'Platform', 'Model', 'Type', 'Count', 'Cap (GB)', 'Firmware', 'Recommended', 'End of support'], v.driveRows.slice().sort((a, b) => (b.behind - a.behind) || (b.count - a.count)).map(r => [r.system, r.family, r.model, r.type || '—', r.count, r.capGB || '—', r.fwCur || '—', r.fwRec || '—', r.eos || '—']));
   html += h('ONTAP upgrade history') + table(['System', 'Recorded', 'Last upgrade', 'From', 'To', 'Months ago'], v.histRows.slice().sort((a, b) => (b.monthsSince || 0) - (a.monthsSince || 0)).map(r => [r.system, r.count, r.lastDate || '—', r.lastFrom, r.lastTo, r.monthsSince != null ? r.monthsSince : '—']));
   html += h('Hardware expansion headroom') + table(['System', 'Platform', 'Raw (TB)', 'Max (TB)', 'Used of max %'], v.hwRows.slice().sort((a, b) => b.pct - a.pct).map(r => [r.system, r.family, r.capTB, r.maxTB, r.pct]));
+  html += h('Adapter &amp; FC port inventory (ONTAP)') + table(['System', 'Slot', 'Adapter', 'Type', 'Firmware', 'Ports', 'FC online', 'WWNN'], v.adapterRows.slice().sort((a, b) => b.fcTotal - a.fcTotal).map(r => [r.system, r.slot, r.name, r.type, r.fw || '—', r.ports, r.fcTotal ? r.fcOnline + '/' + r.fcTotal : '—', r.wwnn || '—']), 30);
+  html += h('Cloud Insights hosts') + table(['System', 'Host', 'OS', 'Hypervisor', 'Active', 'VMs'], v.ciRows.map(r => [r.system, r.host, r.os || '—', r.hypervisor ? 'Yes' : 'No', r.active ? 'Yes' : 'No', r.vms]));
+  html += h('Active IQ talking points') + table(['System', 'Talking point'], [].concat(...v.talkRows.map(t => t.actions.concat(t.points.slice(0, 2)).slice(0, 3).map(p => [t.system, p]))), 30);
   if (v.fileRows.length) html += h('ARP/AI &amp; timezone files behind recommended') + table(['System', 'File', 'Current', 'Recommended', 'Auto-update'], v.fileRows.map(r => [r.system, r.type, r.cur, r.rec, r.auto ? 'Yes' : 'No']));
   if (v.findings.length) html += h('Findings') + table(['Severity', 'System', 'Platform', 'Finding', 'Detail'], v.findings.map(f => [f.severity, f.system, f.family, f.title, f.detail]), 40);
   return html + `<div style="font-size:0.72rem;color:var(--text-muted);">Source: Active IQ AutoSupport telemetry. Power is a measured average where reported, otherwise NetApp's projected or published typical figure; E-Series typically reports projected only.</div>`;
@@ -22700,6 +22753,25 @@ const _truncate = (s, n = 300) => { const t = (s || '').replace(/<[^>]+>/g, '').
 // Success Plans (state.tamSuccessPlans, matched by the same real nagpId
 // already tagged on both systems and plans) so QBR/Risk/Handover documents
 // tie back to the account's actual plan instead of never mentioning it.
+// Success Plan outcome tracking. Active IQ returns each plan's objectives -> milestones -> actions
+// with statuses (NOT_STARTED / IN_PROGRESS / COMPLETE / OVERDUE / BLOCKED), so real delivery progress
+// can be computed locally. (NetApp's own "Outcomes Lift" index is not exposed; this is plan execution.)
+function _cspProgress(p) {
+  const objs = (p && Array.isArray(p.objectives) ? p.objectives : []).filter(o => o && typeof o === 'object');
+  const ms = []; objs.forEach(o => (o.milestones || []).forEach(m => ms.push({ ...m, objective: o.name })));
+  const now = Date.now(); const acts = []; ms.forEach(m => (m.actions || []).forEach(a => acts.push({ ...a, milestone: m.name, objective: m.objective })));
+  const cnt = st => ms.filter(m => m.status === st).length;
+  const actDone = acts.filter(a => a.actionStatus === 'COMPLETE').length;
+  const actOverdue = acts.filter(a => a.actionStatus === 'OVERDUE' || (a.actionStatus !== 'COMPLETE' && a.dueDate && new Date(a.dueDate) < now)).length;
+  return { objectives: objs.length, milestones: ms.length, complete: cnt('COMPLETE'), inProgress: cnt('IN_PROGRESS'), blocked: cnt('BLOCKED'), overdue: cnt('OVERDUE'), notStarted: cnt('NOT_STARTED'),
+    actions: acts.length, actionsDone: actDone, actionsOverdue: actOverdue, pct: ms.length ? Math.round(cnt('COMPLETE') / ms.length * 100) : null, ms, acts };
+}
+function _cspProgressRollup(plans) {
+  const r = { plans: 0, milestones: 0, complete: 0, blocked: 0, overdue: 0, actions: 0, actionsDone: 0, actionsOverdue: 0 };
+  (plans || []).forEach(p => { const g = _cspProgress(p); if (!g.milestones) return; r.plans++; r.milestones += g.milestones; r.complete += g.complete; r.blocked += g.blocked; r.overdue += g.overdue; r.actions += g.actions; r.actionsDone += g.actionsDone; r.actionsOverdue += g.actionsOverdue; });
+  r.pct = r.milestones ? Math.round(r.complete / r.milestones * 100) : null; return r;
+}
+
 function getSuccessPlanAlignmentText(targetSystems) {
   const nagpIds = new Set(targetSystems.map(s => s.nagpId).filter(Boolean));
   const plans = (state.tamSuccessPlans || []).filter(p => nagpIds.has(p.nagpId) && p.status !== 'CLOSED');
@@ -22707,7 +22779,11 @@ function getSuccessPlanAlignmentText(targetSystems) {
     return '  No active Success Plan on file for this account -- see the Success Plans tab to create or adopt a suggested one.\n';
   }
   // one pipe-delimited table (header + a row per plan) -- reads cleanly as text and becomes a real table in the Word download
-  return '  Plan | Stage | Status | Health | Owner\n' + plans.map(p => `  ${(p.name || p.title || 'Untitled Plan')} | ${SUCCESS_PLAN_STAGE_LABELS[p.lifecycleStage] || p.lifecycleStage || 'Unspecified'} | ${SUCCESS_PLAN_STATUS_LABELS[p.status] || p.status} | ${SUCCESS_PLAN_HEALTH_LABELS[p.health] || p.health || '—'} | ${p.tamOwnerEmail || '—'}`).join('\n') + '\n';
+  const _msTxt = p => { const g = _cspProgress(p); return g.milestones ? `${g.complete}/${g.milestones} (${g.pct}%)` : '—'; };
+  let _o = '  Plan | Stage | Status | Health | Owner | Milestones Complete\n' + plans.map(p => `  ${(p.name || p.title || 'Untitled Plan')} | ${SUCCESS_PLAN_STAGE_LABELS[p.lifecycleStage] || p.lifecycleStage || 'Unspecified'} | ${SUCCESS_PLAN_STATUS_LABELS[p.status] || p.status} | ${SUCCESS_PLAN_HEALTH_LABELS[p.health] || p.health || '—'} | ${p.tamOwnerEmail || '—'} | ${_msTxt(p)}`).join('\n') + '\n';
+  const _open = []; plans.forEach(p => _cspProgress(p).ms.forEach(m => { if (m.status !== 'COMPLETE') _open.push(`  ${(p.name || p.title || 'Plan')} | ${m.objective || '—'} | ${m.name} | ${m.status || 'NOT_STARTED'} | ${(m.actions || []).filter(a => a.actionStatus !== 'COMPLETE').length} open action(s)${m.blockerNotes ? ' | Blocker: ' + m.blockerNotes : ''}`); }));
+  if (_open.length) _o += '\n  Open Milestones\n  Plan | Objective | Milestone | Status | Actions\n' + _open.slice(0, 15).join('\n') + (_open.length > 15 ? `\n  +${_open.length - 15} more open milestones` : '') + '\n';
+  return _o;
 }
 
 function _filterAndDeduplicateRisks(risks, targetSystems) {
@@ -26176,7 +26252,7 @@ ${_dfStorageGridText(v)}
 --------------------------------------------------------------------------------
 `; })()}${(() => { const v = _dfPlatformInsights(targetSystems); if (!v.withExtras) return ''; return `7d. PLATFORM INSIGHTS (Upgrade History, Drives, Headroom)
 --------------------------------------------------------------------------------
-${_dfPlatformInsightsText(v, ['history', 'drives', 'headroom', 'findings'], { limit: 12 })}
+${_dfPlatformInsightsText(v, ['history', 'drives', 'headroom', 'adapters', 'ci', 'talking', 'findings'], { limit: 12 })}
 --------------------------------------------------------------------------------
 `; })()}8. DATA PROTECTION & DR POSTURE
 --------------------------------------------------------------------------------
@@ -38760,7 +38836,7 @@ async function adoptSelectedSuggestedPlans() {
           nagpId: s.nagpId, name: s.title, source: 'MANUAL', title: s.title,
           templateUsed: 'ESSENTIAL', planStatus: 'ACTIVE', lifecycleStage: s.stage,
           health: 'YELLOW', customerChallengesAndGoals: challengesFull,
-          objectives, successMetrics: s.metrics, tamNotes,
+          objectives, successMetrics: s.metrics, notes: tamNotes ? [{ message: tamNotes }] : undefined,
           scope: { id: s.nagpId, name: s.nagpName },
         },
       };
@@ -38874,7 +38950,7 @@ async function saveSuccessPlanFromModal() {
         accountPlan: {
           id, name,
           tamOwnerEmail: tamOwnerEmail || undefined,
-          status, lifecycleStage, health, tamNotes,
+          status, lifecycleStage, health, notes: tamNotes ? [{ message: tamNotes }] : undefined,
           scope: { id: nagpId, name: scopeName },
         },
       };
@@ -38891,7 +38967,7 @@ async function saveSuccessPlanFromModal() {
         accountPlan: {
           nagpId, name, source: 'MANUAL', title: name,
           templateUsed: 'ESSENTIAL', planStatus: status, lifecycleStage,
-          health, tamNotes, scope: { id: nagpId, name: scopeName },
+          health, notes: tamNotes ? [{ message: tamNotes }] : undefined, scope: { id: nagpId, name: scopeName },
         },
       };
       const data = await _callAIQMutation(mutation, variables);
@@ -38976,7 +39052,7 @@ function renderSuccessPlansTab() {
   if (kpiRow) {
     kpiRow.innerHTML = `
       <div class="card kpi-card"><div class="card-title">Health Score</div><div class="card-value">${healthScore != null ? healthScore : '—'}</div></div>
-      <div class="card kpi-card" data-tooltip="Not available via the Active IQ API -- NetApp Digital Advisor computes this from outcome tracking not exposed to partners/TAMs."><div class="card-title">Outcomes Lift</div><div class="card-value" style="font-size:0.95rem;color:var(--text-muted);">Coming soon</div></div>
+      ${(() => { const r = _cspProgressRollup(plans); return `<div class="card kpi-card" data-tooltip="Real plan execution from Active IQ: ${r.complete} of ${r.milestones} milestones complete, ${r.actionsDone} of ${r.actions} actions done, ${r.blocked} blocked, ${r.overdue + r.actionsOverdue} overdue. NetApp's own outcomes-lift index is not exposed by the API."><div class="card-title">Milestone Progress</div><div class="card-value"${r.pct == null ? ' style="font-size:0.95rem;color:var(--text-muted);"' : ''}>${r.pct == null ? 'No milestones' : r.pct + '%'}</div></div>`; })()}
       <div class="card kpi-card"><div class="card-title">Linked CSPs</div><div class="card-value">${linkedCount}</div></div>
       <div class="card kpi-card"><div class="card-title">Unlinked CSPs</div><div class="card-value">${unlinkedCount}</div></div>
       <div class="card kpi-card"><div class="card-title">TAM Owners</div><div class="card-value">${ownerCount}</div></div>
@@ -38997,6 +39073,8 @@ function renderSuccessPlansTab() {
     const progressCell = delta
       ? `<span style="color:${delta.improved ? 'var(--status-normal)' : 'var(--status-warning)'};font-weight:600;">${delta.baselineValue} → ${delta.currentValue}</span> <span style="color:var(--text-muted);">${delta.metricLabel}</span>`
       : '<span style="color:var(--text-muted);">—</span>';
+    const _g = _cspProgress(p);
+    const progressCell2 = progressCell + (_g.milestones ? `<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;">${_g.complete}/${_g.milestones} milestones${_g.blocked ? ', ' + _g.blocked + ' blocked' : ''}${_g.overdue + _g.actionsOverdue ? ', ' + (_g.overdue + _g.actionsOverdue) + ' overdue' : ''}</div>` : '');
     return `
     <tr style="border-bottom:1px solid var(--border-color);">
       <td style="padding:8px 10px;"><a href="#" onclick="openSuccessPlanModal('${p.id}');return false;" style="color:var(--accent-cyan);text-decoration:none;">${(p.name || p.title || '').replace(/</g, '&lt;')}</a></td>
@@ -39004,7 +39082,7 @@ function renderSuccessPlansTab() {
       <td style="padding:8px 10px;font-size:0.8rem;">${(p.nagpName || (p.scope && p.scope.name) || '—').replace(/</g, '&lt;')}</td>
       <td style="padding:8px 10px;"><span style="background:${color}22;color:${color};border:1px solid ${color}55;border-radius:4px;padding:3px 8px;font-size:0.72rem;font-weight:700;">${SUCCESS_PLAN_STATUS_LABELS[p.status] || p.status || '—'}</span></td>
       <td style="padding:8px 10px;"><span style="background:${healthColor}22;color:${healthColor};border:1px solid ${healthColor}55;border-radius:4px;padding:3px 8px;font-size:0.72rem;font-weight:700;">${SUCCESS_PLAN_HEALTH_LABELS[p.health] || p.health || '—'}</span></td>
-      <td style="padding:8px 10px;font-size:0.78rem;">${progressCell}</td>
+      <td style="padding:8px 10px;font-size:0.78rem;">${progressCell2}</td>
     </tr>`;
   }).join('');
 }

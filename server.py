@@ -1456,6 +1456,39 @@ def _build_platform_extras(r):
     return out or None
 
 
+def _build_ontap_extras2(r):
+    """Adapter/FC inventory, Cloud Insights hosts/tenants and Active IQ talking points for one ONTAP system."""
+    if not isinstance(r, dict):
+        return None
+    out = {}
+    ads = []
+    for slot in ((r.get("adapterInterface") or {}).get("slots") or []):
+        for a in (slot.get("adapters") or []):
+            if not a:
+                continue
+            ifs = a.get("interfaces") or []
+            ent = {"slot": slot.get("slotNumber"), "name": a.get("name"), "type": a.get("type"), "pn": a.get("marketingPartNumber"),
+                   "serial": a.get("serialNumber"), "fw": a.get("firmwareRevision"), "ports": len(ifs)}
+            if a.get("__typename") == "FibreChannelAdapter":
+                ent["fc"] = [{"name": i.get("name"), "state": i.get("state"), "wwnn": i.get("fcNodeName"), "addr": i.get("portAddress")} for i in ifs]
+            ads.append(ent)
+    if ads:
+        out["adapters"] = ads
+    hosts = r.get("cloudInsightsHosts") or []
+    if hosts:
+        out["ciHosts"] = [{"name": h.get("name"), "os": h.get("operatingSystem"), "hypervisor": bool(h.get("isHypervisor")),
+                           "active": bool(h.get("isActive")), "vms": len(h.get("virtualMachines") or [])} for h in hosts if h]
+    tens = r.get("cloudInsightsTenants") or []
+    if tens:
+        out["ciTenants"] = [{"app": (t.get("application") or {}).get("name"), "version": (t.get("application") or {}).get("version"),
+                             "status": (t.get("application") or {}).get("status")} for t in tens if t]
+    if r.get("propensityTalkingPoints"):
+        out["talkingPoints"] = [str(x) for x in r["propensityTalkingPoints"][:6]]
+    if r.get("nextBestActionTalkingPoints"):
+        out["nextBestActions"] = [str(x) for x in r["nextBestActionTalkingPoints"][:6]]
+    return out or None
+
+
 def _gql(token, query, variables=None):
     body = {"query": query}
     if variables:
@@ -1859,6 +1892,17 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     }
                   }"""
 
+        ONTAP_EXTRA2_FIELDS = """
+                  serialNumber
+                  ... on ONTAPSystem {
+                    propensityTalkingPoints nextBestActionTalkingPoints
+                    cloudInsightsHosts { name operatingSystem isHypervisor isActive virtualMachines { name } }
+                    cloudInsightsTenants { application { name version status } }
+                    adapterInterface { slots { slotNumber adapters { __typename name type marketingPartNumber serialNumber
+                      ... on FibreChannelAdapter { firmwareRevision interfaces { name state fcNodeName portAddress } }
+                      ... on EthernetAdapter { firmwareRevision deviceType interfaces { name macAddress mediaType } } } } }
+                  }"""
+
         # LUN and NAS volume inventory summary — requested by the user for SAN/NAS
         # capacity reporting and best-practice alignment. Confirmed live via schema
         # introspection: igroups, initiator groups and multipathing do NOT exist
@@ -2198,6 +2242,21 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     _s["gCapacity"] = _gc
                     _gcap_hits += 1
             print(f"  [HARVEST] E-Series capacity merged for {_ecap_hits} systems, StorageGRID grid capacity for {_gcap_hits}", flush=True)
+            # Second, ONTAP-only pass (kept separate: combined with the first it exceeds Active IQ's
+            # field-count limit -- confirmed live): adapter/FC inventory, Cloud Insights, talking points.
+            try:
+                for _ecap_scope in (list(watchlist_ids) if watchlist_ids else [None]):
+                    _o2_rows, _ = _fetch_systems_for_scope(ONTAP_EXTRA2_FIELDS, _ecap_scope)
+                    for _r in _o2_rows:
+                        _o2 = _build_ontap_extras2(_r)
+                        if _o2:
+                            _pextra_by_serial.setdefault(_r.get("serialNumber"), {}).update(_o2)
+                for _s in all_systems:
+                    _px2 = _pextra_by_serial.get(_s.get("serialNumber"))
+                    if _px2:
+                        _s["pExtras"] = _px2
+            except Exception as _e2:
+                print(f"  [HARVEST] WARNING: ONTAP adapter/Cloud Insights fetch failed: {_e2}", flush=True)
         except Exception as _e:
             print(f"  [HARVEST] WARNING: E-Series capacity fetch failed: {_e}", flush=True)
 
@@ -2808,13 +2867,18 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     id name title status lifecycleStage health tamOwnerEmail
                     source templateUsed customerChallengesAndGoals objectiveOther
                     successMetrics keyStakeholders { name email role }
-                    internalTeamMembers tamNotes linkedAifId lastUpdated
-                    scope { id name } lastUpdatedBy accountPlanId objectives
+                    internalTeamMembers notes { name email date message } linkedAifId lastUpdated
+                    scope { id name } lastUpdatedBy accountPlanId
+                    objectives { name milestones { id name status blockerNotes lifecycleStage
+                        actions { id name actionOwner dueDate actionStatus objective } } }
                 }
             } } }""")
             _sp_details = (((sp_resp.get("data") or {}).get("successPlan") or {}).get("details")) or [] if isinstance(sp_resp, dict) else []
             for _grp in _sp_details:
                 for _plan in (_grp.get("successPlans") or []):
+                    # Older code/UI read a single `tamNotes` string; the API's real field is `notes`
+                    # (a list of {name,email,date,message}). Keep both so nothing downstream breaks.
+                    _plan["tamNotes"] = "\n".join(n.get("message") or "" for n in (_plan.get("notes") or []) if n)
                     _plan["nagpId"] = _grp.get("nagpId", "")
                     _plan["nagpName"] = _grp.get("nagpName", "")
                     tam_success_plans.append(_plan)

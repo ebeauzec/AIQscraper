@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.205] - 2026-10-02
+
+### Fixed
+- Success Plans never loaded: the harvest query requested `objectives` without sub-fields and a non-existent `tamNotes` field, so the whole query was rejected and silently dropped. Now requests `notes` and `objectives { milestones { actions } }` (keeps a joined `tamNotes` for compatibility). The create/update mutations sent a non-existent `tamNotes` input field (real: `notes: [{message}]`) and would have been rejected; fixed (not exercised live: writes to the customer account).
+
+### Added
+- Milestone Progress tile and per-plan milestone counts (replaces 'Outcomes Lift: Coming soon'); milestone column and open-milestone table in the deliverables' Success Plan Alignment.
+- ONTAP adapter/FC inventory, Cloud Insights hosts/tenants, `propensityTalkingPoints`/`nextBestActionTalkingPoints` (separate ONTAP-only query: combined with the platform-extras query it exceeds Active IQ's field-count limit).
+- StorageGRID ILM periods shown (days); copy count uses the ingest period only.
+
+---
+
 ## [5.6.204] - 2026-10-02
 
 ### Added

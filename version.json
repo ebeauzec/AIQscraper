@@ -1,8 +1,8 @@
 {
-  "version": "5.6.204",
+  "version": "5.6.205",
   "major": 5,
   "minor": 6,
-  "patch": 204,
+  "patch": 205,
   "date": "2026-10-02",
-  "notes": "Cross-platform telemetry for ONTAP, E-Series and StorageGRID that Active IQ exposes but ARIA never harvested: power and heat, drive inventory with firmware currency and end-of-support, ONTAP upgrade history, hardware expansion limits, E-Series NVSRAM, ARP/AI and timezone file currency, and per-site StorageGRID capacity. New Platform Insights tab, and sections in the deliverables."
+  "notes": "Fixed Success Plans never loading (the harvest query was invalid, so the tab always got zero plans) and added real milestone/action progress in place of the 'Outcomes Lift: Coming soon' tile. Added ONTAP adapter and FC port inventory, Cloud Insights hosts and Active IQ talking points. Confirmed live that E-Series/StorageGRID port detail and parts-logistics hub status are genuinely not exposed by Active IQ."
 }

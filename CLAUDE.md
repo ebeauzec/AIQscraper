@@ -40,15 +40,18 @@ topology until a server restart + `/api/harvest?force=1`.** The probe script `to
 session is now superseded by this live check but harmless. Full detail: CHANGELOG.md 5.6.203. The rest of this section is the
 cloud session's handoff, kept as written.
 
-**FOLLOW-UP (v5.6.204, same day): Platform Insights for ALL platforms.** User asked for every open item and full functionality across StorageGRID,
-E-Series, ONTAP and other platforms. Live introspection found unharvested, populated fields on ONTAP/E-Series/StorageGRID (`energyConsumptionMetrics`,
-`hardwareCapabilities`, `drivesSummary`, `osUpgradeHistory`, `securityFiles`/`systemFiles`, `nvsRAM`, `gridSites.siteCapacity`). Harvested via
-`_build_platform_extras()` (server.py) -> `platformExtras`; analysed by `_dfPlatformInsights` (app.js, after the StorageGRID helpers); Action Planner tab
-27, StorageGRID per-site capacity, and sections in the same deliverables as StorageGRID plus Sustainability 3a and Value slide 2. NOTE: `energyConsumptionMetrics`
-exists per concrete type, not on the `System` interface. E-Series reports actual power 0 (projected only). **Still NOT done / not verified:** E-Series and
-StorageGRID port/WWPN detail, logistics/transit hub claims, Success Plan outcome tracking, `cloudInsightsHosts/Tenants`, `adapterInterface` (ONTAP only), `propensity/
-nextBestAction` talking points, per-node StorageGRID risks as a grouped view, ILM time-period units. The running dev server needs a restart + `/api/harvest?force=1`
-to show any of it from a real harvest.
+**FOLLOW-UP (v5.6.204 + v5.6.205, same day): Platform Insights + all open items.** Live introspection found unharvested, populated fields on
+ONTAP/E-Series/StorageGRID (energy, hardwareCapabilities, drivesSummary, osUpgradeHistory, securityFiles/systemFiles, nvsRAM, gridSites.siteCapacity;
+v5.6.204) and ONTAP adapterInterface (FC adapters/WWNN), cloudInsightsHosts/Tenants, talking points (v5.6.205, separate ONTAP-only query because the
+combination exceeds the field-count limit). Harvest: `_build_platform_extras` / `_build_ontap_extras2` (server.py) -> `platformExtras`; analysis:
+`_dfPlatformInsights` (app.js); Action Planner tab 27. **Real bug found and fixed:** the Success Plans harvest query was INVALID (`objectives` without
+sub-fields, non-existent `tamNotes`) so Success Plans silently never loaded; now fixed, with real milestone/action progress (`_cspProgress`) replacing the
+'Outcomes Lift: Coming soon' tile. The privileged test account has 0 plans, so real plan data is untested; the NetApp account needs a nagp/watchlist arg.
+**Confirmed genuine API limits (do not re-investigate):** E-Series (SantricitySystem) and StorageGRID nodes have no controller/port/WWPN fields; no
+parts-logistics hub/depot status (only RMAPart); ILM time periods are days; `energyConsumptionMetrics` is per concrete type (not on `System`); E-Series
+reports actual power 0 (projected only). StorageGRID per-node risks: node systems are not listed separately with includeStorageGridNodes (same count), so
+risks are on the grid system. Restart the server + `/api/harvest?force=1` to see any of this from a real harvest. Success Plan mutations were also broken
+(sent non-existent `tamNotes`; real input field is `notes: [{message}]`) and are fixed -- NOT exercised live (writes to the customer account).
 
 
 **Repo renamed:** GitHub repo is now `ebeauzec/ARIA` (was `ebeauzec/AIQscraper`). The old
