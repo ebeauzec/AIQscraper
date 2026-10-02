@@ -1,8 +1,8 @@
 {
-  "version": "5.6.205",
+  "version": "5.6.206",
   "major": 5,
   "minor": 6,
-  "patch": 205,
+  "patch": 206,
   "date": "2026-10-02",
-  "notes": "Fixed Success Plans never loading (the harvest query was invalid, so the tab always got zero plans) and added real milestone/action progress in place of the 'Outcomes Lift: Coming soon' tile. Added ONTAP adapter and FC port inventory, Cloud Insights hosts and Active IQ talking points. Confirmed live that E-Series/StorageGRID port detail and parts-logistics hub status are genuinely not exposed by Active IQ."
+  "notes": "Fixed StorageGRID data not appearing in the GUI: duplicate systems from different accounts were deduped by discarding the copy that carried the topology; node systems now resolve to their grid; the replication card no longer shows a previous selection's SnapMirror list for StorageGRID/E-Series."
 }

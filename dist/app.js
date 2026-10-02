@@ -27,9 +27,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.205";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.206";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.206",
+    date: "2 October 2026",
+    title: "Fixed: StorageGRID Details Not Showing; SnapMirror Card on Non-ONTAP Systems",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- StorageGRID Topology, ILM and Tenants Missing From the GUI",
+        color: "#ef4444",
+        items: [
+          "The same system can arrive from two Active IQ accounts with different field coverage. ARIA kept the first copy and discarded the other, so when the copy without StorageGRID topology came first, the grid's sites, tenants and ILM rules were lost. Duplicates are now merged, filling any field the kept copy lacks.",
+          "StorageGRID details are carried by each grid's admin-node system. Selecting a node (or any scope without the admin node) now resolves to its grid, so topology, tenants, buckets and ILM rules show for node systems too.",
+          "The browser-side systems cache was versioned (v16) so older caches that predate these fields are dropped and re-pulled automatically.",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- SnapMirror Shown When Selecting a StorageGRID Node",
+        color: "#ef4444",
+        items: [
+          "The Value & ROI replication card was only rewritten for ONTAP systems, so selecting a StorageGRID node or E-Series system left the previous selection's SnapMirror relationships on screen. It now shows the platform's own model: ILM rules for StorageGRID, a SANtricity mirroring note for E-Series.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.205",
     date: "2 October 2026",
@@ -9836,10 +9861,10 @@ function loadConfig(restoreSystemsFromCache = true) {
   // Load systems db if exists in local storage
   // v9: runs enrichSystemTelemetry on every loaded system to ensure all fields are
   // fully populated regardless of source (API, import, or previous cached version).
-  const schemaVer = safeGetItem("aiq_systems_schema_v15");
+  const schemaVer = safeGetItem("aiq_systems_schema_v16");
   const savedSystems = safeGetItem("aiq_systems_db");
   
-  if (savedSystems && schemaVer === "v15") {
+  if (savedSystems && schemaVer === "v16") {
     try {
       const parsed = JSON.parse(savedSystems);
       if (Array.isArray(parsed) && parsed.length > 0) {
@@ -9866,7 +9891,8 @@ function loadConfig(restoreSystemsFromCache = true) {
     } else {
       state.systems = []; // Will be populated by loadProductionData
     }
-    safeSetItem("aiq_systems_schema_v15", "v15");
+    safeSetItem("aiq_systems_schema_v16", "v16");   // v16: StorageGRID topology + platformExtras fields; older caches lack them, so drop and re-pull
+    localStorage.removeItem("aiq_systems_schema_v15");
     saveSystems();
   }
 
@@ -17770,6 +17796,36 @@ function renderCSMTab() {
   `;
 
   const isASA = (sys.platform || "").includes("ASA");
+  // ── Replication card: SnapMirror is an ONTAP feature. The renderer below only rewrote this card for
+  // ONTAP, so selecting a StorageGRID node / E-Series system left the PREVIOUS selection's SnapMirror
+  // list on screen. Render the platform's own replication model instead. ──
+  {
+    const _smc = document.getElementById("csmSnapmirrorCard");
+    const _fam = _platformFamily(sys);
+    if (_smc && _fam !== 'ontap') {
+      const _esc = x => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+      let _body = '', _title = 'Replication', _badge = '';
+      if (_fam === 'storagegrid') {
+        _title = 'Data protection (ILM)';
+        const _gv = _dfStorageGridView([sys]);
+        if (_gv.grids.length) {
+          const g = _gv.grids[0];
+          _badge = `<span class="badge normal">${g.sites.length} site${g.sites.length !== 1 ? 's' : ''}</span>`;
+          _body = `<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;">Grid <strong>${_esc(g.gridName)}</strong>. StorageGRID protects data with ILM rules, not SnapMirror.</div>` +
+            (g.rules.length ? g.rules.map(r => `<div style="margin-top:8px;font-size:0.8rem;border-top:1px solid var(--border-color);padding-top:8px;"><div><strong>${_esc(r.ruleName)}</strong>${r.isDefaultRule ? ' <span style="color:var(--accent-cyan);font-size:0.7rem;">default</span>' : ''}</div><div style="color:var(--text-muted);">${_esc(r._p.text)}</div></div>`).join('') : `<div style="color:var(--text-muted);font-size:0.8rem;">No ILM rules reported by Active IQ.</div>`) +
+            `<div style="margin-top:10px;font-size:0.72rem;color:var(--text-muted);">Full topology, tenants and findings: Action Planner &rarr; StorageGRID.</div>`;
+        } else {
+          _body = `<div style="color:var(--text-muted);font-size:0.8rem;margin-top:10px;">SnapMirror does not apply to StorageGRID. Data protection is ILM rules (copies / erasure coding) and optional CloudMirror; Active IQ returns the ILM rules on each grid's admin-node system, which could not be matched to this node.</div>`;
+        }
+      } else if (_fam === 'eseries') {
+        _title = 'Replication';
+        _body = `<div style="color:var(--text-muted);font-size:0.8rem;margin-top:10px;">SnapMirror does not apply to E-Series. Replication (Asynchronous / Synchronous Mirroring) is configured in SANtricity and is not reported by Active IQ.</div>`;
+      } else {
+        _body = `<div style="color:var(--text-muted);font-size:0.8rem;margin-top:10px;">SnapMirror is an ONTAP feature and does not apply to this platform.</div>`;
+      }
+      _smc.innerHTML = `<div style="margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;"><h4 style="font-size: 0.9rem; color: var(--text-secondary);">${_title}</h4>${_badge}</div>${_body}`;
+    }
+  }
   // ── StorageGRID / E-Series: capacity not available via Active IQ API ──────
   // When _capacityUnavailable is true the efficiency object is all-zeros.
   // Render a platform-appropriate informational note instead of the standard
@@ -19669,9 +19725,21 @@ function _dfSgRulePlacements(rule) {
 }
 function _dfStorageGridView(systems) {
   const grids = []; let sgSystems = 0;
-  (systems || []).forEach(s => {
-    if (_platformFamily(s) !== 'storagegrid') return;
+  // Topology is carried only by each grid's admin-node system, but the scope (a sidebar selection, a customer,
+  // a single node) may contain only node systems. Resolve every StorageGRID system in scope to its grid: itself,
+  // else a grid listing it as a node (serial/host name), else the customer's only grid. One entry per grid.
+  const _allGrids = (state.systems || []).filter(x => x.storagegridTopology);
+  const _byNode = {}; _allGrids.forEach(gs => ((gs.storagegridTopology.sites) || []).forEach(st => (st.nodes || []).forEach(n => { if (n.serialNumber) _byNode['s:' + n.serialNumber] = gs; if (n.hostName) _byNode['h:' + String(n.hostName).toLowerCase()] = gs; })));
+  const _resolveGrid = x => {
+    if (x.storagegridTopology) return x;
+    return _byNode['s:' + x.serialNumber] || _byNode['h:' + String(x.systemName || x.hostName || '').toLowerCase()]
+      || (() => { const c = _allGrids.filter(gs => gs.customerName && gs.customerName === x.customerName); return c.length === 1 ? c[0] : null; })();
+  };
+  const _seenGrid = new Set();
+  (systems || []).forEach(sx => {
+    if (_platformFamily(sx) !== 'storagegrid') return;
     sgSystems++;
+    const s = _resolveGrid(sx); if (!s || _seenGrid.has(s.serialNumber)) return; _seenGrid.add(s.serialNumber);
     const t = s.storagegridTopology; if (!t) return;
     const sites = (t.sites || []).map(x => ({ name: x.name || '—', nodes: x.nodes || [] }));
     const nodes = []; sites.forEach(x => x.nodes.forEach(n => nodes.push({ ...n, site: x.name })));
@@ -37786,11 +37854,20 @@ async function loadProductionData(forceRefresh = false) {
     }
 
     // Deduplicate by serialNumber
-    const seen = new Set();
+    // The same system can arrive from more than one account/watchlist with DIFFERENT field coverage (e.g. one copy
+    // carries StorageGRID topology / platform extras, another doesn't). Keep the first record but fill any field it
+    // lacks (null / empty object / empty array) from later duplicates, instead of silently discarding them.
+    const seen = new Map();
+    const _isEmptyVal = v => v == null || v === '' || (Array.isArray(v) && v.length === 0) || (typeof v === 'object' && !Array.isArray(v) && Object.keys(v).length === 0);
     systemsList = systemsList.filter(s => {
       const key = s.serialNumber || s.systemId || "";
-      if (!key || seen.has(key)) return false;
-      seen.add(key);
+      if (!key) return false;
+      const first = seen.get(key);
+      if (first) {
+        Object.keys(s).forEach(k => { if (_isEmptyVal(first[k]) && !_isEmptyVal(s[k])) first[k] = s[k]; });
+        return false;
+      }
+      seen.set(key, s);
       return true;
     });
 

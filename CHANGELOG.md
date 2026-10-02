@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.206] - 2026-10-02
+
+### Fixed
+- Fixed StorageGRID data not appearing in the GUI: duplicate systems from different accounts were deduped by discarding the copy that carried the topology; node systems now resolve to their grid; the replication card no longer shows a previous selection's SnapMirror list for StorageGRID/E-Series.
+- Client dedupe by serial now merges fields from duplicates (was first-wins). Systems cache schema bumped to v16.
+
+---
+
 ## [5.6.205] - 2026-10-02
 
 ### Fixed
