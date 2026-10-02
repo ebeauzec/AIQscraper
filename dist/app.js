@@ -27,9 +27,26 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.208";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.209";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.209",
+    date: "2 October 2026",
+    title: "StorageGRID Node Health, Stronger Node Matching, Inventory Gaps",
+    sections: [
+      {
+        icon: "🧱",
+        label: "New -- Per-Node Health for StorageGRID",
+        color: "#22c55e",
+        items: [
+          "Each node that reports to Active IQ now shows its open critical/high risks and days since last AutoSupport in the StorageGRID roster, and findings are raised for nodes with stale AutoSupport (over 7 days) and for appliance nodes past or within 12 months of hardware end of support (using Active IQ's own lifecycle dates).",
+          "Node matching is more tolerant: serial number first, then host name with any StorageGRID- prefix and domain suffix ignored, so fewer nodes are wrongly shown as not reporting.",
+          "Grids that report an installed node count but no topology (University of the Western Cape, one Bharti Airtel grid) now raise a 'Nodes missing from the grid inventory' finding instead of being silent; two older info-level findings it supersedes were removed.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.208",
     date: "2 October 2026",
@@ -19803,6 +19820,9 @@ const _SG_RECS = [
   ['Site ', 'Rebalance data or add capacity at the busier site; review ILM placement skew.', ['Check ILM rules favouring one site and the storage pools per site.']],
   ['Unbalanced site capacity', 'Rebalance placement or add capacity at the fuller site so a site failure cannot overfill the other.', ['Review ILM rules placing more data at one site.']],
   ['Nodes not reporting to Active IQ', 'Enable AutoSupport for the whole grid and for E-Series appliance controllers so each node reports to Active IQ; Active IQ then shows per-node health, risks and capacity.', ['Grid Manager > Support > Tools > AutoSupport > Settings: enable weekly and event-triggered AutoSupport; confirm the destination (HTTPS or proxy) reaches support.netapp.com.', 'On the same page enable E-Series AutoSupport so appliance storage controllers report via StorageGRID.', 'For virtual nodes confirm the node is included in the grid AutoSupport; send a test message and verify it in Active IQ.']],
+  ['Nodes with stale AutoSupport', 'Restore AutoSupport on the listed nodes (check proxy/HTTPS reachability to support.netapp.com and the node connection state in Grid Manager).', ['Grid Manager > Nodes: confirm the node is connected.', 'Support > Tools > AutoSupport: send a test AutoSupport and verify it in Active IQ.']],
+  ['Appliance nodes past hardware end of support', 'Plan replacement or migration of the affected appliance nodes (expand with current-generation nodes, decommission via the grid ILM and node decommission procedure).', ['Quote current-generation storage appliances.', 'Add replacement nodes, let ILM rebalance, then decommission the old nodes.']],
+  ['Appliance nodes nearing hardware end of support', 'Budget and schedule a refresh of the affected appliance nodes before support ends.', ['Include the nodes in the next hardware refresh plan.']],
   ['Nodes missing from the grid inventory', 'Confirm every installed node is online and visible in Grid Manager (Nodes page), and that the admin node AutoSupport is current so Active IQ receives the full topology.', ['Grid Manager > Nodes: check each node for connection errors.', 'Send an AutoSupport from the primary admin node.']],
   ['Single admin node', 'Deploy a non-primary admin node for management and audit-log redundancy.', ['Plan a non-primary admin node (appliance SG100/SG1000 or VM) and add it through the Expansion procedure.']],
   ['Single gateway node', 'Add a second gateway node and configure a high-availability group for S3 client access.', ['Grid Manager > Configuration > High availability groups: create an HA group across two gateways.', 'Point clients at the HA virtual IP or load balancer.']],
@@ -19846,7 +19866,7 @@ function _dfStorageGridView(systems) {
       || (() => { const c = _allGrids.filter(gs => gs.customerName && gs.customerName === x.customerName); return c.length === 1 ? c[0] : null; })();
   };
   const _seenGrid = new Set(); const _fleetPer = {}; const _fleetIds = {}; const unresolved = [];
-  const _normName = x => String(x || '').toLowerCase().replace(/^storagegrid-/, '').trim();
+  const _normName = x => String(x || '').toLowerCase().trim().replace(/^storagegrid-/, '').split('.')[0];
   (systems || []).forEach(sx => {
     if (_platformFamily(sx) !== 'storagegrid') return;
     sgSystems++;
@@ -19875,8 +19895,6 @@ function _dfStorageGridView(systems) {
     g.fleetCount = 0; // set after the loop (members of this grid present as fleet systems)
     const add = (severity, title, detail) => g.findings.push({ severity, title, detail });
     if (g.sites.length === 1) add('high', 'Single-site grid', `All nodes are in one site (${g.sites[0].name}); there is no site-level fault tolerance, so a site loss is a grid loss. Multi-site grids need a second site and ILM rules that place copies in it.`);
-    if (g.sites.length === 0 && g.installedNodeCount) add('info', 'Node topology not reported', `Active IQ reports ${g.installedNodeCount} installed nodes but no per-site node detail for this grid.`);
-    else if (g.installedNodeCount && g.nodes.length && g.nodes.length < g.installedNodeCount) add('info', 'Partial node inventory', `Active IQ lists ${g.nodes.length} of ${g.installedNodeCount} installed nodes with detail.`);
     if (g.rules.length === 0) add('medium', 'No ILM rules reported', 'Active IQ returned no ILM rules for this grid, so data protection (copies / erasure coding) cannot be confirmed from AutoSupport.');
     else {
       const def = g.rules.filter(r => r.isDefaultRule);
@@ -19907,13 +19925,19 @@ function _dfStorageGridView(systems) {
   // own systems are not sending their own AutoSupport, so their health, risks and capacity are invisible to ARIA. ──
   // A node reports to Active IQ if ANY system in scope has its serial or name -- appliance nodes usually appear as their
   // E-Series controller system (a different platform family), not as a StorageGRID system.
-  const _anySerials = new Set(), _anyNames = new Set();
-  (systems || []).forEach(x => { if (x.serialNumber) _anySerials.add(String(x.serialNumber)); [x.systemName, x.hostName, x.clusterName].forEach(nm => { if (nm) _anyNames.add(_normName(nm)); }); });
+  const _sysBySerial = new Map(), _sysByName = new Map();
+  (systems || []).forEach(x => { if (x.serialNumber) _sysBySerial.set(String(x.serialNumber), x); [x.systemName, x.hostName, x.clusterName].forEach(nm => { const k = _normName(nm); if (k && !_sysByName.has(k)) _sysByName.set(k, x); }); });
+  const _eosOf = x => { const d = (x.lifecycle && x.lifecycle.eosDate) || x.hwEndOfSupport || x.eosDate; return d && d !== 'N/A' ? d : ''; };
   grids.forEach(g => {
-    const ids = _fleetIds[g.system.serialNumber] || { serials: new Set(), names: new Set() };
-    _anySerials.forEach(v => ids.serials.add(v)); _anyNames.forEach(v => ids.names.add(v));
-    ids.names.add(_normName(g.system.systemName)); ids.names.add(_normName(g.primaryAdmin)); ids.serials.add(String(g.system.serialNumber));
-    g.nodes.forEach(n => { n.reporting = ids.serials.has(String(n.serialNumber)) || ids.names.has(_normName(n.hostName)); });
+    g.nodes.forEach(n => {
+      const m = _sysBySerial.get(String(n.serialNumber)) || _sysByName.get(_normName(n.hostName)) || (_normName(n.hostName) === _normName(g.primaryAdmin) ? g.system : null);
+      n.sys = m || null; n.reporting = !!m;
+      if (m) {
+        const rs = m.risks || [];
+        n.health = { crit: rs.filter(r => r.severity === 'critical').length, high: rs.filter(r => r.severity === 'high').length,
+          asupDays: m.autosupport && m.autosupport.lastReceivedDays != null ? m.autosupport.lastReceivedDays : null, eos: _eosOf(m) };
+      }
+    });
     g.nodesNotReporting = g.nodes.filter(n => !n.reporting);
     g.nodesReporting = g.nodes.length - g.nodesNotReporting.length;
     const add = (severity, title, detail) => g.findings.push({ severity, title, detail });
@@ -19921,8 +19945,14 @@ function _dfStorageGridView(systems) {
       const names = g.nodesNotReporting.map(n => n.hostName).filter(Boolean);
       add('medium', 'Nodes not reporting to Active IQ', `${g.nodesNotReporting.length} of ${g.nodes.length} nodes are not visible in Active IQ as their own systems (${names.slice(0, 6).join(', ')}${names.length > 6 ? ', +' + (names.length - 6) + ' more' : ''}); their individual health, risks and capacity are not monitored.`);
     }
+    const stale = g.nodes.filter(n => n.health && n.health.asupDays != null && n.health.asupDays > 7);
+    if (stale.length) add('medium', 'Nodes with stale AutoSupport', `${stale.length} reporting node${stale.length !== 1 ? 's have' : ' has'} not sent AutoSupport for over 7 days (${stale.slice(0, 5).map(n => `${n.hostName} ${n.health.asupDays}d`).join(', ')}${stale.length > 5 ? ', ...' : ''}).`);
+    const eosNodes = g.nodes.filter(n => n.health && n.health.eos).map(n => ({ n, d: Math.round((new Date(n.health.eos) - Date.now()) / 86400000) })).filter(x => !isNaN(x.d));
+    const eosPast = eosNodes.filter(x => x.d < 0), eosSoon = eosNodes.filter(x => x.d >= 0 && x.d < 365);
+    if (eosPast.length) add('high', 'Appliance nodes past hardware end of support', `${eosPast.length} node${eosPast.length !== 1 ? 's are' : ' is'} past hardware end of support (${[...new Set(eosPast.map(x => (x.n.applianceModel || x.n.hostName) + ' ' + String(x.n.health.eos).slice(0, 10)))].slice(0, 4).join(', ')}).`);
+    if (eosSoon.length) add('medium', 'Appliance nodes nearing hardware end of support', `${eosSoon.length} node${eosSoon.length !== 1 ? 's reach' : ' reaches'} hardware end of support within 12 months (${[...new Set(eosSoon.map(x => (x.n.applianceModel || x.n.hostName) + ' ' + String(x.n.health.eos).slice(0, 10)))].slice(0, 4).join(', ')}).`);
     const nodesNoDetail = Math.max(0, Math.max(g.installedNodeCount || 0) - g.nodes.length);
-    if (nodesNoDetail > 0 && g.nodes.length) add('medium', 'Nodes missing from the grid inventory', `The grid reports ${g.installedNodeCount} installed nodes but only ${g.nodes.length} are described in its topology; ${nodesNoDetail} have no role, model or version detail.`);
+    if (nodesNoDetail > 0) add('medium', 'Nodes missing from the grid inventory', g.nodes.length ? `The grid reports ${g.installedNodeCount} installed nodes but only ${g.nodes.length} are described in its topology; ${nodesNoDetail} have no role, model or version detail.` : `The grid reports ${g.installedNodeCount} installed nodes but its topology lists none, so node roles, models, versions and AutoSupport coverage cannot be assessed.`);
     const admins = g.nodes.filter(n => /admin/i.test(String(n.storageNodeType || '')));
     if (g.nodes.length >= 3 && admins.length === 1) add('medium', 'Single admin node', 'Only one admin node is present, so grid management, the audit log and Prometheus metrics have no redundancy.');
     const gws = g.nodes.filter(n => /gateway/i.test(String(n.storageNodeType || '')));
@@ -19983,8 +20013,8 @@ function _dfStorageGridText(v, opts) {
       v.grids.map(g => [g.gridName, g.customerName || '—', g.version || '—', g.sites.length || '—', g.nodeTotal ? g.nodeTotal + (g.nodesNoDetail ? ` (${g.nodes.length} with detail)` : '') : '—', g.tenants.length, g.buckets.length, g.rules.length, g.cap && g.cap.usedPct != null ? g.cap.usedPct : '—', g.supportEnd || '—'])) + '\n';
   const roleRows = []; v.grids.forEach(g => { const grp = {}; g.nodes.forEach(n => { const k = (n.storageNodeType || 'Unknown role') + '|' + _dfSgForm(n).label; grp[k] = (grp[k] || 0) + 1; }); Object.keys(grp).forEach(k => { const [r, f] = k.split('|'); roleRows.push([g.gridName, r, f, grp[k]]); }); if (g.nodesNoDetail) roleRows.push([g.gridName, 'Role not reported', 'Form factor not reported', g.nodesNoDetail]); });
   if (roleRows.length) o += `\n  Nodes by Role and Form Factor (admin, gateway, storage, archive; physical vs virtual)\n` + _dfTable(['Grid', 'Role', 'Form Factor', 'Nodes'], roleRows) + '\n';
-  const nodeRows = []; v.grids.forEach(g => g.nodes.forEach(n => nodeRows.push([g.gridName, n.site, n.hostName || '—', n.storageNodeType || '—', _dfSgForm(n).label, n.reporting ? 'Yes' : 'No', n.raidMode || '—', n.driveType ? `${n.driveType}${n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : ''}` : '—', n.osVersion || '—'])));
-  if (nodeRows.length) o += `\n  Node Roster (site, role, appliance)\n` + _dfTable(['Grid', 'Site', 'Node', 'Role', 'Appliance', 'Reports to Active IQ', 'RAID', 'Drives', 'Version'], nodeRows.slice(0, lim)) + (nodeRows.length > lim ? `\n  +${nodeRows.length - lim} more nodes` : '') + '\n';
+  const nodeRows = []; v.grids.forEach(g => g.nodes.forEach(n => nodeRows.push([g.gridName, n.site, n.hostName || '—', n.storageNodeType || '—', _dfSgForm(n).label, n.reporting ? 'Yes' : 'No', n.health ? `${n.health.crit}/${n.health.high}` : '—', n.health && n.health.asupDays != null ? n.health.asupDays + 'd' : '—', n.raidMode || '—', n.driveType ? `${n.driveType}${n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : ''}` : '—', n.osVersion || '—'])));
+  if (nodeRows.length) o += `\n  Node Roster (site, role, appliance)\n` + _dfTable(['Grid', 'Site', 'Node', 'Role', 'Appliance', 'Reports to Active IQ', 'Crit/High Risks', 'Last ASUP', 'RAID', 'Drives', 'Version'], nodeRows.slice(0, lim)) + (nodeRows.length > lim ? `\n  +${nodeRows.length - lim} more nodes` : '') + '\n';
   const scRows = []; v.grids.forEach(g => g.siteCap.forEach(sc => scRows.push([g.gridName, sc.site, sc.totalTB, sc.usedTB, sc.usableLeftTB, sc.usedPct != null ? sc.usedPct : '—', sc.reportedOn || '—'])));
   if (scRows.length) o += `\n  Site Capacity (TB)\n` + _dfTable(['Grid', 'Site', 'Total', 'Used', 'Usable Left', 'Used %', 'Reported'], scRows) + '\n';
   const ruleRows = []; v.grids.forEach(g => g.rules.forEach(r => ruleRows.push([g.gridName, r.ruleName, r.isDefaultRule ? 'Yes' : 'No', r._p.text, r.referenceTime || '—', r.ingestBehavior || '—', r.filter ? (r.filter.length > 48 ? r.filter.slice(0, 45) + '...' : r.filter) : 'All objects'])));
@@ -41769,8 +41799,8 @@ function _storageGridHtml(view) {
   view.grids.forEach(g => {
     html += `<details open style="margin-bottom:12px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);padding:10px 12px;"><summary style="cursor:pointer;font-weight:600;">${esc(g.gridName)} <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">${esc(g.customerName)} &middot; ${g.sites.length} site${g.sites.length !== 1 ? 's' : ''} &middot; ${g.nodeTotal || 0} node${g.nodeTotal !== 1 ? 's' : ''}${g.rolesText ? ' (' + esc(g.rolesText) + ')' : ''}${g.formsText ? ' &middot; ' + esc(g.formsText) : ''} &middot; ${esc(g.version)}${g.licenseCapacity ? ' &middot; licence ' + esc(g.licenseCapacity) + ' TB (' + esc(g.licenseType || '') + ')' : ''}</span></summary>`;
     if (g.nodes.length) {
-      html += `<div style="overflow-x:auto;margin-top:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Node</th><th style="${th}">Role</th><th style="${th}">Appliance</th><th style="${th}">Reports to Active IQ</th><th style="${th}">RAID</th><th style="${th}">Drives</th><th style="${th}">Version</th></tr></thead><tbody>` +
-        g.nodes.map(n => `<tr><td style="${td}">${esc(n.site)}</td><td style="${td}">${esc(n.hostName)}${g.primaryAdmin && n.hostName === g.primaryAdmin ? ' <span style="color:var(--accent-cyan);font-size:0.68rem;">primary</span>' : ''}</td><td style="${td}">${esc(n.storageNodeType || '—')}</td><td style="${td}">${esc(_dfSgForm(n).label)}</td><td style="${td}color:${n.reporting ? 'var(--status-normal)' : 'var(--status-warning)'};">${n.reporting ? 'Yes' : 'No'}</td><td style="${td}">${esc(n.raidMode || '—')}</td><td style="${td}">${n.driveType ? esc(n.driveType) + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : '—'}</td><td style="${td}">${esc(n.osVersion || '—')}</td></tr>`).join('') + `</tbody></table></div>`;
+      html += `<div style="overflow-x:auto;margin-top:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Node</th><th style="${th}">Role</th><th style="${th}">Appliance</th><th style="${th}">Reports to Active IQ</th><th style="${th}">Crit/High risks</th><th style="${th}">Last ASUP</th><th style="${th}">RAID</th><th style="${th}">Drives</th><th style="${th}">Version</th></tr></thead><tbody>` +
+        g.nodes.map(n => `<tr><td style="${td}">${esc(n.site)}</td><td style="${td}">${esc(n.hostName)}${g.primaryAdmin && n.hostName === g.primaryAdmin ? ' <span style="color:var(--accent-cyan);font-size:0.68rem;">primary</span>' : ''}</td><td style="${td}">${esc(n.storageNodeType || '—')}</td><td style="${td}">${esc(_dfSgForm(n).label)}</td><td style="${td}color:${n.reporting ? 'var(--status-normal)' : 'var(--status-warning)'};">${n.reporting ? 'Yes' : 'No'}</td><td style="${td}">${n.health ? n.health.crit + '/' + n.health.high : '—'}</td><td style="${td}">${n.health && n.health.asupDays != null ? n.health.asupDays + 'd' : '—'}</td><td style="${td}">${esc(n.raidMode || '—')}</td><td style="${td}">${n.driveType ? esc(n.driveType) + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : '—'}</td><td style="${td}">${esc(n.osVersion || '—')}</td></tr>`).join('') + `</tbody></table></div>`;
     } else html += `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:8px;">Active IQ did not return per-node detail for this grid.</div>`;
     if (g.siteCap.length) {
       html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">Site capacity (TB)</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Total</th><th style="${th}">Used</th><th style="${th}">Usable left</th><th style="${th}">Used %</th><th style="${th}">Reported</th></tr></thead><tbody>` +
