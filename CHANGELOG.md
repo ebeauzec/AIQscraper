@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.210] - 2026-10-02
+
+### Fixed
+- Fixed Success Plan updates (the mutation selected 'results' without sub-fields, so every update was rejected); mutations verified against the live API without changing data. Added a StorageGRID finding for appliance models covered by NetApp end-of-availability notice CPC-00602 (SG100, SG1000, SG5712, SG5760, SG6060).
+
+---
+
+## [5.6.209] - 2026-10-02
+
+### Added
+- StorageGRID node health from the matched node systems (open critical/high risks, last AutoSupport, hardware end of support), sturdier node matching (domain/prefix tolerant, serial or name), findings for stale AutoSupport and appliance hardware end of support, and a finding for grids that report nodes but no topology.
+
+---
+
 ## [5.6.208] - 2026-10-02
 
 ### Fixed

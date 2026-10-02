@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.209";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.210";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.210",
+    date: "2 October 2026",
+    title: "Fixed: Success Plan Updates; StorageGRID Appliance End-of-Availability Findings",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Every Success Plan Update Was Rejected",
+        color: "#ef4444",
+        items: [
+          "The updateSuccessPlan mutation selected 'results' without sub-fields, so Active IQ rejected every edit before running it. Fixed, and failures now show Active IQ's own error text. Verified against the live API without changing any customer data: the update now passes schema validation and is stopped only by authorization for a non-existent customer; the create payload was checked the same way.",
+        ],
+      },
+      {
+        icon: "🧱",
+        label: "New -- StorageGRID Appliance End-of-Availability Finding",
+        color: "#22c55e",
+        items: [
+          "NetApp's end-of-availability notice CPC-00602 covers the SG100, SG1000, SG5712, SG5760 and SG6060 appliances. Grids with nodes on those models now get a finding with a recommendation to obtain the dates from the notice (mysupport.netapp.com) and plan a refresh. No dates are stated, because NetApp does not publish them openly. On the current fleet it applies to 10 of 12 grids.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.209",
     date: "2 October 2026",
@@ -19822,6 +19845,7 @@ const _SG_RECS = [
   ['Nodes not reporting to Active IQ', 'Enable AutoSupport for the whole grid and for E-Series appliance controllers so each node reports to Active IQ; Active IQ then shows per-node health, risks and capacity.', ['Grid Manager > Support > Tools > AutoSupport > Settings: enable weekly and event-triggered AutoSupport; confirm the destination (HTTPS or proxy) reaches support.netapp.com.', 'On the same page enable E-Series AutoSupport so appliance storage controllers report via StorageGRID.', 'For virtual nodes confirm the node is included in the grid AutoSupport; send a test message and verify it in Active IQ.']],
   ['Nodes with stale AutoSupport', 'Restore AutoSupport on the listed nodes (check proxy/HTTPS reachability to support.netapp.com and the node connection state in Grid Manager).', ['Grid Manager > Nodes: confirm the node is connected.', 'Support > Tools > AutoSupport: send a test AutoSupport and verify it in Active IQ.']],
   ['Appliance nodes past hardware end of support', 'Plan replacement or migration of the affected appliance nodes (expand with current-generation nodes, decommission via the grid ILM and node decommission procedure).', ['Quote current-generation storage appliances.', 'Add replacement nodes, let ILM rebalance, then decommission the old nodes.']],
+  ['Appliance models under NetApp end-of-availability notice', 'Read NetApp notice CPC-00602 (mysupport.netapp.com) for the end-of-availability and end-of-support dates of these models, and include the nodes in the next hardware refresh plan; keep spares and support coverage until replacement.', ['Obtain CPC-00602 from mysupport.netapp.com and record the end-of-support dates per model.', 'Plan replacement with current-generation StorageGRID appliances and migrate by adding new nodes and decommissioning the old ones.']],
   ['Appliance nodes nearing hardware end of support', 'Budget and schedule a refresh of the affected appliance nodes before support ends.', ['Include the nodes in the next hardware refresh plan.']],
   ['Nodes missing from the grid inventory', 'Confirm every installed node is online and visible in Grid Manager (Nodes page), and that the admin node AutoSupport is current so Active IQ receives the full topology.', ['Grid Manager > Nodes: check each node for connection errors.', 'Send an AutoSupport from the primary admin node.']],
   ['Single admin node', 'Deploy a non-primary admin node for management and audit-log redundancy.', ['Plan a non-primary admin node (appliance SG100/SG1000 or VM) and add it through the Expansion procedure.']],
@@ -19951,6 +19975,10 @@ function _dfStorageGridView(systems) {
     const eosPast = eosNodes.filter(x => x.d < 0), eosSoon = eosNodes.filter(x => x.d >= 0 && x.d < 365);
     if (eosPast.length) add('high', 'Appliance nodes past hardware end of support', `${eosPast.length} node${eosPast.length !== 1 ? 's are' : ' is'} past hardware end of support (${[...new Set(eosPast.map(x => (x.n.applianceModel || x.n.hostName) + ' ' + String(x.n.health.eos).slice(0, 10)))].slice(0, 4).join(', ')}).`);
     if (eosSoon.length) add('medium', 'Appliance nodes nearing hardware end of support', `${eosSoon.length} node${eosSoon.length !== 1 ? 's reach' : ' reaches'} hardware end of support within 12 months (${[...new Set(eosSoon.map(x => (x.n.applianceModel || x.n.hostName) + ' ' + String(x.n.health.eos).slice(0, 10)))].slice(0, 4).join(', ')}).`);
+    // NetApp end-of-availability notice CPC-00602 covers these appliance models (the dates are in the notice on
+    // mysupport.netapp.com, not published openly, so no date is stated here).
+    const eoaNodes = g.nodes.filter(n => /^(SG100|SG1000|SG5712|SG5760|SG6060)\b/i.test(String(n.applianceModel || '')));
+    if (eoaNodes.length) { const mods = {}; eoaNodes.forEach(n => { const k = String(n.applianceModel).toUpperCase(); mods[k] = (mods[k] || 0) + 1; }); add('medium', 'Appliance models under NetApp end-of-availability notice', `${eoaNodes.length} node${eoaNodes.length !== 1 ? 's are' : ' is'} on appliance models covered by NetApp end-of-availability notice CPC-00602 (${Object.keys(mods).map(k => mods[k] + ' x ' + k).join(', ')}); end-of-support follows end of availability.`); }
     const nodesNoDetail = Math.max(0, Math.max(g.installedNodeCount || 0) - g.nodes.length);
     if (nodesNoDetail > 0) add('medium', 'Nodes missing from the grid inventory', g.nodes.length ? `The grid reports ${g.installedNodeCount} installed nodes but only ${g.nodes.length} are described in its topology; ${nodesNoDetail} have no role, model or version detail.` : `The grid reports ${g.installedNodeCount} installed nodes but its topology lists none, so node roles, models, versions and AutoSupport coverage cannot be assessed.`);
     const admins = g.nodes.filter(n => /admin/i.test(String(n.storageNodeType || '')));
@@ -39230,7 +39258,7 @@ async function saveSuccessPlanFromModal() {
     if (id) {
       const plan = (state.tamSuccessPlans || []).find(p => String(p.id) === String(id));
       const mutation = `mutation UpdateCSP($nagpId: String!, $accountPlanId: String!, $accountPlan: AccountPlanUpdateInput) {
-        updateSuccessPlan(nagpId: $nagpId, accountPlanId: $accountPlanId, accountPlan: $accountPlan) { success results }
+        updateSuccessPlan(nagpId: $nagpId, accountPlanId: $accountPlanId, accountPlan: $accountPlan) { success results { id type success errors } }
       }`;
       const variables = {
         nagpId: (plan && plan.nagpId) || nagpId,
@@ -39243,7 +39271,7 @@ async function saveSuccessPlanFromModal() {
         },
       };
       const data = await _callAIQMutation(mutation, variables);
-      if (!data.updateSuccessPlan || !data.updateSuccessPlan.success) throw new Error('Active IQ reported the update did not succeed.');
+      if (!data.updateSuccessPlan || !data.updateSuccessPlan.success) { const _errs = ((data.updateSuccessPlan && data.updateSuccessPlan.results) || []).flatMap(r => r.errors || []); throw new Error('Active IQ reported the update did not succeed' + (_errs.length ? ': ' + _errs.join('; ') : '.')); }
       // Optimistic local merge -- the mutation doesn't return the full
       // updated record; the next real harvest is the authoritative refresh.
       if (plan) Object.assign(plan, { name, status, lifecycleStage, health, tamNotes, nagpId, nagpName: scopeName, scope: { id: nagpId, name: scopeName }, tamOwnerEmail: tamOwnerEmail || plan.tamOwnerEmail });
@@ -39285,11 +39313,11 @@ async function closeSuccessPlanFromModal() {
   if (!confirm(`⚠ This will WRITE BACK to the customer's live Active IQ account.\n\nClose Success Plan "${plan.name}"? Active IQ has no delete API for Success Plans -- this sets its status to Closed, the closest real equivalent.`)) return;
   try {
     const mutation = `mutation CloseCSP($nagpId: String!, $accountPlanId: String!, $accountPlan: AccountPlanUpdateInput) {
-      updateSuccessPlan(nagpId: $nagpId, accountPlanId: $accountPlanId, accountPlan: $accountPlan) { success results }
+      updateSuccessPlan(nagpId: $nagpId, accountPlanId: $accountPlanId, accountPlan: $accountPlan) { success results { id type success errors } }
     }`;
     const variables = { nagpId: plan.nagpId, accountPlanId: id, accountPlan: { id, status: 'CLOSED' } };
     const data = await _callAIQMutation(mutation, variables);
-    if (!data.updateSuccessPlan || !data.updateSuccessPlan.success) throw new Error('Active IQ reported the update did not succeed.');
+    if (!data.updateSuccessPlan || !data.updateSuccessPlan.success) { const _errs = ((data.updateSuccessPlan && data.updateSuccessPlan.results) || []).flatMap(r => r.errors || []); throw new Error('Active IQ reported the update did not succeed' + (_errs.length ? ': ' + _errs.join('; ') : '.')); }
     plan.status = 'CLOSED';
     // Best-effort: drop the local progress baseline (if this plan was
     // adopted from a suggestion) now that the plan is closed. Non-fatal --

@@ -1,8 +1,8 @@
 {
-  "version": "5.6.208",
+  "version": "5.6.210",
   "major": 5,
   "minor": 6,
-  "patch": 208,
+  "patch": 210,
   "date": "2026-10-02",
-  "notes": "Fixed the restricted account's extra-data queries running unscoped (silently returning nothing), so StorageGRID topology went from 2 grids to 12 and platform extras from 164 to ~1,300 systems. StorageGRID findings now flow through the risk engine with recommendations: nodes not reporting AutoSupport, single admin/gateway node, ILM, immutability, capacity, support term."
+  "notes": "Fixed Success Plan updates (the mutation selected 'results' without sub-fields, so every update was rejected); mutations verified against the live API without changing data. Added a StorageGRID finding for appliance models covered by NetApp end-of-availability notice CPC-00602 (SG100, SG1000, SG5712, SG5760, SG6060)."
 }
