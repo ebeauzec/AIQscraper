@@ -1,8 +1,8 @@
 {
-  "version": "5.6.212",
+  "version": "5.6.213",
   "major": 5,
   "minor": 6,
-  "patch": 212,
+  "patch": 213,
   "date": "2026-10-02",
-  "notes": "Technical Audit: the MetroCluster card no longer shows while the selected node is a non-ONTAP system (E-Series controller, StorageGRID node)."
+  "notes": "Technical Audit: the MetroCluster card now follows the selected node: shown only for a MetroCluster node, and only for that node's own pair (its cluster and DR partner cluster)."
 }

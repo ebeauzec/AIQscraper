@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.212";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.213";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.213",
+    date: "2 October 2026",
+    title: "MetroCluster Card Follows the Selected Node",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- MetroCluster Card Unrelated to the Selected Node",
+        color: "#ef4444",
+        items: [
+          "The MetroCluster card listed every MetroCluster pair in the selection whatever node was clicked, so a standalone AFF-A250 cluster appeared next to an unrelated AFF-A400 pair. It is now tied to the selected node: shown only when that node is MetroCluster, and then only for its own cluster and DR partner cluster; hidden for standalone ONTAP clusters, E-Series controllers and StorageGRID nodes.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.212",
     date: "2 October 2026",
@@ -41891,9 +41906,18 @@ function _renderStorageGridSection(systems) {
 function _syncMetroClusterCard(selectedSystems, activeSys) {
   const mcCard = document.getElementById("tamMetroClusterCard");
   if (!mcCard) return;
-  const mc = (selectedSystems || []).filter(s => s.isMetroCluster);
-  const activeNonOntap = !!activeSys && _platformFamily(activeSys) !== 'ontap';
-  if (mc.length > 0 && !activeNonOntap) { mcCard.style.display = "block"; renderMetroClusterStatus(mc); }
+  let mc = (selectedSystems || []).filter(s => s.isMetroCluster);
+  if (activeSys) {
+    // Follow the selected node: only its own MetroCluster (its cluster and DR partner cluster). A node that is not
+    // MetroCluster (a standalone ONTAP cluster, an E-Series controller, a StorageGRID node) has no card.
+    if (!activeSys.isMetroCluster) mc = [];
+    else {
+      const mine = new Set([activeSys.clusterName, activeSys.mcDrClusterName].filter(Boolean));
+      const scoped = mc.filter(s => mine.has(s.clusterName));
+      mc = scoped.length ? scoped : mc.filter(s => s.serialNumber === activeSys.serialNumber);
+    }
+  }
+  if (mc.length > 0) { mcCard.style.display = "block"; renderMetroClusterStatus(mc); }
   else mcCard.style.display = "none";
 }
 function renderMetroClusterStatus(mcSystems) {

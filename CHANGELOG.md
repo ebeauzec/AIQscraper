@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.213] - 2026-10-02
+
+### Fixed
+- Technical Audit: the MetroCluster card now follows the selected node: shown only for a MetroCluster node, and only for that node's own pair (its cluster and DR partner cluster).
+
+---
+
 ## [5.6.212] - 2026-10-02
 
 ### Fixed
