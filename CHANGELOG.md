@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.211] - 2026-10-02
+
+### Changed
+- StorageGRID ILM rules are now labelled 'as reported by Active IQ' with a note that Active IQ returns one rule set per grid and does not say which rules belong to the active policy.
+
+---
+
 ## [5.6.210] - 2026-10-02
 
 ### Fixed

@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.210";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.211";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.211",
+    date: "2 October 2026",
+    title: "StorageGRID ILM Rules: Clear About What Active IQ Does and Does Not Say",
+    sections: [
+      {
+        icon: "🧱",
+        label: "Clarified -- ILM Rules vs the Active Policy",
+        color: "#22c55e",
+        items: [
+          "Active IQ returns one ILM rule set per grid (checked on all 12 grids: one entry each, no duplicate rule names) but has no policy, active or inactive field, so ARIA cannot mark which rules are in the active policy. The ILM tables in the GUI, the deliverables and the Customer Report now say so and point to Grid Manager > ILM > Policies, instead of implying the rules are confirmed active.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.210",
     date: "2 October 2026",
@@ -20046,7 +20061,7 @@ function _dfStorageGridText(v, opts) {
   const scRows = []; v.grids.forEach(g => g.siteCap.forEach(sc => scRows.push([g.gridName, sc.site, sc.totalTB, sc.usedTB, sc.usableLeftTB, sc.usedPct != null ? sc.usedPct : '—', sc.reportedOn || '—'])));
   if (scRows.length) o += `\n  Site Capacity (TB)\n` + _dfTable(['Grid', 'Site', 'Total', 'Used', 'Usable Left', 'Used %', 'Reported'], scRows) + '\n';
   const ruleRows = []; v.grids.forEach(g => g.rules.forEach(r => ruleRows.push([g.gridName, r.ruleName, r.isDefaultRule ? 'Yes' : 'No', r._p.text, r.referenceTime || '—', r.ingestBehavior || '—', r.filter ? (r.filter.length > 48 ? r.filter.slice(0, 45) + '...' : r.filter) : 'All objects'])));
-  if (ruleRows.length) o += `\n  ILM Rules (data protection policy)\n` + _dfTable(['Grid', 'Rule', 'Default', 'Placement', 'Reference Time', 'Ingest', 'Applies To'], ruleRows) + '\n';
+  if (ruleRows.length) o += `\n  ILM Rules as Reported by Active IQ (Active IQ returns one ILM rule set per grid (from AutoSupport) and does not say which rules belong to the active policy. Confirm in Grid Manager > ILM > Policies.)\n` + _dfTable(['Grid', 'Rule', 'Default', 'Placement', 'Reference Time', 'Ingest', 'Applies To'], ruleRows) + '\n';
   const tenRows = []; v.grids.forEach(g => g.tenants.forEach(tn => { const b = tn.buckets || []; tenRows.push([g.gridName, tn.tenantId, b.length, b.filter(x => String(x.versioning || '').toUpperCase() === 'ENABLED').length, b.filter(x => x.isS3ObjectLockingEnabled || x.isLegacyComplianceEnabled).length, b.filter(x => x.isCloudMirror).length]); }));
   if (tenRows.length) o += `\n  Tenants & Buckets\n` + _dfTable(['Grid', 'Tenant ID', 'Buckets', 'Versioned', 'Immutable', 'CloudMirror'], tenRows.slice(0, lim)) + (tenRows.length > lim ? `\n  +${tenRows.length - lim} more tenants` : '') + '\n';
   { const recs = {}; v.findings.filter(f => f.severity !== 'info' && f.recommendation).forEach(f => { const r = recs[f.title] = recs[f.title] || { sev: f.severity, rec: f.recommendation, grids: new Set() }; r.grids.add(f.grid); });
@@ -28179,7 +28194,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
       const _nr = []; _sg.grids.forEach(g => g.nodes.forEach(n => _nr.push([g.gridName, n.site, n.hostName || '', n.storageNodeType || '', _dfSgForm(n).label, n.raidMode || '', n.driveType ? n.driveType + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : ''])));
       if (_nr.length) o += `**Grid topology**\n\n` + md(['Grid', 'Site', 'Node', 'Role', 'Appliance', 'RAID', 'Drives'], _nr.slice(0, 30)) + (_nr.length > 30 ? `_+${_nr.length - 30} more nodes_\n\n` : '');
       const _rr = []; _sg.grids.forEach(g => g.rules.forEach(r => _rr.push([g.gridName, r.ruleName, r.isDefaultRule ? 'Yes' : 'No', r._p.text, r.ingestBehavior || ''])));
-      if (_rr.length) o += `**Data protection (ILM rules)**\n\n` + md(['Grid', 'Rule', 'Default', 'Placement', 'Ingest'], _rr);
+      if (_rr.length) o += `**Data protection (ILM rules as reported by Active IQ)**\n\n_Active IQ returns one ILM rule set per grid (from AutoSupport) and does not say which rules belong to the active policy. Confirm in Grid Manager > ILM > Policies._\n\n` + md(['Grid', 'Rule', 'Default', 'Placement', 'Ingest'], _rr);
       const _fs = _sg.findings.filter(f => f.severity !== 'info');
       o += _fs.length ? `**Findings**\n\n` + md(['Severity', 'Grid', 'Finding', 'Detail'], _fs.slice(0, 20).map(f => [f.severity, f.grid, f.title, f.detail])) : `No high or medium StorageGRID findings were identified.\n\n`;
       o += `_Source: Active IQ StorageGRID site, tenant and ILM data from AutoSupport; confirm live state in the Grid Manager._\n\n`;
@@ -41835,7 +41850,7 @@ function _storageGridHtml(view) {
         g.siteCap.map(sc => `<tr><td style="${td}">${esc(sc.site)}</td><td style="${td}">${sc.totalTB}</td><td style="${td}">${sc.usedTB}</td><td style="${td}">${sc.usableLeftTB}</td><td style="${td}">${sc.usedPct != null ? sc.usedPct + '%' : '—'}</td><td style="${td}">${esc(sc.reportedOn || '—')}</td></tr>`).join('') + `</tbody></table></div>`;
     }
     if (g.rules.length) {
-      html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">ILM rules</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Rule</th><th style="${th}">Default</th><th style="${th}">Placement</th><th style="${th}">Reference</th><th style="${th}">Ingest</th><th style="${th}">Applies to</th></tr></thead><tbody>` +
+      html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">ILM rules as reported by Active IQ</div><div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:6px;">Active IQ returns one ILM rule set per grid (from AutoSupport) and does not say which rules belong to the active policy. Confirm in Grid Manager > ILM > Policies.</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Rule</th><th style="${th}">Default</th><th style="${th}">Placement</th><th style="${th}">Reference</th><th style="${th}">Ingest</th><th style="${th}">Applies to</th></tr></thead><tbody>` +
         g.rules.map(r => `<tr><td style="${td}font-weight:600;">${esc(r.ruleName)}</td><td style="${td}">${r.isDefaultRule ? 'Yes' : 'No'}</td><td style="${td}">${esc(r._p.text)}</td><td style="${td}">${esc(r.referenceTime || '—')}</td><td style="${td}">${esc(r.ingestBehavior || '—')}</td><td style="${td}">${r.filter ? esc(r.filter) : 'All objects'}</td></tr>`).join('') + `</tbody></table></div>`;
     }
     if (g.tenants.length) {

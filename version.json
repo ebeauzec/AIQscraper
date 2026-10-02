@@ -1,8 +1,8 @@
 {
-  "version": "5.6.210",
+  "version": "5.6.211",
   "major": 5,
   "minor": 6,
-  "patch": 210,
+  "patch": 211,
   "date": "2026-10-02",
-  "notes": "Fixed Success Plan updates (the mutation selected 'results' without sub-fields, so every update was rejected); mutations verified against the live API without changing data. Added a StorageGRID finding for appliance models covered by NetApp end-of-availability notice CPC-00602 (SG100, SG1000, SG5712, SG5760, SG6060)."
+  "notes": "StorageGRID ILM rules are now labelled 'as reported by Active IQ' with a note that Active IQ returns one rule set per grid and does not say which rules belong to the active policy."
 }
