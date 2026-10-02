@@ -24603,7 +24603,7 @@ ${mbDrift.length > 0 ? '  MOTHERBOARD FIRMWARE DRIFT DETECTED:\n' + mbDrift.map(
 -----------------------------------------------------------
 Focus: ${_ontapN === 0 ? 'replication and AutoSupport remediation (replication is managed outside Active IQ for this scope).' : 'SnapMirror, SnapVault, SnapMirror active sync, and AutoSupport remediation.'}
 
-${_ontapN === 0 ? '* SnapMirror actions do not apply (ONTAP-only). Replication for E-Series (Asynchronous/Synchronous Mirroring) and StorageGRID (ILM / cross-grid replication) is configured in their own consoles and is not reported by Active IQ -- review it manually.\n\n' : `* ACTION 3.1: SnapMirror Relationship Health
+${_ontapN === 0 ? '* SnapMirror actions do not apply (ONTAP-only). Replication for E-Series (Asynchronous/Synchronous Mirroring) is configured in their own consoles. StorageGRID ILM rules and grid topology ARE reported by Active IQ (see the StorageGRID section); StorageGRID cross-grid replication and E-Series mirroring state are not -- review those manually.\n\n' : `* ACTION 3.1: SnapMirror Relationship Health
   - Check all relationships: 'snapmirror show -fields state,lag-time,health'
   - Update lagging relationships: 'snapmirror update -destination-path <dest>'
   - Resync broken relationships: 'snapmirror resync -destination-path <dest>'
@@ -30096,7 +30096,7 @@ function _renderDRReplicationSection(allSystems) {
   // SnapMirror / MetroCluster / SyncMirror / HA pairs are ONTAP constructs.
   const systems = allSystems.filter(s => _platformFamily(s) === 'ontap');
   if (systems.length === 0) {
-    return `<div style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">Not applicable &mdash; SnapMirror, MetroCluster, SyncMirror and HA pairs are ONTAP features and no ONTAP systems are in this scope. Replication for E-Series (Asynchronous/Synchronous Mirroring) and StorageGRID (ILM / cross-grid replication) is configured in their own consoles and is not reported by Active IQ.</div>`;
+    return `<div style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">Not applicable &mdash; SnapMirror, MetroCluster, SyncMirror and HA pairs are ONTAP features and no ONTAP systems are in this scope. Replication for E-Series (Asynchronous/Synchronous Mirroring) is configured in their own consoles. StorageGRID ILM rules and grid topology are reported by Active IQ (see the StorageGRID tab); cross-grid replication and E-Series mirroring state are not.</div>`;
   }
   const _drExcluded = allSystems.length - systems.length;
   const tblStyle = 'width:100%;border-collapse:collapse;font-size:0.8rem;';
