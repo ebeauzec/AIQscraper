@@ -1,8 +1,8 @@
 {
-  "version": "5.6.211",
+  "version": "5.6.212",
   "major": 5,
   "minor": 6,
-  "patch": 211,
+  "patch": 212,
   "date": "2026-10-02",
-  "notes": "StorageGRID ILM rules are now labelled 'as reported by Active IQ' with a note that Active IQ returns one rule set per grid and does not say which rules belong to the active policy."
+  "notes": "Technical Audit: the MetroCluster card no longer shows while the selected node is a non-ONTAP system (E-Series controller, StorageGRID node)."
 }

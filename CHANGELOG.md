@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.212] - 2026-10-02
+
+### Fixed
+- Technical Audit: the MetroCluster card no longer shows while the selected node is a non-ONTAP system (E-Series controller, StorageGRID node).
+
+---
+
 ## [5.6.211] - 2026-10-02
 
 ### Changed

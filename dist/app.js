@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.211";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.212";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.212",
+    date: "2 October 2026",
+    title: "Fixed: MetroCluster Card Shown for Non-ONTAP Nodes",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- MetroCluster Card on E-Series / StorageGRID Nodes",
+        color: "#ef4444",
+        items: [
+          "On the Technical Audit tab the MetroCluster card covers every MetroCluster pair in the selection, and it stayed on screen when you clicked an E-Series controller or StorageGRID appliance node, where it is irrelevant. It now follows the selected node: hidden for non-ONTAP nodes, shown again for ONTAP nodes. (Systems named StorageGRID-... such as denotos7 are E-Series controllers inside StorageGRID appliances, registered in Active IQ as their own E-Series systems.)",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.211",
     date: "2 October 2026",
@@ -15426,6 +15441,7 @@ function renderTAMTab() {
     if (!state.activeVisualizerNodeSerial || !activeSerials.includes(state.activeVisualizerNodeSerial)) {
       state.activeVisualizerNodeSerial = selectedSystems[0].serialNumber;
     }
+    _syncMetroClusterCard(selectedSystems, selectedSystems.find(x => x.serialNumber === state.activeVisualizerNodeSerial));
     
     const activeSys = selectedSystems.find(s => s.serialNumber === state.activeVisualizerNodeSerial) || selectedSystems[0];
     renderNodeVisualLayout(selectedSystems, activeSys);
@@ -41668,6 +41684,7 @@ function selectVisualNode(serial) {
   
   if (activeSys) {
     renderNodeVisualLayout(selectedSystems, activeSys);
+    _syncMetroClusterCard(selectedSystems, activeSys);
     
     // Dynamically update E-Series visual health panel and SVM security panel to remain context-aware
     const eseriesCard = document.getElementById("tamEseriesVisualCard");
@@ -41869,6 +41886,16 @@ function _renderStorageGridSection(systems) {
   return _storageGridHtml(view);
 }
 
+// MetroCluster is an ONTAP construct. The card covers the whole selection's MetroCluster pairs, but must not appear
+// while the active node is a non-ONTAP system (E-Series controller, StorageGRID node...), where it is irrelevant.
+function _syncMetroClusterCard(selectedSystems, activeSys) {
+  const mcCard = document.getElementById("tamMetroClusterCard");
+  if (!mcCard) return;
+  const mc = (selectedSystems || []).filter(s => s.isMetroCluster);
+  const activeNonOntap = !!activeSys && _platformFamily(activeSys) !== 'ontap';
+  if (mc.length > 0 && !activeNonOntap) { mcCard.style.display = "block"; renderMetroClusterStatus(mc); }
+  else mcCard.style.display = "none";
+}
 function renderMetroClusterStatus(mcSystems) {
   const container = document.getElementById("tamMetroClusterContainer");
   if (!container) return;
