@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.208] - 2026-10-02
+
+### Fixed
+- Fixed the restricted account's extra-data queries running unscoped (silently returning nothing), so StorageGRID topology went from 2 grids to 12 and platform extras from 164 to ~1,300 systems. StorageGRID findings now flow through the risk engine with recommendations: nodes not reporting AutoSupport, single admin/gateway node, ILM, immutability, capacity, support term.
+- `server.py`: `_fetch_rows_all_scopes()` used by the ESERIES_CAP_FIELDS and ONTAP_EXTRA2_FIELDS merges (configured watchlists, else unfiltered, else auto-discovered watchlists on a privilege block).
+
+### Added
+- `applyStorageGridRisks()`, `_SG_RECS`/`_dfSgRec()`, node `reporting` flag, new node-level findings (app.js).
+
+---
+
 ## [5.6.207] - 2026-10-02
 
 ### Fixed

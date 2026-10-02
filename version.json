@@ -1,8 +1,8 @@
 {
-  "version": "5.6.207",
+  "version": "5.6.208",
   "major": 5,
   "minor": 6,
-  "patch": 207,
+  "patch": 208,
   "date": "2026-10-02",
-  "notes": "StorageGRID node counts now reflect the whole grid, not just nodes that send AutoSupport: the harvest requests StorageGRID node systems, and totals use the grid's installed node count and topology. Nodes are broken out by role (admin, gateway, storage, archive) and form factor (physical appliance, VMware VM, bare metal)."
+  "notes": "Fixed the restricted account's extra-data queries running unscoped (silently returning nothing), so StorageGRID topology went from 2 grids to 12 and platform extras from 164 to ~1,300 systems. StorageGRID findings now flow through the risk engine with recommendations: nodes not reporting AutoSupport, single admin/gateway node, ILM, immutability, capacity, support term."
 }

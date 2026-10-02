@@ -2186,14 +2186,39 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     print(f"  [HARVEST] Unfiltered {_QUERY_NAMES[attempt]} query succeeded: {len(all_systems)} systems", flush=True)
                     break
 
+        def _fetch_rows_all_scopes(fields):
+            """Rows for `fields` across every scope that works for this account. Configured watchlists first; if none are
+            configured, try unfiltered, and on a privilege block (or zero rows) fall back to the auto-discovered watchlists --
+            the same fallback the main systems query uses. Without this the extras merges silently returned nothing for
+            accounts lacking unfiltered_system_access (restricted accounts), so their StorageGRID topology, power, drives
+            etc. were never harvested."""
+            rows, seen = [], set()
+            def _take(batch):
+                for r in batch:
+                    k = r.get("serialNumber")
+                    if k in seen:
+                        continue
+                    seen.add(k)
+                    rows.append(r)
+            if watchlist_ids:
+                for wl in list(watchlist_ids):
+                    _take(_fetch_systems_for_scope(fields, wl)[0])
+                return rows
+            batch, blocked = _fetch_systems_for_scope(fields, None)
+            _take(batch)
+            if (blocked or not batch) and _early_watchlists:
+                for wl in _early_watchlists:
+                    _take(_fetch_systems_for_scope(fields, wl)[0])
+            return rows
+
         # ── E-Series capacity merge (see ESERIES_CAP_FIELDS) ──
         try:
             _ecap_by_serial = {}
             _gcap_by_serial = {}
             _gtopo_by_serial = {}
             _pextra_by_serial = {}
-            for _ecap_scope in (list(watchlist_ids) if watchlist_ids else [None]):
-                _ecap_rows, _ = _fetch_systems_for_scope(ESERIES_CAP_FIELDS, _ecap_scope)
+            for _ecap_scope in [None]:
+                _ecap_rows = _fetch_rows_all_scopes(ESERIES_CAP_FIELDS)
                 for _r in _ecap_rows:
                     if _r.get("eCapacity"):
                         _ecap_by_serial[_r.get("serialNumber")] = _r["eCapacity"]
@@ -2245,8 +2270,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             # Second, ONTAP-only pass (kept separate: combined with the first it exceeds Active IQ's
             # field-count limit -- confirmed live): adapter/FC inventory, Cloud Insights, talking points.
             try:
-                for _ecap_scope in (list(watchlist_ids) if watchlist_ids else [None]):
-                    _o2_rows, _ = _fetch_systems_for_scope(ONTAP_EXTRA2_FIELDS, _ecap_scope)
+                for _ecap_scope in [None]:
+                    _o2_rows = _fetch_rows_all_scopes(ONTAP_EXTRA2_FIELDS)
                     for _r in _o2_rows:
                         _o2 = _build_ontap_extras2(_r)
                         if _o2:

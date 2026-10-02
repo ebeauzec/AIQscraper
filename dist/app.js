@@ -27,9 +27,33 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.207";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.208";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.208",
+    date: "2 October 2026",
+    title: "StorageGRID Risks and Recommendations in the Risk Engine; All Grids Discovered",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Most StorageGRID Grids (and Platform Data) Were Never Harvested",
+        color: "#ef4444",
+        items: [
+          "The extra-data queries (StorageGRID topology, power, drives, upgrade history, adapters...) ran unscoped. For an account without unfiltered system access that returns a privilege error, which was silently ignored, so only accounts with full access contributed. They now fall back to the account's watchlists like the main systems query. Result: 12 grids discovered instead of 2 (including 70-node and 48-node grids), and platform data for ~1,300 systems instead of 164.",
+        ],
+      },
+      {
+        icon: "🧱",
+        label: "New -- StorageGRID Findings Are Real Risks With Recommendations",
+        color: "#22c55e",
+        items: [
+          "StorageGRID findings are now injected into the standard risk engine on each grid's admin-node system, so they appear in Technical Risks, severity counts, the TAM Success Plan, QBR, Executive Risk Assessment, Handover, MSP, Risk & Remediation and Security briefs, the tracker import, and the interface, exactly like Active IQ's own risks.",
+          "Node-level discovery from the admin node's topology: nodes that are not reporting to Active IQ as their own systems (with the recommendation to enable grid and E-Series AutoSupport and steps), nodes missing from the inventory, single admin node, single gateway node, plus the existing ILM, versioning, object-lock, version-skew, support-term and capacity checks. Every finding carries a recommendation and remediation steps; the roster shows which nodes report to Active IQ.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.207",
     date: "2 October 2026",
@@ -9790,6 +9814,7 @@ async function applyDemoDataset() {
 
   const hydrated = MOCK_SYSTEMS.map(s => _demoHydrateSystem(s, ctx));
   state.systems = hydrated.map(s => enrichSystemTelemetry(s));
+  try { applyStorageGridRisks(state.systems); } catch (_e) { console.warn('[SG] risk injection failed', _e); }
   _resolveSnapMirrorPartners(state.systems);
   _inferClusterHA(state.systems);
   for (const s of state.systems) {
@@ -9896,6 +9921,7 @@ function loadConfig(restoreSystemsFromCache = true) {
         // Re-run enrichment on load: fills any fields missing since last schema version
         // and normalises any raw API data that was stored without full enrichment.
         state.systems = parsed.map(s => enrichSystemTelemetry(s));
+        try { applyStorageGridRisks(state.systems); } catch (_e) { console.warn('[SG] risk injection failed', _e); }
       } else if (state.mockMode) {
         state.systems = MOCK_SYSTEMS.map(s => enrichSystemTelemetry(s));
         saveSystems();
@@ -19758,6 +19784,53 @@ function _dfSgRulePlacements(rule) {
   });
   return { copies, ec, sites, text: parts.join(' + ') || '—' };
 }
+
+// Recommendation catalogue for StorageGRID findings (matched by title prefix). Grid Manager paths are from NetApp's
+// StorageGRID documentation; verify wording against the grid's own version.
+const _SG_RECS = [
+  ['Single-site grid', 'Add a second site, or replicate to another grid (grid federation / CloudMirror), and place ILM copies at both sites.', ['Plan a second site or federated grid.', 'Create a storage pool for each site (ILM > Storage pools).', 'Create an ILM rule placing one copy per site (or erasure coding across sites) and activate it in the ILM policy.']],
+  ['No default ILM rule', 'Mark one ILM rule as the default so every object has a defined placement.', ['Grid Manager > ILM > Rules: create or edit a rule with no filters.', 'Add it as the default (last) rule in the active ILM policy.', 'Simulate and activate the policy.']],
+  ['Default ILM rule keeps a single copy', 'Change the default rule to at least two replicated copies, or an erasure-coding scheme such as 2+1 / 4+2, across failure domains.', ['ILM > Rules: edit the default rule placement.', 'Select 2 copies on separate storage pools, or erasure coding on a suitable pool.', 'Re-evaluate objects with the new policy.']],
+  ['Single-copy ILM rule', 'Confirm this data is reproducible or protected elsewhere; otherwise store at least two copies.', ['Identify the tenants/buckets the rule filters on.', 'Raise placement to 2 copies or erasure coding if the data is not reproducible.']],
+  ['No ILM rule spans sites', 'Add an ILM rule that places copies (or erasure-coded fragments) at more than one site so a site loss does not lose data.', ['Create a rule with placements in two or more sites.', 'Place it ahead of single-site rules in the policy.']],
+  ['No ILM rules reported', 'Open Grid Manager > ILM and confirm an active policy exists; confirm AutoSupport includes ILM data.', ['Verify AutoSupport is enabled and recent for the primary admin node.']],
+  ['Buckets without versioning', 'Enable S3 versioning on buckets whose data must be recoverable, and add ILM rules for non-current versions.', ['Tenant Manager or S3 API: enable versioning per bucket.', 'Add an ILM rule for non-current versions to control space use.']],
+  ['No immutability on any bucket', 'Enable S3 Object Lock on buckets that need ransomware protection or retention.', ['Grid Manager: enable S3 Object Lock for the grid.', 'Create new buckets with Object Lock, set default retention (cannot be enabled on existing buckets without migration).']],
+  ['Fewer than 3 storage nodes', 'Grow to at least three storage nodes (more per site for erasure coding) for durability and rebuild headroom.', ['Plan additional storage nodes per site.']],
+  ['Mixed node software versions', 'Finish the grid upgrade so every node runs one StorageGRID version.', ['Grid Manager > Maintenance > Software upgrade; investigate any node that did not upgrade.']],
+  ['Software support term', 'Renew StorageGRID software support before the term ends.', ['Contact the NetApp account team or reseller for renewal.']],
+  ['Grid capacity above', 'Plan capacity expansion (storage nodes or expansion shelves) or tighten ILM/retention to reclaim space.', ['Review growth in Active IQ capacity trend and quote expansion.']],
+  ['Site ', 'Rebalance data or add capacity at the busier site; review ILM placement skew.', ['Check ILM rules favouring one site and the storage pools per site.']],
+  ['Unbalanced site capacity', 'Rebalance placement or add capacity at the fuller site so a site failure cannot overfill the other.', ['Review ILM rules placing more data at one site.']],
+  ['Nodes not reporting to Active IQ', 'Enable AutoSupport for the whole grid and for E-Series appliance controllers so each node reports to Active IQ; Active IQ then shows per-node health, risks and capacity.', ['Grid Manager > Support > Tools > AutoSupport > Settings: enable weekly and event-triggered AutoSupport; confirm the destination (HTTPS or proxy) reaches support.netapp.com.', 'On the same page enable E-Series AutoSupport so appliance storage controllers report via StorageGRID.', 'For virtual nodes confirm the node is included in the grid AutoSupport; send a test message and verify it in Active IQ.']],
+  ['Nodes missing from the grid inventory', 'Confirm every installed node is online and visible in Grid Manager (Nodes page), and that the admin node AutoSupport is current so Active IQ receives the full topology.', ['Grid Manager > Nodes: check each node for connection errors.', 'Send an AutoSupport from the primary admin node.']],
+  ['Single admin node', 'Deploy a non-primary admin node for management and audit-log redundancy.', ['Plan a non-primary admin node (appliance SG100/SG1000 or VM) and add it through the Expansion procedure.']],
+  ['Single gateway node', 'Add a second gateway node and configure a high-availability group for S3 client access.', ['Grid Manager > Configuration > High availability groups: create an HA group across two gateways.', 'Point clients at the HA virtual IP or load balancer.']],
+];
+function _dfSgRec(title) {
+  const m = _SG_RECS.find(r => String(title).startsWith(r[0]));
+  return m ? { recommendation: m[1], steps: m[2] } : { recommendation: '', steps: [] };
+}
+// Inject StorageGRID findings into the standard risk engine so they behave like every other Active IQ risk: they appear in
+// Technical Risks, severity counts, the health/ranking logic, every deliverable and the tracker import. Idempotent (id-keyed).
+// Attached to each grid's admin-node system. Info-level findings stay in the StorageGRID views only.
+function applyStorageGridRisks(systems) {
+  const list = systems || state.systems || [];
+  let added = 0;
+  _dfStorageGridView(list).grids.forEach(g => {
+    const sys = g.system; sys.risks = Array.isArray(sys.risks) ? sys.risks : [];
+    g.findings.filter(f => f.severity === 'high' || f.severity === 'medium').forEach(f => {
+      const rec = _dfSgRec(f.title);
+      const id = 'sg-' + g.system.serialNumber + '-' + String(f.title).toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      if (sys.risks.some(r => r.id === id)) return;
+      sys.risks.push({ id, severity: f.severity, category: 'StorageGRID', description: `${g.gridName}: ${f.title}. ${f.detail}`, shortName: f.title,
+        recommendation: rec.recommendation || 'Review the grid in Grid Manager.', advisoryUrl: 'https://docs.netapp.com/us-en/storagegrid/', cveDetails: [], ariaGenerated: true,
+        remediationPlan: { cause: f.detail, impact: f.title, steps: (rec.steps || []).map((x, i) => `${i + 1}. ${x}`), options: [], thirdParty: '' } });
+      added++;
+    });
+  });
+  return added;
+}
 function _dfStorageGridView(systems) {
   const grids = []; let sgSystems = 0;
   // Topology is carried only by each grid's admin-node system, but the scope (a sidebar selection, a customer,
@@ -19765,17 +19838,21 @@ function _dfStorageGridView(systems) {
   // else a grid listing it as a node (serial/host name), else the customer's only grid. One entry per grid.
   const _allGrids = (state.systems || []).filter(x => x.storagegridTopology);
   const _byNode = {}; _allGrids.forEach(gs => ((gs.storagegridTopology.sites) || []).forEach(st => (st.nodes || []).forEach(n => { if (n.serialNumber) _byNode['s:' + n.serialNumber] = gs; if (n.hostName) _byNode['h:' + String(n.hostName).toLowerCase()] = gs; })));
+  const _byGridName = {}; _allGrids.forEach(gs => { if (gs.storagegridTopology.gridName) _byGridName[gs.storagegridTopology.gridName] = gs; });
   const _resolveGrid = x => {
     if (x.storagegridTopology) return x;
-    return _byNode['s:' + x.serialNumber] || _byNode['h:' + String(x.systemName || x.hostName || '').toLowerCase()]
+    const _pg = x.platformExtras && x.platformExtras.parentGrid; // E-Series controllers inside a grid carry parentGrid
+    return (_pg && _byGridName[_pg]) || _byNode['s:' + x.serialNumber] || _byNode['h:' + String(x.systemName || x.hostName || '').toLowerCase()]
       || (() => { const c = _allGrids.filter(gs => gs.customerName && gs.customerName === x.customerName); return c.length === 1 ? c[0] : null; })();
   };
-  const _seenGrid = new Set(); const _fleetPer = {}; const unresolved = [];
+  const _seenGrid = new Set(); const _fleetPer = {}; const _fleetIds = {}; const unresolved = [];
+  const _normName = x => String(x || '').toLowerCase().replace(/^storagegrid-/, '').trim();
   (systems || []).forEach(sx => {
     if (_platformFamily(sx) !== 'storagegrid') return;
     sgSystems++;
     const s = _resolveGrid(sx); if (!s) { unresolved.push(sx); return; }
     _fleetPer[s.serialNumber] = (_fleetPer[s.serialNumber] || 0) + 1;
+    { const ids = _fleetIds[s.serialNumber] = _fleetIds[s.serialNumber] || { serials: new Set(), names: new Set() }; if (sx.serialNumber) ids.serials.add(String(sx.serialNumber)); [sx.systemName, sx.hostName, sx.clusterName].forEach(nm => { if (nm) ids.names.add(_normName(nm)); }); }
     if (_seenGrid.has(s.serialNumber)) return; _seenGrid.add(s.serialNumber);
     const t = s.storagegridTopology; if (!t) return;
     const sites = (t.sites || []).map(x => ({ name: x.name || '—', nodes: x.nodes || [] }));
@@ -19826,7 +19903,37 @@ function _dfStorageGridView(systems) {
     if (g.cap && g.cap.usedPct != null) { if (g.cap.usedPct >= 85) add('high', 'Grid capacity above 85%', `Grid is ${g.cap.usedPct}% full; plan expansion.`); else if (g.cap.usedPct >= 70) add('medium', 'Grid capacity above 70%', `Grid is ${g.cap.usedPct}% full.`); }
     grids.push(g);
   });
-  const findings = []; grids.forEach(g => g.findings.forEach(f => findings.push({ ...f, grid: g.gridName, customer: g.customerName })));
+  // ── Node-level findings. Nodes the grid knows about (admin-node topology) but that are not visible in Active IQ as their
+  // own systems are not sending their own AutoSupport, so their health, risks and capacity are invisible to ARIA. ──
+  // A node reports to Active IQ if ANY system in scope has its serial or name -- appliance nodes usually appear as their
+  // E-Series controller system (a different platform family), not as a StorageGRID system.
+  const _anySerials = new Set(), _anyNames = new Set();
+  (systems || []).forEach(x => { if (x.serialNumber) _anySerials.add(String(x.serialNumber)); [x.systemName, x.hostName, x.clusterName].forEach(nm => { if (nm) _anyNames.add(_normName(nm)); }); });
+  grids.forEach(g => {
+    const ids = _fleetIds[g.system.serialNumber] || { serials: new Set(), names: new Set() };
+    _anySerials.forEach(v => ids.serials.add(v)); _anyNames.forEach(v => ids.names.add(v));
+    ids.names.add(_normName(g.system.systemName)); ids.names.add(_normName(g.primaryAdmin)); ids.serials.add(String(g.system.serialNumber));
+    g.nodes.forEach(n => { n.reporting = ids.serials.has(String(n.serialNumber)) || ids.names.has(_normName(n.hostName)); });
+    g.nodesNotReporting = g.nodes.filter(n => !n.reporting);
+    g.nodesReporting = g.nodes.length - g.nodesNotReporting.length;
+    const add = (severity, title, detail) => g.findings.push({ severity, title, detail });
+    if (g.nodes.length && g.nodesNotReporting.length) {
+      const names = g.nodesNotReporting.map(n => n.hostName).filter(Boolean);
+      add('medium', 'Nodes not reporting to Active IQ', `${g.nodesNotReporting.length} of ${g.nodes.length} nodes are not visible in Active IQ as their own systems (${names.slice(0, 6).join(', ')}${names.length > 6 ? ', +' + (names.length - 6) + ' more' : ''}); their individual health, risks and capacity are not monitored.`);
+    }
+    const nodesNoDetail = Math.max(0, Math.max(g.installedNodeCount || 0) - g.nodes.length);
+    if (nodesNoDetail > 0 && g.nodes.length) add('medium', 'Nodes missing from the grid inventory', `The grid reports ${g.installedNodeCount} installed nodes but only ${g.nodes.length} are described in its topology; ${nodesNoDetail} have no role, model or version detail.`);
+    const admins = g.nodes.filter(n => /admin/i.test(String(n.storageNodeType || '')));
+    if (g.nodes.length >= 3 && admins.length === 1) add('medium', 'Single admin node', 'Only one admin node is present, so grid management, the audit log and Prometheus metrics have no redundancy.');
+    const gws = g.nodes.filter(n => /gateway/i.test(String(n.storageNodeType || '')));
+    if (g.nodes.length >= 3 && gws.length === 1) add('medium', 'Single gateway node', 'Only one gateway node serves S3/Swift clients; add a second gateway (or use admin-node load balancing) in a high-availability group.');
+    const vStorage = g.nodes.filter(n => /storage/i.test(String(n.storageNodeType || '')) && _dfSgForm(n).kind === 'Virtual').length;
+    if (vStorage) add('info', 'Virtual storage nodes', `${vStorage} storage node${vStorage !== 1 ? 's run' : ' runs'} as VMware VMs; their capacity, drive and appliance health is not reported by Active IQ.`);
+    const emptyTen = g.tenants.filter(t => !(t.buckets || []).length).length;
+    if (emptyTen) add('info', 'Tenants with no buckets', `${emptyTen} of ${g.tenants.length} tenant account${g.tenants.length !== 1 ? 's have' : ' has'} no buckets.`);
+  });
+  grids.forEach(g => g.findings.forEach(f => Object.assign(f, _dfSgRec(f.title))));
+  const findings = []; grids.forEach(g => g.findings.forEach(f => findings.push({ ...f, ..._dfSgRec(f.title), grid: g.gridName, customer: g.customerName })));
   const order = { high: 0, medium: 1, info: 2 }; findings.sort((a, b) => order[a.severity] - order[b.severity]);
   // Node count comes from the GRID, not from which nodes happen to send AutoSupport: the admin node reports the
   // whole grid (installed node count + topology). nodeTotal = the most complete figure available for the grid.
@@ -19876,14 +19983,17 @@ function _dfStorageGridText(v, opts) {
       v.grids.map(g => [g.gridName, g.customerName || '—', g.version || '—', g.sites.length || '—', g.nodeTotal ? g.nodeTotal + (g.nodesNoDetail ? ` (${g.nodes.length} with detail)` : '') : '—', g.tenants.length, g.buckets.length, g.rules.length, g.cap && g.cap.usedPct != null ? g.cap.usedPct : '—', g.supportEnd || '—'])) + '\n';
   const roleRows = []; v.grids.forEach(g => { const grp = {}; g.nodes.forEach(n => { const k = (n.storageNodeType || 'Unknown role') + '|' + _dfSgForm(n).label; grp[k] = (grp[k] || 0) + 1; }); Object.keys(grp).forEach(k => { const [r, f] = k.split('|'); roleRows.push([g.gridName, r, f, grp[k]]); }); if (g.nodesNoDetail) roleRows.push([g.gridName, 'Role not reported', 'Form factor not reported', g.nodesNoDetail]); });
   if (roleRows.length) o += `\n  Nodes by Role and Form Factor (admin, gateway, storage, archive; physical vs virtual)\n` + _dfTable(['Grid', 'Role', 'Form Factor', 'Nodes'], roleRows) + '\n';
-  const nodeRows = []; v.grids.forEach(g => g.nodes.forEach(n => nodeRows.push([g.gridName, n.site, n.hostName || '—', n.storageNodeType || '—', _dfSgForm(n).label, n.raidMode || '—', n.driveType ? `${n.driveType}${n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : ''}` : '—', n.osVersion || '—'])));
-  if (nodeRows.length) o += `\n  Node Roster (site, role, appliance)\n` + _dfTable(['Grid', 'Site', 'Node', 'Role', 'Appliance', 'RAID', 'Drives', 'Version'], nodeRows.slice(0, lim)) + (nodeRows.length > lim ? `\n  +${nodeRows.length - lim} more nodes` : '') + '\n';
+  const nodeRows = []; v.grids.forEach(g => g.nodes.forEach(n => nodeRows.push([g.gridName, n.site, n.hostName || '—', n.storageNodeType || '—', _dfSgForm(n).label, n.reporting ? 'Yes' : 'No', n.raidMode || '—', n.driveType ? `${n.driveType}${n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : ''}` : '—', n.osVersion || '—'])));
+  if (nodeRows.length) o += `\n  Node Roster (site, role, appliance)\n` + _dfTable(['Grid', 'Site', 'Node', 'Role', 'Appliance', 'Reports to Active IQ', 'RAID', 'Drives', 'Version'], nodeRows.slice(0, lim)) + (nodeRows.length > lim ? `\n  +${nodeRows.length - lim} more nodes` : '') + '\n';
   const scRows = []; v.grids.forEach(g => g.siteCap.forEach(sc => scRows.push([g.gridName, sc.site, sc.totalTB, sc.usedTB, sc.usableLeftTB, sc.usedPct != null ? sc.usedPct : '—', sc.reportedOn || '—'])));
   if (scRows.length) o += `\n  Site Capacity (TB)\n` + _dfTable(['Grid', 'Site', 'Total', 'Used', 'Usable Left', 'Used %', 'Reported'], scRows) + '\n';
   const ruleRows = []; v.grids.forEach(g => g.rules.forEach(r => ruleRows.push([g.gridName, r.ruleName, r.isDefaultRule ? 'Yes' : 'No', r._p.text, r.referenceTime || '—', r.ingestBehavior || '—', r.filter ? (r.filter.length > 48 ? r.filter.slice(0, 45) + '...' : r.filter) : 'All objects'])));
   if (ruleRows.length) o += `\n  ILM Rules (data protection policy)\n` + _dfTable(['Grid', 'Rule', 'Default', 'Placement', 'Reference Time', 'Ingest', 'Applies To'], ruleRows) + '\n';
   const tenRows = []; v.grids.forEach(g => g.tenants.forEach(tn => { const b = tn.buckets || []; tenRows.push([g.gridName, tn.tenantId, b.length, b.filter(x => String(x.versioning || '').toUpperCase() === 'ENABLED').length, b.filter(x => x.isS3ObjectLockingEnabled || x.isLegacyComplianceEnabled).length, b.filter(x => x.isCloudMirror).length]); }));
   if (tenRows.length) o += `\n  Tenants & Buckets\n` + _dfTable(['Grid', 'Tenant ID', 'Buckets', 'Versioned', 'Immutable', 'CloudMirror'], tenRows.slice(0, lim)) + (tenRows.length > lim ? `\n  +${tenRows.length - lim} more tenants` : '') + '\n';
+  { const recs = {}; v.findings.filter(f => f.severity !== 'info' && f.recommendation).forEach(f => { const r = recs[f.title] = recs[f.title] || { sev: f.severity, rec: f.recommendation, grids: new Set() }; r.grids.add(f.grid); });
+    const rr = Object.keys(recs).map(t => [recs[t].sev.toUpperCase(), t, recs[t].grids.size, recs[t].rec]);
+    if (rr.length) o += `\n  StorageGRID Recommendations\n` + _dfTable(['Severity', 'Finding', 'Grids', 'Recommendation'], rr) + '\n'; }
   const fs = v.findings.filter(f => f.severity !== 'info');
   o += fs.length ? `\n  StorageGRID Findings\n` + _dfTable(['Severity', 'Grid', 'Finding', 'Detail'], fs.slice(0, 30).map(f => [f.severity.toUpperCase(), f.grid, f.title, f.detail])) + (fs.length > 30 ? `\n  +${fs.length - 30} more findings` : '') + '\n' : `\n  No high or medium StorageGRID findings.\n`;
   return o;
@@ -37981,6 +38091,7 @@ async function loadProductionData(forceRefresh = false) {
     }
 
     state.systems = systemsList.map(s => enrichSystemTelemetry(s));
+    try { applyStorageGridRisks(state.systems); } catch (_e) { console.warn('[SG] risk injection failed', _e); }
     // Re-apply manually-entered logistics/contacts/CSAT/projections (see
     // saveSystemMetadataOverride) -- the fresh API response above has none
     // of these fields, so without this they'd be silently lost on every sync.
@@ -41658,8 +41769,8 @@ function _storageGridHtml(view) {
   view.grids.forEach(g => {
     html += `<details open style="margin-bottom:12px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);padding:10px 12px;"><summary style="cursor:pointer;font-weight:600;">${esc(g.gridName)} <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">${esc(g.customerName)} &middot; ${g.sites.length} site${g.sites.length !== 1 ? 's' : ''} &middot; ${g.nodeTotal || 0} node${g.nodeTotal !== 1 ? 's' : ''}${g.rolesText ? ' (' + esc(g.rolesText) + ')' : ''}${g.formsText ? ' &middot; ' + esc(g.formsText) : ''} &middot; ${esc(g.version)}${g.licenseCapacity ? ' &middot; licence ' + esc(g.licenseCapacity) + ' TB (' + esc(g.licenseType || '') + ')' : ''}</span></summary>`;
     if (g.nodes.length) {
-      html += `<div style="overflow-x:auto;margin-top:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Node</th><th style="${th}">Role</th><th style="${th}">Appliance</th><th style="${th}">RAID</th><th style="${th}">Drives</th><th style="${th}">Version</th></tr></thead><tbody>` +
-        g.nodes.map(n => `<tr><td style="${td}">${esc(n.site)}</td><td style="${td}">${esc(n.hostName)}${g.primaryAdmin && n.hostName === g.primaryAdmin ? ' <span style="color:var(--accent-cyan);font-size:0.68rem;">primary</span>' : ''}</td><td style="${td}">${esc(n.storageNodeType || '—')}</td><td style="${td}">${esc(_dfSgForm(n).label)}</td><td style="${td}">${esc(n.raidMode || '—')}</td><td style="${td}">${n.driveType ? esc(n.driveType) + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : '—'}</td><td style="${td}">${esc(n.osVersion || '—')}</td></tr>`).join('') + `</tbody></table></div>`;
+      html += `<div style="overflow-x:auto;margin-top:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Node</th><th style="${th}">Role</th><th style="${th}">Appliance</th><th style="${th}">Reports to Active IQ</th><th style="${th}">RAID</th><th style="${th}">Drives</th><th style="${th}">Version</th></tr></thead><tbody>` +
+        g.nodes.map(n => `<tr><td style="${td}">${esc(n.site)}</td><td style="${td}">${esc(n.hostName)}${g.primaryAdmin && n.hostName === g.primaryAdmin ? ' <span style="color:var(--accent-cyan);font-size:0.68rem;">primary</span>' : ''}</td><td style="${td}">${esc(n.storageNodeType || '—')}</td><td style="${td}">${esc(_dfSgForm(n).label)}</td><td style="${td}color:${n.reporting ? 'var(--status-normal)' : 'var(--status-warning)'};">${n.reporting ? 'Yes' : 'No'}</td><td style="${td}">${esc(n.raidMode || '—')}</td><td style="${td}">${n.driveType ? esc(n.driveType) + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : '—'}</td><td style="${td}">${esc(n.osVersion || '—')}</td></tr>`).join('') + `</tbody></table></div>`;
     } else html += `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:8px;">Active IQ did not return per-node detail for this grid.</div>`;
     if (g.siteCap.length) {
       html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">Site capacity (TB)</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Total</th><th style="${th}">Used</th><th style="${th}">Usable left</th><th style="${th}">Used %</th><th style="${th}">Reported</th></tr></thead><tbody>` +
@@ -41673,7 +41784,7 @@ function _storageGridHtml(view) {
       html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">Tenants &amp; buckets</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Tenant</th><th style="${th}">Buckets</th><th style="${th}">Versioned</th><th style="${th}">Immutable</th><th style="${th}">CloudMirror</th></tr></thead><tbody>` +
         g.tenants.map(tn => { const b = tn.buckets || []; return `<tr><td style="${td}">${esc(tn.tenantId)}</td><td style="${td}">${b.length}</td><td style="${td}">${b.filter(x => String(x.versioning || '').toUpperCase() === 'ENABLED').length}</td><td style="${td}">${b.filter(x => x.isS3ObjectLockingEnabled || x.isLegacyComplianceEnabled).length}</td><td style="${td}">${b.filter(x => x.isCloudMirror).length}</td></tr>`; }).join('') + `</tbody></table></div>`;
     }
-    if (g.findings.length) html += `<div style="display:flex;flex-direction:column;gap:6px;margin-top:12px;">` + g.findings.map(f => `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-left:3px solid ${sevColor[f.severity]};border-radius:var(--radius-sm);padding:8px 12px;"><div style="font-size:0.78rem;font-weight:600;">${esc(f.title)} <span style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${f.severity}</span></div><div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">${esc(f.detail)}</div></div>`).join('') + `</div>`;
+    if (g.findings.length) html += `<div style="display:flex;flex-direction:column;gap:6px;margin-top:12px;">` + g.findings.map(f => `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-left:3px solid ${sevColor[f.severity]};border-radius:var(--radius-sm);padding:8px 12px;"><div style="font-size:0.78rem;font-weight:600;">${esc(f.title)} <span style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${f.severity}</span></div><div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">${esc(f.detail)}</div>${f.recommendation ? `<div style="font-size:0.72rem;color:var(--accent-cyan);margin-top:4px;">Recommendation: ${esc(f.recommendation)}</div>` : ''}</div>`).join('') + `</div>`;
     html += `</details>`;
   });
   html += `<div style="font-size:0.72rem;color:var(--text-muted);">Source: Active IQ StorageGrid sites, tenants and ILM data from AutoSupport. Verify live state in the Grid Manager.</div>`;
