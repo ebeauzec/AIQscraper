@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.204] - 2026-10-02
+
+### Added
+- Cross-platform telemetry for ONTAP, E-Series and StorageGRID that Active IQ exposes but ARIA never harvested: power and heat, drive inventory with firmware currency and end-of-support, ONTAP upgrade history, hardware expansion limits, E-Series NVSRAM, ARP/AI and timezone file currency, and per-site StorageGRID capacity. New Platform Insights tab, and sections in the deliverables.
+- `server.py`: `_build_platform_extras()` and extra fields in the `ESERIES_CAP_FIELDS` merge (per-type `energyConsumptionMetrics` / `hardwareCapabilities` blocks, `drivesSummary`, `osUpgradeHistory`, `securityFiles`, `systemFiles`, `nvsRAM`, per-site grid capacity); output `platformExtras`, carried through `enrichSystemTelemetry`.
+- GUI: Action Planner tab index 27 (Platform Insights); site capacity in the StorageGRID view.
+- Deliverables: TAM Success Plan, QBR, Executive Risk Assessment, Handover 7d, MSP 7b, Risk & Remediation, Security Brief 6b, Sustainability 3a, Customer Report 7c, Value Report slide 2; findings in Solution/Sales proposals and the tracker import.
+
+---
+
 ## [5.6.203] - 2026-10-02
 
 ### Added

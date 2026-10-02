@@ -1389,6 +1389,73 @@ def _http(method, url, headers=None, body=None, _retry=True):
         return 0, str(e).encode("utf-8")
 
 
+def _build_platform_extras(r):
+    """Compact per-system extras from the ESERIES_CAP_FIELDS merge row (ONTAP / E-Series / StorageGRID)."""
+    if not isinstance(r, dict):
+        return None
+    out = {}
+    if r.get("supportAddOns"):
+        out["supportAddOns"] = r["supportAddOns"]
+    for k_in, k_out in (("systemShipmentDate", "shipDate"), ("utcOffset", "utcOffset"), ("latestSalesOrder", "salesOrder"),
+                        ("isFlexPod", "isFlexPod"), ("isNodar", "isNodar")):
+        if r.get(k_in) not in (None, "", False):
+            out[k_out] = r[k_in]
+    hw = r.get("hardwareCapabilities")
+    if hw:
+        out["hwLimits"] = {
+            "maxCapacityTB": round((hw.get("maxSupportedCapacityKiB") or 0) / (1024 ** 3), 1),
+            "driveLimits": [{"class": d.get("class"), "max": d.get("maxSupportedDrives")} for d in (hw.get("driveClassLimits") or [])],
+            "shelfLimits": [{"model": d.get("model"), "max": d.get("maxSupportedShelves")} for d in (hw.get("shelfModelLimits") or [])],
+        }
+    en = r.get("energyConsumptionMetrics")
+    if en:
+        acts = [a for a in (en.get("actualEnergyConsumptions") or []) if a]
+        acts.sort(key=lambda a: a.get("generatedDate") or "", reverse=True)
+        proj = en.get("projectedEnergyConsumption") or {}
+        pub = en.get("publishedPowerConsumption") or {}
+        pw = [a.get("powerW") for a in acts if a.get("powerW")]
+        out["energy"] = {
+            "latest": ({"powerW": acts[0].get("powerW"), "heatBTU": acts[0].get("heatBTU"), "effWTB": acts[0].get("powerEfficiencyWTB"),
+                        "ambientC": acts[0].get("ambientTemperatureCelsius"), "date": (acts[0].get("generatedDate") or "")[:10]} if acts else None),
+            "avgPowerW": round(sum(pw) / len(pw), 1) if pw else None,
+            "samples": len(acts),
+            "projectedPowerW": proj.get("powerW"), "projectedHeatBTU": proj.get("heatBTU"),
+            "typicalPowerW": pub.get("typicalPowerW"), "worstPowerW": pub.get("worstPowerW"),
+        }
+    drs = r.get("drivesSummary")
+    if drs:
+        out["drives"] = [{
+            "model": d.get("driveModel"), "type": d.get("driveType"), "count": d.get("count") or 0,
+            "capGB": round((d.get("driveCapacityKiB") or 0) * 1024 / 1e9, 0) if d.get("driveCapacityKiB") else None,
+            "rpm": d.get("revolutionsPerMinute"), "eos": (d.get("endOfSupportDate") or "")[:10] or None,
+            "fwCur": (d.get("firmware") or {}).get("currentVersion"), "fwRec": (d.get("firmware") or {}).get("recommendedVersion"),
+        } for d in drs if d]
+    hist = r.get("osUpgradeHistory")
+    if hist:
+        out["upgradeHistory"] = [{"from": h.get("fromVersion"), "to": h.get("toVersion"), "date": (h.get("postUpgradeAsupGenDate") or "")[:10]} for h in hist if h]
+    for k_in, k_out in (("securityFiles", "securityFiles"), ("systemFiles", "systemFiles")):
+        if r.get(k_in):
+            out[k_out] = [{"type": f.get("type"), "cur": f.get("currentVersion"), "rec": f.get("recommendedVersion"), "auto": f.get("autoUpdateEligible")} for f in r[k_in] if f]
+    if r.get("nvsRAM"):
+        out["nvsram"] = {"cur": r["nvsRAM"].get("currentVersion"), "rec": r["nvsRAM"].get("recommendedVersion")}
+    if (r.get("parentGrid") or {}).get("gridName"):
+        out["parentGrid"] = r["parentGrid"]["gridName"]
+    sc = []
+    for site in (r.get("gridSites") or []):
+        cap = site.get("siteCapacity") or {}
+        cf, ph = cap.get("configured") or {}, cap.get("physical") or {}
+        tb = lambda k: round((k or 0) / (1024 ** 3), 2)
+        total = ph.get("actualKiB") or ph.get("rawMarketingKiB") or 0
+        used = (cf.get("usedDataKiB") or 0) + (cf.get("usedMetadataKiB") or 0)
+        sc.append({"site": site.get("name"), "totalTB": tb(total), "usedTB": tb(used), "usableLeftTB": tb(cf.get("usableKiB")),
+                   "usedPct": round(used / total * 100, 1) if total else None, "reportedOn": (cap.get("reportedOn") or "")[:10],
+                   "monthly": [{"month": m.get("month"), "totalTB": tb((m.get("physical") or {}).get("actualKiB")),
+                                "usedTB": tb((m.get("configured") or {}).get("usedDataKiB"))} for m in (site.get("monthlyCapacity") or []) if m]})
+    if sc:
+        out["siteCapacity"] = sc
+    return out or None
+
+
 def _gql(token, query, variables=None):
     body = {"query": query}
     if variables:
@@ -1750,15 +1817,39 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         # E-Series (SANtricity) and StorageGRID capacity are fetched with one tiny query and merged
         # by serial: adding it to the TAM/Efficiency field sets pushed them over Active
         # IQ's "Maximum height (field count)" limit and forced whole watchlists down a tier.
+        # Platform extras (confirmed live, populated on real ONTAP / E-Series / StorageGRID systems):
+        # power & heat (energyConsumptionMetrics), hardware expansion limits, drive inventory with
+        # firmware currency and end-of-support, ONTAP upgrade history, E-Series NVSRAM, per-site grid
+        # capacity. energyConsumptionMetrics/hardwareCapabilities live on each concrete type, not on the
+        # System interface, so the common block is repeated per type.
+        _EXTRA_COMMON = """
+                    supportAddOns systemShipmentDate utcOffset latestSalesOrder
+                    hardwareCapabilities { maxSupportedCapacityKiB driveClassLimits { class maxSupportedDrives } shelfModelLimits { model maxSupportedShelves } }
+                    energyConsumptionMetrics {
+                      actualEnergyConsumptions { powerW carbonKg heatBTU powerEfficiencyWTB carbonEfficiencyKgTB ambientTemperatureCelsius generatedDate }
+                      projectedEnergyConsumption { powerW carbonKg heatBTU }
+                      publishedPowerConsumption { typicalPowerW worstPowerW medianPowerW } }"""
+        _EXTRA_DRIVES = """
+                    drivesSummary { driveModel driveType count driveCapacityKiB revolutionsPerMinute endOfSupportDate firmware { currentVersion recommendedVersion } }"""
         ESERIES_CAP_FIELDS = """
                   serialNumber
-                  ... on SantricitySystem {
+                  ... on ONTAPSystem {""" + _EXTRA_COMMON + _EXTRA_DRIVES + """
+                    isFlexPod isNodar
+                    osUpgradeHistory { fromVersion toVersion postUpgradeAsupGenDate }
+                    securityFiles { type currentVersion recommendedVersion autoUpdateEligible }
+                    systemFiles { type currentVersion recommendedVersion autoUpdateEligible }
+                  }
+                  ... on SantricitySystem {""" + _EXTRA_COMMON + _EXTRA_DRIVES + """
+                    nvsRAM { currentVersion recommendedVersion }
+                    parentGrid { gridName }
                     eCapacity: capacity { updatedOn totalKiB unconfiguredKiB configured { allocatedKiB freeKiB } }
                   }
-                  ... on StorageGrid {
+                  ... on StorageGrid {""" + _EXTRA_COMMON + """
                     gridId gridName installedNodeCount licenseCapacity
                     primaryAdminNodeName primaryAdminNodeSiteName licenseType softwareSupportTermEndDate
-                    gridSites { name nodes { hostName serialNumber storageNodeType applianceType applianceModel raidMode driveType driveSizeGB osVersion } }
+                    gridSites { name nodes { hostName serialNumber storageNodeType applianceType applianceModel raidMode driveType driveSizeGB osVersion }
+                      siteCapacity { reportedOn configured { usableKiB usedDataKiB usedMetadataKiB reservedMetadataKiB } physical { rawMarketingKiB actualKiB } }
+                      monthlyCapacity { month configured { usableKiB usedDataKiB } physical { actualKiB } } }
                     tenants { tenantId buckets { bucketId bucketName isLegacyComplianceEnabled isS3ObjectLockingEnabled isCorsEnabled isNotificationsEnabled isCloudMirror isSearchEnabled isBucketTaggingEnabled versioning } }
                     ILMDetails { rules { ruleName filter isDefaultRule referenceTime ingestBehavior timePeriodsAndPlacements { start end placements { schema placementType storagePool { name sitesAndGrades { siteName grades } } } } } }
                     gridCapacity {
@@ -2056,11 +2147,15 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             _ecap_by_serial = {}
             _gcap_by_serial = {}
             _gtopo_by_serial = {}
+            _pextra_by_serial = {}
             for _ecap_scope in (list(watchlist_ids) if watchlist_ids else [None]):
                 _ecap_rows, _ = _fetch_systems_for_scope(ESERIES_CAP_FIELDS, _ecap_scope)
                 for _r in _ecap_rows:
                     if _r.get("eCapacity"):
                         _ecap_by_serial[_r.get("serialNumber")] = _r["eCapacity"]
+                    _pe = _build_platform_extras(_r)
+                    if _pe:
+                        _pextra_by_serial[_r.get("serialNumber")] = _pe
                     if _r.get("gridId") or _r.get("gridSites") or _r.get("tenants") or _r.get("ILMDetails"):
                         # StorageGRID topology / tenants / buckets / ILM (confirmed live:
                         # StorageGrid.gridSites, .tenants, .ILMDetails). Carried by the grid's
@@ -2092,6 +2187,9 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 if _ec:
                     _s["eCapacity"] = _ec
                     _ecap_hits += 1
+                _px = _pextra_by_serial.get(_s.get("serialNumber"))
+                if _px:
+                    _s["pExtras"] = _px
                 _gt = _gtopo_by_serial.get(_s.get("serialNumber"))
                 if _gt:
                     _s["gTopology"] = _gt
@@ -3874,6 +3972,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 "eseriesCapacity": _eseries_capacity,
                 "storagegridCapacity": _storagegrid_capacity,
                 "storagegridTopology": s.get("gTopology") or None,
+                "platformExtras": s.get("pExtras") or None,
                 "capacityAllocatedKB": 0,
                 "capacityUsedKB": round(_used_kib),
                 "capacityAvailableKB": round(max(0, _usbl_kib - _used_kib)),

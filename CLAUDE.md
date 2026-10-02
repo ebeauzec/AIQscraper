@@ -40,6 +40,16 @@ topology until a server restart + `/api/harvest?force=1`.** The probe script `to
 session is now superseded by this live check but harmless. Full detail: CHANGELOG.md 5.6.203. The rest of this section is the
 cloud session's handoff, kept as written.
 
+**FOLLOW-UP (v5.6.204, same day): Platform Insights for ALL platforms.** User asked for every open item and full functionality across StorageGRID,
+E-Series, ONTAP and other platforms. Live introspection found unharvested, populated fields on ONTAP/E-Series/StorageGRID (`energyConsumptionMetrics`,
+`hardwareCapabilities`, `drivesSummary`, `osUpgradeHistory`, `securityFiles`/`systemFiles`, `nvsRAM`, `gridSites.siteCapacity`). Harvested via
+`_build_platform_extras()` (server.py) -> `platformExtras`; analysed by `_dfPlatformInsights` (app.js, after the StorageGRID helpers); Action Planner tab
+27, StorageGRID per-site capacity, and sections in the same deliverables as StorageGRID plus Sustainability 3a and Value slide 2. NOTE: `energyConsumptionMetrics`
+exists per concrete type, not on the `System` interface. E-Series reports actual power 0 (projected only). **Still NOT done / not verified:** E-Series and
+StorageGRID port/WWPN detail, logistics/transit hub claims, Success Plan outcome tracking, `cloudInsightsHosts/Tenants`, `adapterInterface` (ONTAP only), `propensity/
+nextBestAction` talking points, per-node StorageGRID risks as a grouped view, ILM time-period units. The running dev server needs a restart + `/api/harvest?force=1`
+to show any of it from a real harvest.
+
 
 **Repo renamed:** GitHub repo is now `ebeauzec/ARIA` (was `ebeauzec/AIQscraper`). The old
 `origin` URL still works via GitHub's redirect (confirmed: a push with the old URL

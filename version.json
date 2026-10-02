@@ -1,8 +1,8 @@
 {
-  "version": "5.6.203",
+  "version": "5.6.204",
   "major": 5,
   "minor": 6,
-  "patch": 203,
+  "patch": 204,
   "date": "2026-10-02",
-  "notes": "ARIA is now StorageGRID-aware. Active IQ exposes, per grid, the site/node topology (role, appliance model, RAID, drives, version), tenants and buckets (versioning, S3 Object Lock, CloudMirror) and ILM rules (placements, storage pools, ingest behaviour); ARIA previously harvested only capacity. Now harvested, analysed (single-site grid, single-copy/default ILM rules, no versioning or immutability, mixed node versions, support term, capacity) and reported in the GUI and every relevant deliverable."
+  "notes": "Cross-platform telemetry for ONTAP, E-Series and StorageGRID that Active IQ exposes but ARIA never harvested: power and heat, drive inventory with firmware currency and end-of-support, ONTAP upgrade history, hardware expansion limits, E-Series NVSRAM, ARP/AI and timezone file currency, and per-site StorageGRID capacity. New Platform Insights tab, and sections in the deliverables."
 }

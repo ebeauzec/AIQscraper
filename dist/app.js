@@ -31,6 +31,23 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.204",
+    date: "2 October 2026",
+    title: "New: Platform Insights (Power, Drives, Upgrade History, Headroom) for All Platforms",
+    sections: [
+      {
+        icon: "⚡",
+        label: "New -- Platform Insights Across ONTAP, E-Series and StorageGRID",
+        color: "#22c55e",
+        items: [
+          "Active IQ reports far more per system than ARIA used. Now harvested (confirmed live on real systems, inside Active IQ's field-count limit): power draw and heat (measured average where reported, otherwise NetApp's projected or published typical figure), drive inventory with current vs recommended firmware and end-of-support, ONTAP OS upgrade history, platform hardware limits (maximum capacity), E-Series NVSRAM currency, ARP/AI and timezone file currency, and per-site StorageGRID capacity.",
+          "New Platform Insights tab in the Action Planner and per-site capacity in the StorageGRID view. Findings: drive firmware behind recommended, drive models past or nearing end of support, systems at or near their platform capacity limit, no recorded ONTAP upgrade in 2+ years, E-Series NVSRAM behind, unbalanced or nearly full grid sites.",
+          "Deliverables: new sections in the TAM Success Plan, QBR Pack, Executive Risk Assessment, Handover Brief (7d), MSP Service Report (7b), Risk & Remediation Brief, Security Posture Brief (6b), Sustainability Report (3a power, heat and energy), Customer Health Report (7c) and the Value Report; findings in the Solution and Sales proposals and the Remediation Tracker import. Real tables in Word exports.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.203",
     date: "2 October 2026",
     title: "New: Full StorageGRID Awareness (Topology, Tenants, ILM)",
@@ -9259,6 +9276,28 @@ function _demoHydrateSystem(s, ctx) {
       };
     }
     eff.platformNote = 'StorageGRID — capacity is for the whole grid (not just this node), from AutoSupport. Object storage has no data-reduction ratio.';
+  }
+  // ── Platform extras (power, drives + firmware, upgrade history, hardware limits, NVSRAM) ──
+  {
+    const rawTB = eff.rawCapacityTB || s.clusterRawCapacityTB || 20;
+    const basePw = fam === 'ontap' ? 380 + Math.round(rng() * 700) : fam === 'eseries' ? 700 + Math.round(rng() * 700) : 450 + Math.round(rng() * 500);
+    const px = { shipDate: _demoIso(now - (400 + Math.floor(rng() * 1800)) * _demoDay), salesOrder: '90' + String(_demoHash(s.serialNumber) % 1000000).padStart(6, '0'), supportAddOns: rng() > 0.6 ? ['PartnerChoice'] : [],
+      energy: { latest: { powerW: fam === 'eseries' ? 0 : basePw, heatBTU: Math.round(basePw * 3.412), effWTB: rawTB ? +(basePw / rawTB).toFixed(1) : null, ambientC: 23.5, date: _demoIso(now - 3 * _demoDay).slice(0, 10) },
+        avgPowerW: fam === 'eseries' ? null : basePw, samples: 3, projectedPowerW: basePw, projectedHeatBTU: Math.round(basePw * 3.412), typicalPowerW: basePw, worstPowerW: Math.round(basePw * 1.15) } };
+    const fwBehind = rng() > 0.5;
+    const eosSoon = rng() > 0.8 ? _demoIso(now + (60 + Math.floor(rng() * 250)) * _demoDay).slice(0, 10) : null;
+    if (fam === 'ontap') {
+      px.drives = [{ model: 'X371_S163A960ATE', type: 'Solid State Drive', count: 12 + Math.floor(rng() * 36), capGB: 960, rpm: null, eos: eosSoon, fwCur: 'NA51', fwRec: fwBehind ? 'NA53' : 'NA51' }];
+      px.upgradeHistory = [{ from: '9.12.1P7', to: '9.14.1P8', date: _demoIso(now - 700 * _demoDay).slice(0, 10) }, { from: '9.14.1P8', to: '9.15.1P8', date: _demoIso(now - (80 + Math.floor(rng() * 600)) * _demoDay).slice(0, 10) }];
+      px.hwLimits = { maxCapacityTB: Math.max(60, Math.round(rawTB * (1.05 + rng() * 2.5))), driveLimits: [{ class: 'SSD', max: 480 }], shelfLimits: [{ model: 'DS224C', max: 20 }] };
+      if (rng() > 0.7) px.systemFiles = [{ type: 'TZDB', cur: '2024a', rec: '2025b', auto: true }];
+    } else if (fam === 'eseries') {
+      px.drives = [{ model: 'HUH721212AL5204', type: 'Hard Disk Drive', count: 24 + Math.floor(rng() * 90), capGB: 11750, rpm: null, eos: eosSoon, fwCur: 'NE01', fwRec: fwBehind ? 'NE02' : 'NE01' }];
+      px.nvsram = { cur: 'N280X-890834-D02', rec: fwBehind ? 'N280X-890834-D04' : 'N280X-890834-D02' };
+    } else if (fam === 'storagegrid') {
+      px.siteCapacity = (out.storagegridTopology ? out.storagegridTopology.sites : [{ name: 'DC-A' }]).map((st, i) => { const tot = +(rawTB / Math.max(1, (out.storagegridTopology ? out.storagegridTopology.sites.length : 1))).toFixed(2), pct = +(25 + rng() * 60 + i * 10).toFixed(1); return { site: st.name, totalTB: tot, usedTB: +(tot * pct / 100).toFixed(2), usableLeftTB: +(tot * (100 - pct) / 100 * 0.85).toFixed(2), usedPct: pct, reportedOn: _demoIso(now - 4 * _demoDay).slice(0, 10), monthly: [] }; });
+    }
+    out.platformExtras = px;
   }
   if (out.isFabricPool && fam === 'ontap' && !eff.fabricPoolTieredTB) eff.fabricPoolTieredTB = +((eff.physicalUsedTB || 0) * (0.08 + rng() * 0.18)).toFixed(1);
   out.efficiency = eff;
@@ -19614,6 +19653,7 @@ function _dfStorageGridView(systems) {
       supportEnd: t.softwareSupportTermEndDate ? String(t.softwareSupportTermEndDate).slice(0, 10) : '',
       primaryAdmin: t.primaryAdminNodeName, primaryAdminSite: t.primaryAdminNodeSiteName,
       version: s.sgVersion || s.ontapVersion || s.osVersion || '',
+      siteCap: (s.platformExtras && s.platformExtras.siteCapacity) || [],
       findings: []
     };
     const add = (severity, title, detail) => g.findings.push({ severity, title, detail });
@@ -19641,6 +19681,8 @@ function _dfStorageGridView(systems) {
     const vers = [...new Set(g.nodes.map(n => n.osVersion).filter(Boolean))];
     if (vers.length > 1) add('medium', 'Mixed node software versions', `Nodes report ${vers.length} different versions (${vers.join(', ')}); finish the upgrade so the grid runs one version.`);
     if (g.supportEnd) { const d = Math.round((new Date(g.supportEnd) - Date.now()) / 86400000); if (!isNaN(d)) { if (d < 0) add('high', 'Software support term ended', `Software support term ended ${g.supportEnd}.`); else if (d < 180) add('medium', 'Software support term ending', `Software support term ends ${g.supportEnd} (${d} days).`); } }
+    g.siteCap.forEach(sc => { if (sc.usedPct != null && sc.usedPct >= 85) add('high', `Site ${sc.site} capacity above 85%`, `Site ${sc.site} is ${sc.usedPct}% full (${sc.usedTB} of ${sc.totalTB} TB).`); else if (sc.usedPct != null && sc.usedPct >= 70) add('medium', `Site ${sc.site} capacity above 70%`, `Site ${sc.site} is ${sc.usedPct}% full (${sc.usedTB} of ${sc.totalTB} TB).`); });
+    if (g.siteCap.length > 1) { const hi = g.siteCap.filter(x => x.usedPct != null).sort((a, b) => b.usedPct - a.usedPct); if (hi.length > 1 && hi[0].usedPct - hi[hi.length - 1].usedPct >= 30) add('medium', 'Unbalanced site capacity', `${hi[0].site} is ${hi[0].usedPct}% full vs ${hi[hi.length - 1].site} at ${hi[hi.length - 1].usedPct}%; an ILM rule or site failure could overfill the busier site.`); }
     if (g.cap && g.cap.usedPct != null) { if (g.cap.usedPct >= 85) add('high', 'Grid capacity above 85%', `Grid is ${g.cap.usedPct}% full; plan expansion.`); else if (g.cap.usedPct >= 70) add('medium', 'Grid capacity above 70%', `Grid is ${g.cap.usedPct}% full.`); }
     grids.push(g);
   });
@@ -19663,6 +19705,8 @@ function _dfStorageGridText(v, opts) {
       v.grids.map(g => [g.gridName, g.customerName || '—', g.version || '—', g.sites.length || '—', g.nodes.length ? g.nodes.length + (g.installedNodeCount && g.installedNodeCount !== g.nodes.length ? '/' + g.installedNodeCount : '') : (g.installedNodeCount || '—'), g.tenants.length, g.buckets.length, g.rules.length, g.cap && g.cap.usedPct != null ? g.cap.usedPct : '—', g.supportEnd || '—'])) + '\n';
   const nodeRows = []; v.grids.forEach(g => g.nodes.forEach(n => nodeRows.push([g.gridName, n.site, n.hostName || '—', n.storageNodeType || '—', [n.applianceModel, n.applianceType].filter(Boolean).join(' ') || '—', n.raidMode || '—', n.driveType ? `${n.driveType}${n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : ''}` : '—', n.osVersion || '—'])));
   if (nodeRows.length) o += `\n  Node Roster (site, role, appliance)\n` + _dfTable(['Grid', 'Site', 'Node', 'Role', 'Appliance', 'RAID', 'Drives', 'Version'], nodeRows.slice(0, lim)) + (nodeRows.length > lim ? `\n  +${nodeRows.length - lim} more nodes` : '') + '\n';
+  const scRows = []; v.grids.forEach(g => g.siteCap.forEach(sc => scRows.push([g.gridName, sc.site, sc.totalTB, sc.usedTB, sc.usableLeftTB, sc.usedPct != null ? sc.usedPct : '—', sc.reportedOn || '—'])));
+  if (scRows.length) o += `\n  Site Capacity (TB)\n` + _dfTable(['Grid', 'Site', 'Total', 'Used', 'Usable Left', 'Used %', 'Reported'], scRows) + '\n';
   const ruleRows = []; v.grids.forEach(g => g.rules.forEach(r => ruleRows.push([g.gridName, r.ruleName, r.isDefaultRule ? 'Yes' : 'No', r._p.text, r.referenceTime || '—', r.ingestBehavior || '—', r.filter ? (r.filter.length > 48 ? r.filter.slice(0, 45) + '...' : r.filter) : 'All objects'])));
   if (ruleRows.length) o += `\n  ILM Rules (data protection policy)\n` + _dfTable(['Grid', 'Rule', 'Default', 'Placement', 'Reference Time', 'Ingest', 'Applies To'], ruleRows) + '\n';
   const tenRows = []; v.grids.forEach(g => g.tenants.forEach(tn => { const b = tn.buckets || []; tenRows.push([g.gridName, tn.tenantId, b.length, b.filter(x => String(x.versioning || '').toUpperCase() === 'ENABLED').length, b.filter(x => x.isS3ObjectLockingEnabled || x.isLegacyComplianceEnabled).length, b.filter(x => x.isCloudMirror).length]); }));
@@ -19670,6 +19714,127 @@ function _dfStorageGridText(v, opts) {
   const fs = v.findings.filter(f => f.severity !== 'info');
   o += fs.length ? `\n  StorageGRID Findings\n` + _dfTable(['Severity', 'Grid', 'Finding', 'Detail'], fs.slice(0, 30).map(f => [f.severity.toUpperCase(), f.grid, f.title, f.detail])) + (fs.length > 30 ? `\n  +${fs.length - 30} more findings` : '') + '\n' : `\n  No high or medium StorageGRID findings.\n`;
   return o;
+}
+
+// ── Platform insights (all NetApp platforms) ────────────────────────────────
+// From the platformExtras harvest (server.py _build_platform_extras): power & heat,
+// drive inventory with firmware currency and end-of-support, ONTAP upgrade history,
+// hardware expansion limits, E-Series NVSRAM, ARP/AI + timezone files, per-site grid capacity.
+// One analysis feeds the Action Planner tab and every deliverable that cites it.
+function _dfPlatformInsights(systems) {
+  const energyRows = [], driveRows = [], histRows = [], hwRows = [], fileRows = [], findings = [];
+  const now = Date.now(); let withExtras = 0;
+  const FAM = { ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID', element: 'Element' };
+  (systems || []).forEach(s => {
+    const x = s.platformExtras; if (!x) return; withExtras++;
+    const fam = FAM[_platformFamily(s)] || 'Other', name = s.systemName || s.serialNumber, cust = s.customerName || '';
+    const add = (severity, title, detail) => findings.push({ severity, system: name, customer: cust, family: fam, title, detail });
+    const capTB = Number(s.clusterRawCapacityTB || (s.efficiency && s.efficiency.rawCapacityTB) || 0);
+    // Power & heat: prefer measured average, then projected, then NetApp's published typical figure
+    const e = x.energy;
+    if (e) {
+      let w = null, basis = '';
+      if (e.avgPowerW > 0) { w = e.avgPowerW; basis = 'measured'; } else if (e.projectedPowerW > 0) { w = e.projectedPowerW; basis = 'projected'; } else if (e.typicalPowerW > 0) { w = e.typicalPowerW; basis = 'published typical'; }
+      if (w) {
+        const heat = (e.latest && e.latest.heatBTU) || e.projectedHeatBTU || w * 3.412;
+        energyRows.push({ system: name, customer: cust, family: fam, powerW: Math.round(w), basis, heatBTU: Math.round(heat), worstW: e.worstPowerW ? Math.round(e.worstPowerW) : null,
+          wPerTB: capTB > 0 ? +(w / capTB).toFixed(1) : null, kwhYear: Math.round(w * 8.76), ambientC: e.latest && e.latest.ambientC != null ? e.latest.ambientC : null });
+      }
+    }
+    // Drives
+    (x.drives || []).forEach(d => {
+      const behind = d.fwCur && d.fwRec && d.fwCur !== d.fwRec;
+      const eosDays = d.eos ? Math.round((new Date(d.eos) - now) / 86400000) : null;
+      driveRows.push({ system: name, customer: cust, family: fam, model: d.model, type: d.type, count: d.count, capGB: d.capGB, rpm: d.rpm, fwCur: d.fwCur, fwRec: d.fwRec, behind, eos: d.eos, eosDays });
+      if (behind) add('medium', 'Drive firmware behind recommended', `${d.count} x ${d.model}: ${d.fwCur} -> ${d.fwRec} recommended.`);
+      if (eosDays != null) { if (eosDays < 0) add('high', 'Drive model past end of support', `${d.count} x ${d.model}: end of support ${d.eos}.`); else if (eosDays < 365) add('medium', 'Drive model nearing end of support', `${d.count} x ${d.model}: end of support ${d.eos} (${eosDays} days).`); }
+    });
+    // ONTAP upgrade history
+    if (x.upgradeHistory && x.upgradeHistory.length) {
+      const h = x.upgradeHistory.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      const last = h[0], months = last.date ? Math.round((now - new Date(last.date)) / (30.44 * 86400000)) : null;
+      histRows.push({ system: name, customer: cust, count: h.length, lastDate: last.date, lastFrom: last.from, lastTo: last.to, monthsSince: months });
+      if (months != null && months > 24) add('medium', 'No recorded ONTAP upgrade in over 2 years', `Last upgrade ${last.from} -> ${last.to} on ${last.date} (${months} months ago).`);
+    }
+    // Hardware expansion headroom
+    if (x.hwLimits && x.hwLimits.maxCapacityTB > 0 && capTB > 0) {
+      const pct = +(capTB / x.hwLimits.maxCapacityTB * 100).toFixed(1);
+      hwRows.push({ system: name, customer: cust, family: fam, capTB: +capTB.toFixed(1), maxTB: x.hwLimits.maxCapacityTB, pct });
+      if (pct >= 95) add('high', 'At platform capacity limit', `${capTB.toFixed(1)} TB raw of a ${x.hwLimits.maxCapacityTB} TB platform maximum (${pct}%); further growth needs a controller upgrade or new cluster.`);
+      else if (pct >= 85) add('medium', 'Approaching platform capacity limit', `${capTB.toFixed(1)} TB raw of a ${x.hwLimits.maxCapacityTB} TB platform maximum (${pct}%).`);
+    }
+    // E-Series NVSRAM
+    if (x.nvsram && x.nvsram.cur && x.nvsram.rec && x.nvsram.cur !== x.nvsram.rec) add('medium', 'NVSRAM behind recommended', `${x.nvsram.cur} -> ${x.nvsram.rec} recommended.`);
+    // ARP/AI + timezone files
+    [].concat(x.securityFiles || [], x.systemFiles || []).forEach(f => { if (f.cur && f.rec && f.cur !== f.rec) fileRows.push({ system: name, customer: cust, type: f.type, cur: f.cur, rec: f.rec, auto: f.auto }); });
+  });
+  const sum = (a, k) => a.reduce((t, r) => t + (r[k] || 0), 0);
+  const order = { high: 0, medium: 1, info: 2 }; findings.sort((a, b) => order[a.severity] - order[b.severity]);
+  const byFam = {}; energyRows.forEach(r => { const f = byFam[r.family] = byFam[r.family] || { n: 0, w: 0, heat: 0 }; f.n++; f.w += r.powerW; f.heat += r.heatBTU; });
+  return { withExtras, total: (systems || []).length, energyRows, driveRows, histRows, hwRows, fileRows, findings, byFam,
+    energy: { totalW: sum(energyRows, 'powerW'), totalHeat: sum(energyRows, 'heatBTU'), kwhYear: sum(energyRows, 'kwhYear'), n: energyRows.length },
+    drives: { total: sum(driveRows, 'count'), models: new Set(driveRows.map(r => r.model)).size, behind: driveRows.filter(r => r.behind).reduce((t, r) => t + r.count, 0) } };
+}
+function _dfPlatformInsightsSummaryLine(v) {
+  if (!v || !v.withExtras) return '';
+  const hi = v.findings.filter(f => f.severity === 'high').length, md = v.findings.filter(f => f.severity === 'medium').length;
+  return `${_dfPlural(v.energy.n, 'system')} reporting power (${(v.energy.totalW / 1000).toFixed(1)} kW, ~${Math.round(v.energy.kwhYear / 1000).toLocaleString()} MWh/year); ${_dfPlural(v.drives.total, 'drive')} across ${_dfPlural(v.drives.models, 'model')}${v.drives.behind ? ` (${v.drives.behind} behind recommended firmware)` : ''}; ${hi} high and ${md} medium finding${md !== 1 ? 's' : ''}`;
+}
+// which: subset of ['energy','drives','history','headroom','files','findings']
+function _dfPlatformInsightsText(v, which, opts) {
+  if (!v || !v.withExtras) return '';
+  which = which || ['energy', 'drives', 'history', 'headroom', 'files', 'findings']; opts = opts || {}; const lim = opts.limit || 15;
+  const more = (n, w) => n > lim ? `\n  +${n - lim} more ${w}` : '';
+  let o = `  ${_dfPlatformInsightsSummaryLine(v)}.\n`;
+  if (which.includes('energy') && v.energyRows.length) {
+    const rows = v.energyRows.slice().sort((a, b) => b.powerW - a.powerW);
+    o += `\n  Power & Heat (highest consumers first)\n` + _dfTable(['System', 'Platform', 'Power (W)', 'Basis', 'Heat (BTU/h)', 'W per TB', 'kWh/Year'], rows.slice(0, lim).map(r => [r.system, r.family, r.powerW, r.basis, r.heatBTU, r.wPerTB != null ? r.wPerTB : '—', r.kwhYear.toLocaleString()])) + more(rows.length, 'systems') + '\n';
+    const fams = Object.keys(v.byFam); if (fams.length > 1) o += `\n  Power by Platform\n` + _dfTable(['Platform', 'Systems', 'Power (kW)', 'Heat (BTU/h)'], fams.map(f => [f, v.byFam[f].n, (v.byFam[f].w / 1000).toFixed(1), Math.round(v.byFam[f].heat).toLocaleString()])) + '\n';
+  }
+  if (which.includes('drives') && v.driveRows.length) {
+    const rows = v.driveRows.slice().sort((a, b) => (b.behind - a.behind) || (b.count - a.count));
+    o += `\n  Drive Inventory & Firmware\n` + _dfTable(['System', 'Platform', 'Drive Model', 'Type', 'Count', 'Cap (GB)', 'Firmware', 'Recommended', 'End of Support'], rows.slice(0, lim).map(r => [r.system, r.family, r.model, r.type || '—', r.count, r.capGB || '—', r.fwCur || '—', r.fwRec || '—', r.eos || '—'])) + more(rows.length, 'drive groups') + '\n';
+  }
+  if (which.includes('history') && v.histRows.length) {
+    const rows = v.histRows.slice().sort((a, b) => (b.monthsSince || 0) - (a.monthsSince || 0));
+    o += `\n  ONTAP Upgrade History (longest since last upgrade first)\n` + _dfTable(['System', 'Upgrades Recorded', 'Last Upgrade', 'From', 'To', 'Months Ago'], rows.slice(0, lim).map(r => [r.system, r.count, r.lastDate || '—', r.lastFrom, r.lastTo, r.monthsSince != null ? r.monthsSince : '—'])) + more(rows.length, 'systems') + '\n';
+  }
+  if (which.includes('headroom') && v.hwRows.length) {
+    const rows = v.hwRows.slice().sort((a, b) => b.pct - a.pct);
+    o += `\n  Hardware Expansion Headroom (raw capacity vs platform maximum)\n` + _dfTable(['System', 'Platform', 'Raw (TB)', 'Max (TB)', 'Used of Max %'], rows.slice(0, lim).map(r => [r.system, r.family, r.capTB, r.maxTB, r.pct])) + more(rows.length, 'systems') + '\n';
+  }
+  if (which.includes('files') && v.fileRows.length) {
+    o += `\n  ARP/AI & Timezone Files Behind Recommended\n` + _dfTable(['System', 'File', 'Current', 'Recommended', 'Auto-update'], v.fileRows.slice(0, lim).map(r => [r.system, r.type, r.cur, r.rec, r.auto ? 'Yes' : 'No'])) + more(v.fileRows.length, 'files') + '\n';
+  }
+  if (which.includes('findings')) {
+    const fs = v.findings;
+    o += fs.length ? `\n  Platform Findings\n` + _dfTable(['Severity', 'System', 'Platform', 'Finding', 'Detail'], fs.slice(0, 25).map(f => [f.severity.toUpperCase(), f.system, f.family, f.title, f.detail])) + (fs.length > 25 ? `\n  +${fs.length - 25} more findings` : '') + '\n' : `\n  No platform findings.\n`;
+  }
+  return o;
+}
+function _platformInsightsHtml(v) {
+  const esc = x => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const th = 'text-align:left;padding:6px 8px;font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border-color);', td = 'padding:6px 8px;font-size:0.78rem;border-bottom:1px solid rgba(255,255,255,0.05);';
+  const stat = (l, val, c) => `<div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${c};"><div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${l}</div><div style="font-size:1.1rem;font-weight:700;color:${c};">${val}</div></div>`;
+  const table = (head, rows, lim) => rows.length ? `<div style="overflow-x:auto;margin-bottom:14px;"><table style="width:100%;border-collapse:collapse;"><thead><tr>${head.map(h => `<th style="${th}">${h}</th>`).join('')}</tr></thead><tbody>${rows.slice(0, lim || 25).map(r => `<tr>${r.map(c => `<td style="${td}">${esc(c)}</td>`).join('')}</tr>`).join('')}</tbody></table>${rows.length > (lim || 25) ? `<div style="font-size:0.7rem;color:var(--text-muted);">+${rows.length - (lim || 25)} more</div>` : ''}</div>` : '';
+  const h = (t) => `<div style="font-size:0.72rem;color:var(--accent-cyan);text-transform:uppercase;margin:14px 0 6px;font-weight:600;">${t}</div>`;
+  const hi = v.findings.filter(f => f.severity === 'high').length, md = v.findings.filter(f => f.severity === 'medium').length;
+  let html = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px;">` +
+    stat('Systems with data', `${v.withExtras}/${v.total}`, 'var(--accent-cyan)') + stat('Power', (v.energy.totalW / 1000).toFixed(1) + ' kW', 'var(--accent-cyan)') +
+    stat('Energy', Math.round(v.energy.kwhYear / 1000).toLocaleString() + ' MWh/yr', 'var(--accent-cyan)') + stat('Drives', v.drives.total.toLocaleString(), 'var(--accent-cyan)') +
+    stat('Findings', hi + ' high / ' + md + ' med', hi ? 'var(--status-critical)' : md ? 'var(--status-warning)' : 'var(--status-normal)') + `</div>`;
+  html += h('Power &amp; heat') + table(['System', 'Platform', 'Power (W)', 'Basis', 'Heat (BTU/h)', 'W per TB', 'kWh/yr'], v.energyRows.slice().sort((a, b) => b.powerW - a.powerW).map(r => [r.system, r.family, r.powerW, r.basis, r.heatBTU, r.wPerTB != null ? r.wPerTB : '—', r.kwhYear.toLocaleString()]));
+  html += h('Drive inventory &amp; firmware') + table(['System', 'Platform', 'Model', 'Type', 'Count', 'Cap (GB)', 'Firmware', 'Recommended', 'End of support'], v.driveRows.slice().sort((a, b) => (b.behind - a.behind) || (b.count - a.count)).map(r => [r.system, r.family, r.model, r.type || '—', r.count, r.capGB || '—', r.fwCur || '—', r.fwRec || '—', r.eos || '—']));
+  html += h('ONTAP upgrade history') + table(['System', 'Recorded', 'Last upgrade', 'From', 'To', 'Months ago'], v.histRows.slice().sort((a, b) => (b.monthsSince || 0) - (a.monthsSince || 0)).map(r => [r.system, r.count, r.lastDate || '—', r.lastFrom, r.lastTo, r.monthsSince != null ? r.monthsSince : '—']));
+  html += h('Hardware expansion headroom') + table(['System', 'Platform', 'Raw (TB)', 'Max (TB)', 'Used of max %'], v.hwRows.slice().sort((a, b) => b.pct - a.pct).map(r => [r.system, r.family, r.capTB, r.maxTB, r.pct]));
+  if (v.fileRows.length) html += h('ARP/AI &amp; timezone files behind recommended') + table(['System', 'File', 'Current', 'Recommended', 'Auto-update'], v.fileRows.map(r => [r.system, r.type, r.cur, r.rec, r.auto ? 'Yes' : 'No']));
+  if (v.findings.length) html += h('Findings') + table(['Severity', 'System', 'Platform', 'Finding', 'Detail'], v.findings.map(f => [f.severity, f.system, f.family, f.title, f.detail]), 40);
+  return html + `<div style="font-size:0.72rem;color:var(--text-muted);">Source: Active IQ AutoSupport telemetry. Power is a measured average where reported, otherwise NetApp's projected or published typical figure; E-Series typically reports projected only.</div>`;
+}
+function _renderPlatformInsightsSection(systems) {
+  const v = _dfPlatformInsights(systems);
+  if (!v.withExtras) return `<div style="color:var(--text-muted);padding:16px;">No platform telemetry (power, drives, upgrade history, hardware limits) has been harvested for this scope yet. Run a harvest from Settings after updating.</div>`;
+  return _platformInsightsHtml(v);
 }
 
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
@@ -21425,6 +21590,8 @@ function enrichSystemTelemetry(s) {
     storagegridCapacity: s.storagegridCapacity || null,
     // ── StorageGRID topology: sites/nodes, tenants/buckets, ILM rules (StorageGrid.gridSites/tenants/ILMDetails) ──
     storagegridTopology: s.storagegridTopology || null,
+    // ── Platform extras: power/heat, drives+firmware, upgrade history, hw limits, NVSRAM, per-site grid capacity ──
+    platformExtras: s.platformExtras || null,
     // ── As-Built: Extended Capacity & Efficiency Metrics ──
     clusterCapacityReportedOn: s.clusterCapacityReportedOn || '',
     clusterCapacityUtilPct:    s.clusterCapacityUtilPct,
@@ -24419,6 +24586,9 @@ ${(() => { const t = _dfSystemIssueRankingText(targetSystems); return t || '  No
 ${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `
 * STORAGEGRID GRID TOPOLOGY, TENANTS & ILM:
 ${_dfStorageGridText(v)}`; })()}
+${(() => { const v = _dfPlatformInsights(targetSystems); if (!v.withExtras) return ''; return `
+* PLATFORM INSIGHTS (Power, Drives, Upgrade History, Headroom):
+${_dfPlatformInsightsText(v, null, { limit: 10 })}`; })()}
 
 ${compileSvmLifSummaryText(targetSystems)}
 
@@ -24755,7 +24925,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     ? `  Per-System Health Scores: ${_sysHs.coverage}/${_sysHs.total} systems reporting a score, average ${_sysHs.avg}/100. Lowest: ${_sysHs.worst.map(r => `${r.systemName} (${r.score})`).join(', ')}\n`
     : '') + (_sysRankText
     ? `  Systems Ranked by Issue Severity (worst first):\n${_sysRankText}\n`
-    : '') + (() => { const v = _dfStorageGridView(targetSystems); return v.grids.length ? `  StorageGRID (object storage):\n${_dfStorageGridText(v, { nodeLimit: 12 })}\n` : ''; })();
+    : '') + (() => { const v = _dfStorageGridView(targetSystems); return v.grids.length ? `  StorageGRID (object storage):\n${_dfStorageGridText(v, { nodeLimit: 12 })}\n` : ''; })() + (() => { const v = _dfPlatformInsights(targetSystems); return v.withExtras ? `  Platform Insights:\n${_dfPlatformInsightsText(v, ['energy', 'findings'], { limit: 8 })}\n` : ''; })();
 
   // ── Risks ──
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
@@ -25405,6 +25575,10 @@ ${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) ret
 --------------------------------------------------------------------------------
 ${_dfStorageGridText(v, { nodeLimit: 20 })}
 --------------------------------------------------------------------------------
+`; })()}${(() => { const v = _dfPlatformInsights(targetSystems); if (!v.withExtras) return ''; return `7b. PLATFORM INSIGHTS [RISK EXPOSURE]
+--------------------------------------------------------------------------------
+${_dfPlatformInsightsText(v, null, { limit: 15 })}
+--------------------------------------------------------------------------------
 `; })()}8. SVM & NETWORK HEALTH [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${compileSvmLifSummaryText(targetSystems)}
@@ -25687,6 +25861,9 @@ ${coiText}
 ${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `  STORAGEGRID GRID RISK (Topology, Data Protection, Tenants)
   ────────────────────────────────────────────────────────────────────────
 ${_dfStorageGridText(v, { nodeLimit: 12 })}
+`; })()}${(() => { const v = _dfPlatformInsights(targetSystems); if (!v.withExtras) return ''; return `  PLATFORM RISK (Drives, Headroom, Upgrade Cadence)
+  ────────────────────────────────────────────────────────────────────────
+${_dfPlatformInsightsText(v, ['drives', 'headroom', 'findings'], { limit: 10 })}
 `; })()}  PRIMARY CONTACT
   ─────────────────────────────────────────────────────────────────────────────
     Primary Contact:          ${primContact}
@@ -25997,6 +26174,10 @@ ${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) ret
 --------------------------------------------------------------------------------
 ${_dfStorageGridText(v)}
 --------------------------------------------------------------------------------
+`; })()}${(() => { const v = _dfPlatformInsights(targetSystems); if (!v.withExtras) return ''; return `7d. PLATFORM INSIGHTS (Upgrade History, Drives, Headroom)
+--------------------------------------------------------------------------------
+${_dfPlatformInsightsText(v, ['history', 'drives', 'headroom', 'findings'], { limit: 12 })}
+--------------------------------------------------------------------------------
 `; })()}8. DATA PROTECTION & DR POSTURE
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
@@ -26263,6 +26444,9 @@ ${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn || !sn.volum
 ${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `  6a. STORAGEGRID DATA PROTECTION & IMMUTABILITY
   ────────────────────────────────────────────────────────────────────────
 ${_dfStorageGridText(v, { nodeLimit: 12 })}
+`; })()}${(() => { const v = _dfPlatformInsights(targetSystems); if (!v.withExtras || (!v.fileRows.length && !v.findings.length)) return ''; return `  6b. PLATFORM CURRENCY (Drive Firmware, ARP/AI and Timezone Files, Upgrade Cadence)
+  ────────────────────────────────────────────────────────────────────────
+${_dfPlatformInsightsText(v, ['files', 'history', 'findings'], { limit: 10 })}
 `; })()}  7. SECURITY ACTIONS
   ────────────────────────────────────────────────────────────────────────────
 ${(() => {
@@ -26410,7 +26594,10 @@ ${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; 
     ─────────────────────────── ────── ────── ──────── ────────
 ${perSystemLines ? perSystemLines.trimRight() : '    No data available'}
 
-  4. OPTIMIZATION RECOMMENDATIONS
+${(() => { const v = _dfPlatformInsights(targetSystems); if (!v.energyRows.length) return ''; return `  3a. POWER, HEAT & ENERGY (Active IQ telemetry, all platforms)
+  ------------------------------------------------------------------
+${_dfPlatformInsightsText(v, ['energy'], { limit: 20 })}
+`; })()}  4. OPTIMIZATION RECOMMENDATIONS
   ────────────────────────────────────────────────────────────────────────────
 ${recLines}
 
@@ -27437,7 +27624,7 @@ function compileValueReport(targetSystems, allRisks, openCases, scopeTitle) {
   const plan = _dfActionPlan(targetSystems, allRisks, openCases);
   let o = `# ${cust} -- Customer Value Report\n\n_Prepared ${new Date().toISOString().split('T')[0]} from NetApp Active IQ telemetry. One heading per slide._\n\n`;
   o += `## Slide 1 -- Executive summary\n\n- **Account health index:** ${hs}/100 (grade ${grade}) -- a composite of AutoSupport, ARP, OS currency, firmware, contracts, risks and capacity.\n- **Estate:** ${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''}.\n- **Support:** ${cf.active.length} active${cf.expired.length ? `, ${cf.expired.length} lapsed` : ''}${cf.expiring90.length ? `, ${cf.expiring90.length} expiring within 90 days` : ''}.\n- **Storage efficiency (ONTAP):** ${ph > 0 ? `${(lg / ph).toFixed(1)}:1, ${(lg - ph).toFixed(1)} TB saved` : 'not reported'}.\n- **Availability:** ${up.systemsWithEvents > 0 ? `${up.totalOutageMinutes} minutes of downtime across ${up.systemsWithEvents} system${up.systemsWithEvents !== 1 ? 's' : ''}` : 'no downtime events recorded'}.\n${sus.scorePercentage != null ? `- **Sustainability score (Active IQ):** ${sus.scorePercentage}%.\n` : ''}\n`;
-  o += `## Slide 2 -- Value delivered\n\n- Data reduction on ONTAP systems: ${ph > 0 ? `${lg.toFixed(1)} TB of logical data in ${ph.toFixed(1)} TB physical (${(lg / ph).toFixed(1)}:1).` : 'not reported by Active IQ.'}\n- Capacity: ${cap.utilPct}% fleet utilisation; ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''} within 60 days of the capacity threshold.\n- Monitoring: ${targetSystems.filter(s => { const a = s.autosupport || {}; return a.enabled === true && (a.lastReceivedDays == null || a.lastReceivedDays <= 7); }).length} of ${targetSystems.length} systems send AutoSupport data to Active IQ.\n${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : 0; return `- SAN/NAS storage: ${_dfPlural(sn.lunCount, 'LUN')} and ${_dfPlural(sn.volumeCount, 'NAS volume')} totaling ${(sn.lunUsableTB + sn.volumeTotalTB).toFixed(1)} TB provisioned, ${sn.volumeCount ? thinPct + '%' : 'N/A'} thin-provisioned.\n`; })()}\n`;
+  o += `## Slide 2 -- Value delivered\n\n${(() => { const _pv = _dfPlatformInsights(targetSystems); return _pv.energy.n ? `- Power and cooling: ${_dfPlatformInsightsSummaryLine(_pv).split(';')[0]}.\n` : ''; })()}- Data reduction on ONTAP systems: ${ph > 0 ? `${lg.toFixed(1)} TB of logical data in ${ph.toFixed(1)} TB physical (${(lg / ph).toFixed(1)}:1).` : 'not reported by Active IQ.'}\n- Capacity: ${cap.utilPct}% fleet utilisation; ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''} within 60 days of the capacity threshold.\n- Monitoring: ${targetSystems.filter(s => { const a = s.autosupport || {}; return a.enabled === true && (a.lastReceivedDays == null || a.lastReceivedDays <= 7); }).length} of ${targetSystems.length} systems send AutoSupport data to Active IQ.\n${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : 0; return `- SAN/NAS storage: ${_dfPlural(sn.lunCount, 'LUN')} and ${_dfPlural(sn.volumeCount, 'NAS volume')} totaling ${(sn.lunUsableTB + sn.volumeTotalTB).toFixed(1)} TB provisioned, ${sn.volumeCount ? thinPct + '%' : 'N/A'} thin-provisioned.\n`; })()}\n`;
   o += `## Slide 3 -- Security and planning\n\n- **Risks detected by Active IQ on your systems:** ${rk('critical')} critical, ${rk('high')} high, ${rk('medium')} medium.\n- **Published vulnerabilities (CVEs) for the software versions you run:** ${cves.length} (${cves.filter(c => c.sev === 'critical').length} critical, ${cves.filter(c => c.sev === 'high').length} high). These are counted separately from the risks above.\n- **Hardware end-of-support within 24 months:** ${_dfRefreshPlan(targetSystems).filter(r => r.days <= 730).map(r => `${r.model} (${_dfPlural(r.n, 'system')}, ${_dfDate(r.eos)})`).join('; ') || 'none reported'}.\n\n`;
   const uf = _dfCollapseFindings((allRisks || []).filter(r => ['critical', 'high'].includes(String(r.severity).toLowerCase()) && !/best.?practice/i.test(r.category || '')).map(r => ({ description: r.description, severity: r.severity, systemName: r.systemName || r.serialNumber })));
   uf.sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1) || b.systems.size - a.systems.size);
@@ -27614,6 +27801,16 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
       const _fs = _sg.findings.filter(f => f.severity !== 'info');
       o += _fs.length ? `**Findings**\n\n` + md(['Severity', 'Grid', 'Finding', 'Detail'], _fs.slice(0, 20).map(f => [f.severity, f.grid, f.title, f.detail])) : `No high or medium StorageGRID findings were identified.\n\n`;
       o += `_Source: Active IQ StorageGRID site, tenant and ILM data from AutoSupport; confirm live state in the Grid Manager._\n\n`;
+    } }
+
+  // 7c Platform insights
+  { const _pi = _dfPlatformInsights(targetSystems);
+    if (_pi.withExtras) {
+      const md = (h, rows) => `| ${h.join(' | ')} |\n|${h.map(() => '---').join('|')}|\n` + rows.map(r => `| ${r.map(c => String(c == null ? '' : c).replace(/\|/g, '/')).join(' | ')} |`).join('\n') + '\n\n';
+      o += `## 7c. Platform Insights\n\n${_dfPlatformInsightsSummaryLine(_pi)}.\n\n`;
+      if (_pi.energyRows.length) o += `**Power and heat (highest first)**\n\n` + md(['System', 'Platform', 'Power (W)', 'Basis', 'Heat (BTU/h)'], _pi.energyRows.slice().sort((a, b) => b.powerW - a.powerW).slice(0, 10).map(r => [r.system, r.family, r.powerW, r.basis, r.heatBTU]));
+      const _pf = _pi.findings.filter(f => f.severity !== 'info');
+      o += _pf.length ? `**Findings**\n\n` + md(['Severity', 'System', 'Finding', 'Detail'], _pf.slice(0, 15).map(f => [f.severity, f.system, f.title, f.detail])) : `No drive, firmware or capacity-limit findings were identified.\n\n`;
     } }
 
   // 8 Cases
@@ -27959,6 +28156,9 @@ ${t}
 `; })()}
 ${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `STORAGEGRID GRID RISK (Topology, Data Protection, Tenants)
 ${_dfStorageGridText(v)}
+`; })()}
+${(() => { const v = _dfPlatformInsights(targetSystems); if (!v.withExtras) return ''; return `PLATFORM RISK (Drive Firmware/End of Support, Capacity Headroom, Upgrade Cadence)
+${_dfPlatformInsightsText(v, ['headroom', 'findings'], { limit: 12 })}
 `; })()}
 
 ${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (IMT)
@@ -28355,6 +28555,10 @@ PRIORITISED CORRECTIVE ACTIONS
     _sgF.forEach((f, i) => {
       solutionProposals += `${_sgBase + i + 1}. [STORAGEGRID] ${f.grid}: ${f.title}. ${f.detail}\n\n`;
     });
+    const _pfSp = _dfPlatformInsights(targetSystems).findings.filter(f => f.severity !== 'info');
+    _pfSp.slice(0, 20).forEach((f, i) => {
+      solutionProposals += `${_sgBase + _sgF.length + i + 1}. [${String(f.family).toUpperCase()} PLATFORM] ${f.system}: ${f.title}. ${f.detail}\n\n`;
+    });
   }
 
   if (allUpgrades.length > 0) {
@@ -28726,6 +28930,20 @@ ${_sgUf.slice(0, 8).map(f => `  • ${f.grid}: ${f.title}`).join('\n')}
   → Multi-site ILM design review (copies / erasure coding across sites)
   → Object Lock / versioning policy for ransomware resilience
   → Capacity expansion and node refresh planning
+--------------------------------------------------------------------------------
+`;
+    } }
+
+  // Platform optimization upsell (drive firmware/EOS, capacity headroom, upgrade cadence)
+  { const _puf = _dfPlatformInsights(targetSystems).findings.filter(f => f.severity !== 'info');
+    if (_puf.length) {
+      const _kinds = {}; _puf.forEach(f => { _kinds[f.title] = (_kinds[f.title] || 0) + 1; });
+      salesProposals += `\nPLATFORM LIFECYCLE & CAPACITY [STANDARDS & ADOPTION]
+--------------------------------------------------------------------------------
+${Object.keys(_kinds).slice(0, 8).map(k => `  • ${k}: ${_dfPlural(_kinds[k], 'system')}`).join('\n')}
+  → Drive firmware and end-of-support remediation
+  → Controller / capacity expansion planning for systems near platform limits
+  → Upgrade-cadence review (systems with no recent ONTAP upgrade)
 --------------------------------------------------------------------------------
 `;
     } }
@@ -33583,6 +33801,18 @@ function generateActionPlan() {
     ${_renderStorageGridSection(targetSystems)}`;
   planBody.appendChild(sec26);
 
+  const sec27 = document.createElement('div');
+  sec27.className = 'plan-section';
+  sec27.setAttribute('data-section-index', '27');
+  sec27.style.display = 'none';
+  sec27.style.marginTop = '32px';
+  sec27.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">Platform Insights</h2>
+    </div>
+    ${_renderPlatformInsightsSection(targetSystems)}`;
+  planBody.appendChild(sec27);
+
   const sec19 = document.createElement('div');
   sec19.className = 'plan-section';
   sec19.setAttribute('data-section-index', '19');
@@ -33671,6 +33901,7 @@ function generateActionPlan() {
           <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 Firmware Currency</button>
           <button class="plan-tab-btn" data-tab-index="25" onclick="switchPlanTab(25)" title="LUN (SAN) and NAS volume inventory — counts, capacity, thin-provisioning and efficiency, with best-practice findings. Does not cover igroup-to-LUN mapping or multipathing (not available from Active IQ's API).">💾 SAN &amp; NAS Storage</button>
           ${targetSystems.some(s => _platformFamily(s) === 'storagegrid') ? `<button class="plan-tab-btn" data-tab-index="26" onclick="switchPlanTab(26)" title="StorageGRID grid topology (sites, node roles, appliances), tenants and buckets (versioning, object lock), and ILM data-protection rules, with findings.">&#9638; StorageGRID</button>` : ''}
+          <button class="plan-tab-btn" data-tab-index="27" onclick="switchPlanTab(27)" title="Cross-platform telemetry for ONTAP, E-Series and StorageGRID: power and heat, drive inventory and firmware currency, ONTAP upgrade history, hardware expansion headroom, E-Series NVSRAM, ARP/AI and timezone files.">&#9889; Platform Insights</button>
           <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ Performance</button>
           <button class="plan-tab-btn" data-tab-index="21" onclick="switchPlanTab(21)" title="Fleet-wide VMware/vSphere inventory -- every registered vCenter, its version, attached systems and customers, cross-referenced against the NetApp IMT for compatibility findings. Previously vcenters only rendered per-system in the As-Built Document.">🖥 VMware Inventory</button>
         </div>
@@ -38819,6 +39050,16 @@ async function importTrackerItemsFromScope() {
       });
     });
   });
+  _dfPlatformInsights(systems).findings.filter(f => f.severity !== 'info').forEach(f => {
+    const sy = systems.find(x => (x.systemName || x.serialNumber) === f.system); if (!sy) return;
+    const title = `${f.family}: ${f.title} — ${f.system}`;
+    items.push({
+      itemKey: _trackerItemKey('platform', sy.serialNumber, title),
+      accountId: sy.accountId || '', customerName: sy.customerName || sy.accountLabel || '',
+      systemSerial: sy.serialNumber || '', systemName: sy.systemName || '',
+      sourceType: 'platform', severity: f.severity, title, detail: f.detail
+    });
+  });
   const mcClustersSeen = new Set();
   systems.forEach(s => {
     if (s.isMetroCluster) {
@@ -41195,6 +41436,10 @@ function _storageGridHtml(view) {
       html += `<div style="overflow-x:auto;margin-top:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Node</th><th style="${th}">Role</th><th style="${th}">Appliance</th><th style="${th}">RAID</th><th style="${th}">Drives</th><th style="${th}">Version</th></tr></thead><tbody>` +
         g.nodes.map(n => `<tr><td style="${td}">${esc(n.site)}</td><td style="${td}">${esc(n.hostName)}${g.primaryAdmin && n.hostName === g.primaryAdmin ? ' <span style="color:var(--accent-cyan);font-size:0.68rem;">primary</span>' : ''}</td><td style="${td}">${esc(n.storageNodeType || '—')}</td><td style="${td}">${esc([n.applianceModel, n.applianceType].filter(Boolean).join(' ') || '—')}</td><td style="${td}">${esc(n.raidMode || '—')}</td><td style="${td}">${n.driveType ? esc(n.driveType) + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : '—'}</td><td style="${td}">${esc(n.osVersion || '—')}</td></tr>`).join('') + `</tbody></table></div>`;
     } else html += `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:8px;">Active IQ did not return per-node detail for this grid.</div>`;
+    if (g.siteCap.length) {
+      html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">Site capacity (TB)</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Total</th><th style="${th}">Used</th><th style="${th}">Usable left</th><th style="${th}">Used %</th><th style="${th}">Reported</th></tr></thead><tbody>` +
+        g.siteCap.map(sc => `<tr><td style="${td}">${esc(sc.site)}</td><td style="${td}">${sc.totalTB}</td><td style="${td}">${sc.usedTB}</td><td style="${td}">${sc.usableLeftTB}</td><td style="${td}">${sc.usedPct != null ? sc.usedPct + '%' : '—'}</td><td style="${td}">${esc(sc.reportedOn || '—')}</td></tr>`).join('') + `</tbody></table></div>`;
+    }
     if (g.rules.length) {
       html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">ILM rules</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Rule</th><th style="${th}">Default</th><th style="${th}">Placement</th><th style="${th}">Reference</th><th style="${th}">Ingest</th><th style="${th}">Applies to</th></tr></thead><tbody>` +
         g.rules.map(r => `<tr><td style="${td}font-weight:600;">${esc(r.ruleName)}</td><td style="${td}">${r.isDefaultRule ? 'Yes' : 'No'}</td><td style="${td}">${esc(r._p.text)}</td><td style="${td}">${esc(r.referenceTime || '—')}</td><td style="${td}">${esc(r.ingestBehavior || '—')}</td><td style="${td}">${r.filter ? esc(r.filter) : 'All objects'}</td></tr>`).join('') + `</tbody></table></div>`;
