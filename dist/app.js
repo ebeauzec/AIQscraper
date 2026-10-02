@@ -27,7 +27,7 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.191";
+const APP_VERSION = "5.6.205";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
   {
@@ -5112,6 +5112,7 @@ const APP_CHANGELOG = [
     ]
   }
 ];
+if (APP_CHANGELOG[0] && APP_CHANGELOG[0].version !== APP_VERSION) console.warn('[ARIA] APP_VERSION (' + APP_VERSION + ') does not match the latest APP_CHANGELOG entry (' + APP_CHANGELOG[0].version + ')');
 
 
 // 1. Mock Data Definitions (ONTAP, StorageGRID, CVO, MetroCluster, SnapMirror, Hypervisors, Logistics, Contacts, Sales Health, Capacity Projections, Security Bulletins, Support Cases)

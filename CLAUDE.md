@@ -50,7 +50,8 @@ sub-fields, non-existent `tamNotes`) so Success Plans silently never loaded; now
 **Confirmed genuine API limits (do not re-investigate):** E-Series (SantricitySystem) and StorageGRID nodes have no controller/port/WWPN fields; no
 parts-logistics hub/depot status (only RMAPart); ILM time periods are days; `energyConsumptionMetrics` is per concrete type (not on `System`); E-Series
 reports actual power 0 (projected only). StorageGRID per-node risks: node systems are not listed separately with includeStorageGridNodes (same count), so
-risks are on the grid system. Restart the server + `/api/harvest?force=1` to see any of this from a real harvest. Success Plan mutations were also broken
+risks are on the grid system. Restart the server + `/api/harvest?force=1` to see any of this from a real harvest.
+**Release rule:** bump `APP_VERSION` (app.js line ~30) together with version.json and the top APP_CHANGELOG entry. It was stuck at 5.6.191 through v5.6.205 (nav footer showed the wrong version); fixed, and a console warning now fires if they diverge. Success Plan mutations were also broken
 (sent non-existent `tamNotes`; real input field is `notes: [{message}]`) and are fixed -- NOT exercised live (writes to the customer account).
 
 
