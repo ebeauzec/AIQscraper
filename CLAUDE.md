@@ -22,10 +22,28 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-09-30/10-01 (Windows dev station, v5.6.191 -> v5.6.202)
+## Session handoff -- 2026-09-30/10-02 (Windows dev station, v5.6.191 -> v5.6.203)
 
 Eleven threads this session (spanning midnight into 2026-10-01); the first ten were all triggered by
 screenshots of generated deliverables, the last one wasn't.
+
+**25. Full StorageGRID awareness (shipped, v5.6.203).** User asked whether Active IQ exposes StorageGRID grid
+topology, nodes, roles, ILM rules; then "ARIA needs to be fully storagegrid aware". Live schema introspection:
+`StorageGrid.gridSites{nodes}`, `.tenants{buckets}`, `.ILMDetails{rules{...placements{storagePool{name sitesAndGrades}}}}`
+all exist and are populated on the real fleet (2 grids found in the first 300 systems: UWC_SG_1, NETAPP_SG; bucketName came back
+null in samples). Replicated placement `schema` = copy count ("2"), Erasure `schema` = EC scheme. Harvest: fields added to the
+`... on StorageGrid` fragment of `ESERIES_CAP_FIELDS` in server.py (tested live with the exact fragment, fits the field limit),
+merged by serial into `s["gTopology"]`, output as `storagegridTopology`, carried through `enrichSystemTelemetry`
+(round-trip tested). app.js: `_dfSgRulePlacements`, `_dfStorageGridView` (grids + findings), `_dfStorageGridSummaryLine`,
+`_dfStorageGridText` (right after `_dfSystemIssueRankingText`); GUI `renderStorageGridStatus`/`_storageGridHtml`/
+`_renderStorageGridSection` (card `tamStorageGridCard` in both HTML files; Action Planner tab index 26); demo data in the
+`fam === 'storagegrid'` branch of `_demoHydrateSystem`; tracker import items (`sourceType: 'storagegrid'`). Deliverables: TAM Success
+Plan, QBR, Exec Risk Assessment, Handover 7c, MSP 7a, Risk & Remediation, Security Brief 6a, Customer Report 7b (markdown),
+Solution/Sales proposals (findings). NOT added: Sustainability, Value, Problem-statement-style docs beyond Exec Risk. Verified by
+injecting real-shaped topology into a real StorageGRID system in the loaded fleet: all deliverables render it, `_dxParse` yields 5
+real tables per doc, Action Planner tab and Technical Audit card render via real clicks/DOM. **The running dev server's cached
+harvest has no topology until a server restart + `/api/harvest?force=1`**; findings are heuristics (e.g. "single-site grid" is high
+severity by design) and should be sanity-checked against a real grid with the user. `time period start/end` units are not shown.
 
 **24. Real performance regression: unbounded DOM growth in the Overview "Needs Attention" card (shipped,
 v5.6.202).** User, NOT from a screenshot this time: "since the last few commits i'm noticing a clear delay
@@ -423,7 +441,7 @@ two synthetic systems (Nexus-only, MDS-only) each produce exactly one finding, f
 none for the other. Only `cisco_nxos`/`cisco_mds` shared a signal -- checked, no other integration in the
 matrix does.
 
-**Git:** branch `main`. v5.6.192 through v5.6.202 each committed individually after this session's work
+**Git:** branch `main`. v5.6.192 through v5.6.203 each committed individually after this session's work
 (app.js, CHANGELOG.md, version.json, CLAUDE.md, and the synced `dist/app.js` +
 `dist/NetApp_AIQ_Advisor/_internal/app.js` + `.exe` each time; v5.6.197 and v5.6.198 also synced
 `dist/NetApp_AIQ_Advisor/_internal/server.py` since both touched the harvester (v5.6.199 through v5.6.202 were

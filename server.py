@@ -1757,6 +1757,10 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                   }
                   ... on StorageGrid {
                     gridId gridName installedNodeCount licenseCapacity
+                    primaryAdminNodeName primaryAdminNodeSiteName licenseType softwareSupportTermEndDate
+                    gridSites { name nodes { hostName serialNumber storageNodeType applianceType applianceModel raidMode driveType driveSizeGB osVersion } }
+                    tenants { tenantId buckets { bucketId bucketName isLegacyComplianceEnabled isS3ObjectLockingEnabled isCorsEnabled isNotificationsEnabled isCloudMirror isSearchEnabled isBucketTaggingEnabled versioning } }
+                    ILMDetails { rules { ruleName filter isDefaultRule referenceTime ingestBehavior timePeriodsAndPlacements { start end placements { schema placementType storagePool { name sitesAndGrades { siteName grades } } } } } }
                     gridCapacity {
                       reportedOn
                       configured { usableKiB usedDataKiB usedMetadataKiB reservedMetadataKiB }
@@ -2051,11 +2055,30 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         try:
             _ecap_by_serial = {}
             _gcap_by_serial = {}
+            _gtopo_by_serial = {}
             for _ecap_scope in (list(watchlist_ids) if watchlist_ids else [None]):
                 _ecap_rows, _ = _fetch_systems_for_scope(ESERIES_CAP_FIELDS, _ecap_scope)
                 for _r in _ecap_rows:
                     if _r.get("eCapacity"):
                         _ecap_by_serial[_r.get("serialNumber")] = _r["eCapacity"]
+                    if _r.get("gridId") or _r.get("gridSites") or _r.get("tenants") or _r.get("ILMDetails"):
+                        # StorageGRID topology / tenants / buckets / ILM (confirmed live:
+                        # StorageGrid.gridSites, .tenants, .ILMDetails). Carried by the grid's
+                        # own system object (admin-node serial), same as capacity.
+                        _ilm_rules = []
+                        for _ild in (_r.get("ILMDetails") or []):
+                            _ilm_rules.extend((_ild or {}).get("rules") or [])
+                        _gtopo_by_serial[_r.get("serialNumber")] = {
+                            "gridId": _r.get("gridId"), "gridName": _r.get("gridName"),
+                            "primaryAdminNodeName": _r.get("primaryAdminNodeName"),
+                            "primaryAdminNodeSiteName": _r.get("primaryAdminNodeSiteName"),
+                            "licenseType": _r.get("licenseType"), "licenseCapacity": _r.get("licenseCapacity"),
+                            "softwareSupportTermEndDate": _r.get("softwareSupportTermEndDate"),
+                            "installedNodeCount": _r.get("installedNodeCount"),
+                            "sites": _r.get("gridSites") or [],
+                            "tenants": _r.get("tenants") or [],
+                            "ilmRules": _ilm_rules,
+                        }
                     if _r.get("gridCapacity"):
                         _gcap_by_serial[_r.get("serialNumber")] = {
                             "gridId": _r.get("gridId"), "gridName": _r.get("gridName"),
@@ -2069,6 +2092,9 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 if _ec:
                     _s["eCapacity"] = _ec
                     _ecap_hits += 1
+                _gt = _gtopo_by_serial.get(_s.get("serialNumber"))
+                if _gt:
+                    _s["gTopology"] = _gt
                 _gc = _gcap_by_serial.get(_s.get("serialNumber"))
                 if _gc:
                     _s["gCapacity"] = _gc
@@ -3847,6 +3873,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 # ── Capacity ──
                 "eseriesCapacity": _eseries_capacity,
                 "storagegridCapacity": _storagegrid_capacity,
+                "storagegridTopology": s.get("gTopology") or None,
                 "capacityAllocatedKB": 0,
                 "capacityUsedKB": round(_used_kib),
                 "capacityAvailableKB": round(max(0, _usbl_kib - _used_kib)),

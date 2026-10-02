@@ -31,6 +31,23 @@ const APP_VERSION = "5.6.191";
 
 const APP_CHANGELOG = [
   {
+    version: "5.6.203",
+    date: "2 October 2026",
+    title: "New: Full StorageGRID Awareness (Topology, Tenants, ILM)",
+    sections: [
+      {
+        icon: "🧱",
+        label: "New -- StorageGRID Topology, Tenants & ILM",
+        color: "#22c55e",
+        items: [
+          "Active IQ exposes much more about StorageGRID than ARIA used: grid sites and nodes (role, appliance model, RAID mode, drive type/size, software version), tenants and their buckets (versioning, S3 Object Lock, legacy compliance, CloudMirror), and the grid's ILM rules (placements, storage pools and the sites they cover, ingest behaviour, which tenant accounts a rule applies to). ARIA harvested only capacity before. All of it is now harvested (confirmed live against real grids, within Active IQ's field-count limit) and analysed.",
+          "Findings: single-site grid, no default ILM rule, default rule keeping one copy, single-copy rules, multi-site grid with no cross-site rule, buckets without versioning, no bucket with object lock/compliance, mixed node software versions, fewer than 3 storage nodes, software support term ended/ending, capacity above 70%/85%.",
+          "New StorageGRID card on the Technical Audit tab and a new StorageGRID tab in the Action Planner (shown when the scope has StorageGRID systems). New sections in the TAM Success Plan, QBR Pack, Executive Risk Assessment, Account Handover Brief, MSP Service Report, Risk & Remediation Brief, Security Posture Brief and the Customer Health Report; StorageGRID findings also feed the Technical Solution Proposal, the Sales Proposal and the Remediation Tracker import. All tables are real tables in the Word exports.",
+        ],
+      },
+    ],
+  },
+  {
     version: "5.6.202",
     date: "1 October 2026",
     title: "Fixed: Overview Tab Was Rebuilding Hundreds of Extra DOM Nodes Every Visit",
@@ -9225,6 +9242,22 @@ function _demoHydrateSystem(s, ctx) {
       remainingTB: +Math.max(0, total - used - meta - resv).toFixed(3), usedPct: total ? +((used / total) * 100).toFixed(1) : 0,
       qoqPct: s.clusterQoQUtilPct != null ? s.clusterQoQUtilPct : null, yoyPct: s.clusterYoYUtilPct != null ? s.clusterYoYUtilPct : null, reportedOn: _demoIso(now - 5 * _demoDay) };
     eff.ratio = 'N/A'; eff.dataReductionRatio = 1; eff.spaceSavedTB = 0; eff._storagegridCapacity = true;
+    {
+      const twoSite = gridN % 2 === 0, nSt = Math.max(3, Math.floor((4 + (gridN % 6) * 2) / (twoSite ? 2 : 1)) - 1);
+      const mkNodes = (pfx, site) => [{ hostName: pfx + '-ADM01', serialNumber: '', storageNodeType: 'Primary Admin', osVersion: ver }, { hostName: pfx + '-GW01', serialNumber: '', storageNodeType: 'Gateway', osVersion: ver }]
+        .concat(Array.from({ length: nSt }, (_, i) => ({ hostName: pfx + '-ST0' + (i + 1), serialNumber: '', storageNodeType: 'Storage', applianceType: 'Storage Appliance', applianceModel: 'SG5760', raidMode: 'DDP16', driveType: 'NL-SAS HDD', driveSizeGB: 7866, osVersion: ver })));
+      const sites = twoSite ? [{ name: 'DC-A', nodes: mkNodes('DCA') }, { name: 'DC-B', nodes: mkNodes('DCB').slice(1) }] : [{ name: 'DC-A', nodes: mkNodes('DCA') }];
+      const pool = n => ({ name: n, sitesAndGrades: [{ siteName: n === 'All Sites' ? 'DC-A' : n, grades: ['Storage'] }].concat(n === 'All Sites' && twoSite ? [{ siteName: 'DC-B', grades: ['Storage'] }] : []) });
+      out.storagegridTopology = {
+        gridId: String(120000 + gridN), gridName: 'Demo Grid ' + gridN, primaryAdminNodeName: 'DCA-ADM01', primaryAdminNodeSiteName: 'DC-A',
+        licenseType: 'SG-WHITEBOX-TB', licenseCapacity: String(Math.round(total * 1.05)), softwareSupportTermEndDate: _demoIso(now + 400 * _demoDay), installedNodeCount: sites.reduce((a, x) => a + x.nodes.length, 0),
+        sites,
+        tenants: [{ tenantId: '1100' + gridN, buckets: [{ bucketId: 'b1', bucketName: 'backups', versioning: gridN % 3 === 0 ? 'ENABLED' : 'DISABLED', isS3ObjectLockingEnabled: gridN % 3 === 0 }, { bucketId: 'b2', bucketName: 'archive', versioning: 'DISABLED', isS3ObjectLockingEnabled: false, isCloudMirror: gridN % 4 === 0 }] }, { tenantId: '2200' + gridN, buckets: [{ bucketId: 'b3', bucketName: 'media', versioning: 'ENABLED', isS3ObjectLockingEnabled: false }] }],
+        ilmRules: twoSite
+          ? [{ ruleName: 'Make 2 copies across 2 sites', filter: null, isDefaultRule: true, referenceTime: 'INGEST_TIME', ingestBehavior: 'Balanced', timePeriodsAndPlacements: [{ start: 0, end: null, placements: [{ schema: '1', placementType: 'Replicated', storagePool: [pool('DC-A')] }, { schema: '1', placementType: 'Replicated', storagePool: [pool('DC-B')] }] }] }, { ruleName: 'Scratch - 1 copy DC-A', filter: '{ACCT equals 1100' + gridN + '}', isDefaultRule: false, referenceTime: 'INGEST_TIME', ingestBehavior: 'Balanced', timePeriodsAndPlacements: [{ start: 0, end: null, placements: [{ schema: '1', placementType: 'Replicated', storagePool: [pool('DC-A')] }] }] }]
+          : [{ ruleName: 'Make 2 Copies', filter: null, isDefaultRule: true, referenceTime: 'INGEST_TIME', ingestBehavior: 'Balanced', timePeriodsAndPlacements: [{ start: 0, end: null, placements: [{ schema: '2', placementType: 'Replicated', storagePool: [pool('DC-A')] }] }] }]
+      };
+    }
     eff.platformNote = 'StorageGRID — capacity is for the whole grid (not just this node), from AutoSupport. Object storage has no data-reduction ratio.';
   }
   if (out.isFabricPool && fam === 'ontap' && !eff.fabricPoolTieredTB) eff.fabricPoolTieredTB = +((eff.physicalUsedTB || 0) * (0.08 + rng() * 0.18)).toFixed(1);
@@ -15174,6 +15207,14 @@ function renderTAMTab() {
     }
   }
 
+  // StorageGRID card: shown when any selected system is a grid with harvested topology.
+  const sgCard = document.getElementById("tamStorageGridCard");
+  if (sgCard) {
+    const sgView = _dfStorageGridView(selectedSystems);
+    if (sgView.grids.length > 0) { sgCard.style.display = "block"; renderStorageGridStatus(sgView); }
+    else sgCard.style.display = "none";
+  }
+
   if (selectedSystems.length > 0) {
     if (visualCard) {
       visualCard.style.display = "block";
@@ -19529,6 +19570,108 @@ function _dfSystemIssueRankingText(systems, limit) {
   return table + (rows.length > lim ? `\n  +${rows.length - lim} more system${rows.length - lim !== 1 ? 's' : ''} with at least one issue` : '');
 }
 
+// ── StorageGRID awareness ───────────────────────────────────────────────────
+// Active IQ exposes, per grid (StorageGrid, carried by the admin-node system):
+// gridSites -> nodes (role/appliance/RAID/drives/OS), tenants -> buckets
+// (versioning, object lock, ...), ILMDetails.rules (placements, ingest
+// behaviour, pools). Harvested in server.py (ESERIES_CAP_FIELDS merge) as
+// storagegridTopology. Everything below derives from that one object, so the
+// GUI card and every deliverable agree.
+function _dfSgRulePlacements(rule) {
+  // Returns { copies, ec, sites:Set, text } across a rule's placements. For a
+  // Replicated placement Active IQ's `schema` is the copy count ("2"); for
+  // Erasure it is the EC scheme ("4+2"). Site coverage comes from the
+  // placement's storage pool(s); if pools carry no site info, sites stays empty.
+  const sites = new Set(); let copies = 0; const ec = []; const parts = [];
+  ((rule && rule.timePeriodsAndPlacements) || []).forEach(tp => {
+    (tp.placements || []).forEach(pl => {
+      const pools = (pl.storagePool || []).map(p => p && p.name).filter(Boolean);
+      (pl.storagePool || []).forEach(p => ((p && p.sitesAndGrades) || []).forEach(sg => sg && sg.siteName && sites.add(sg.siteName)));
+      const poolTxt = pools.length ? ` @ ${pools.join(', ')}` : '';
+      if (String(pl.placementType).toLowerCase() === 'erasure') { ec.push(pl.schema); parts.push(`EC ${pl.schema}${poolTxt}`); }
+      else { const n = parseInt(pl.schema, 10); const c = isNaN(n) ? 1 : n; copies += c; parts.push(`${c} cop${c === 1 ? 'y' : 'ies'}${poolTxt}`); }
+    });
+  });
+  return { copies, ec, sites, text: parts.join(' + ') || '—' };
+}
+function _dfStorageGridView(systems) {
+  const grids = []; let sgSystems = 0;
+  (systems || []).forEach(s => {
+    if (_platformFamily(s) !== 'storagegrid') return;
+    sgSystems++;
+    const t = s.storagegridTopology; if (!t) return;
+    const sites = (t.sites || []).map(x => ({ name: x.name || '—', nodes: x.nodes || [] }));
+    const nodes = []; sites.forEach(x => x.nodes.forEach(n => nodes.push({ ...n, site: x.name })));
+    const tenants = t.tenants || [];
+    const buckets = []; tenants.forEach(tn => (tn.buckets || []).forEach(b => buckets.push({ ...b, tenantId: tn.tenantId })));
+    const rules = (t.ilmRules || []).map(r => ({ ...r, _p: _dfSgRulePlacements(r) }));
+    const cap = s.storagegridCapacity || null;
+    const storageNodes = nodes.filter(n => /storage/i.test(String(n.storageNodeType || '')));
+    const g = {
+      system: s, systemName: s.systemName || t.primaryAdminNodeName || s.serialNumber, customerName: s.customerName || '',
+      gridName: t.gridName || s.systemName, gridId: t.gridId, sites, nodes, storageNodes, tenants, buckets, rules, cap,
+      installedNodeCount: t.installedNodeCount, licenseType: t.licenseType, licenseCapacity: t.licenseCapacity,
+      supportEnd: t.softwareSupportTermEndDate ? String(t.softwareSupportTermEndDate).slice(0, 10) : '',
+      primaryAdmin: t.primaryAdminNodeName, primaryAdminSite: t.primaryAdminNodeSiteName,
+      version: s.sgVersion || s.ontapVersion || s.osVersion || '',
+      findings: []
+    };
+    const add = (severity, title, detail) => g.findings.push({ severity, title, detail });
+    if (g.sites.length === 1) add('high', 'Single-site grid', `All nodes are in one site (${g.sites[0].name}); there is no site-level fault tolerance, so a site loss is a grid loss. Multi-site grids need a second site and ILM rules that place copies in it.`);
+    if (g.sites.length === 0 && g.installedNodeCount) add('info', 'Node topology not reported', `Active IQ reports ${g.installedNodeCount} installed nodes but no per-site node detail for this grid.`);
+    else if (g.installedNodeCount && g.nodes.length && g.nodes.length < g.installedNodeCount) add('info', 'Partial node inventory', `Active IQ lists ${g.nodes.length} of ${g.installedNodeCount} installed nodes with detail.`);
+    if (g.rules.length === 0) add('medium', 'No ILM rules reported', 'Active IQ returned no ILM rules for this grid, so data protection (copies / erasure coding) cannot be confirmed from AutoSupport.');
+    else {
+      const def = g.rules.filter(r => r.isDefaultRule);
+      if (!def.length) add('high', 'No default ILM rule', 'No rule is flagged as the default; objects not matched by any rule have no defined placement.');
+      def.forEach(r => { if (!r._p.ec.length && r._p.copies <= 1) add('high', 'Default ILM rule keeps a single copy', `Rule "${r.ruleName}" is the default and stores 1 copy; a single node/drive failure can lose data.`); });
+      g.rules.filter(r => !r.isDefaultRule && !r._p.ec.length && r._p.copies === 1).forEach(r => add('medium', 'Single-copy ILM rule', `Rule "${r.ruleName}" stores 1 copy${r._p.sites.size ? ' (' + [...r._p.sites].join(', ') + ' only)' : ''}; acceptable only for data that is reproducible or protected elsewhere.`));
+      if (g.sites.length > 1 && g.rules.every(r => r._p.sites.size > 0 && r._p.sites.size < 2))
+        add('medium', 'No ILM rule spans sites', 'The grid has multiple sites but every rule places data in a single site.');
+    }
+    if (g.buckets.length) {
+      const noVer = g.buckets.filter(b => String(b.versioning || '').toUpperCase() !== 'ENABLED').length;
+      const noLock = g.buckets.filter(b => !b.isS3ObjectLockingEnabled && !b.isLegacyComplianceEnabled).length;
+      if (noVer) add('medium', 'Buckets without versioning', `${noVer} of ${g.buckets.length} buckets do not have versioning enabled; overwritten or deleted objects cannot be recovered.`);
+      if (noLock === g.buckets.length) add('medium', 'No immutability on any bucket', `None of the ${g.buckets.length} buckets use S3 Object Lock or legacy compliance, so none are protected against ransomware-style deletion or overwrite.`);
+      const cm = g.buckets.filter(b => b.isCloudMirror).length;
+      if (cm) add('info', 'Cloud mirror buckets', `${cm} bucket${cm !== 1 ? 's' : ''} replicate to an external S3 target (CloudMirror); confirm the destination and credentials are still valid.`);
+    }
+    if (g.storageNodes.length && g.storageNodes.length < 3) add('medium', 'Fewer than 3 storage nodes', `Only ${g.storageNodes.length} storage node${g.storageNodes.length !== 1 ? 's' : ''} enumerated; durability options and rebuild headroom are limited.`);
+    const vers = [...new Set(g.nodes.map(n => n.osVersion).filter(Boolean))];
+    if (vers.length > 1) add('medium', 'Mixed node software versions', `Nodes report ${vers.length} different versions (${vers.join(', ')}); finish the upgrade so the grid runs one version.`);
+    if (g.supportEnd) { const d = Math.round((new Date(g.supportEnd) - Date.now()) / 86400000); if (!isNaN(d)) { if (d < 0) add('high', 'Software support term ended', `Software support term ended ${g.supportEnd}.`); else if (d < 180) add('medium', 'Software support term ending', `Software support term ends ${g.supportEnd} (${d} days).`); } }
+    if (g.cap && g.cap.usedPct != null) { if (g.cap.usedPct >= 85) add('high', 'Grid capacity above 85%', `Grid is ${g.cap.usedPct}% full; plan expansion.`); else if (g.cap.usedPct >= 70) add('medium', 'Grid capacity above 70%', `Grid is ${g.cap.usedPct}% full.`); }
+    grids.push(g);
+  });
+  const findings = []; grids.forEach(g => g.findings.forEach(f => findings.push({ ...f, grid: g.gridName, customer: g.customerName })));
+  const order = { high: 0, medium: 1, info: 2 }; findings.sort((a, b) => order[a.severity] - order[b.severity]);
+  const sum = k => grids.reduce((a, g) => a + g[k].length, 0);
+  return { grids, sgSystems, findings, totals: { sites: sum('sites'), nodes: sum('nodes'), tenants: sum('tenants'), buckets: sum('buckets'), rules: sum('rules') } };
+}
+function _dfStorageGridSummaryLine(v) {
+  if (!v || !v.grids.length) return '';
+  const hi = v.findings.filter(f => f.severity === 'high').length, md = v.findings.filter(f => f.severity === 'medium').length;
+  return `${_dfPlural(v.grids.length, 'StorageGRID grid')} across ${_dfPlural(v.totals.sites, 'site')} and ${_dfPlural(v.totals.nodes, 'node')}; ${_dfPlural(v.totals.tenants, 'tenant')} with ${_dfPlural(v.totals.buckets, 'bucket')}; ${_dfPlural(v.totals.rules, 'ILM rule')}. ${hi} high and ${md} medium finding${md !== 1 ? 's' : ''}`;
+}
+// Full plain-text section body (tables via _dfTable so it parses as real tables in Word exports).
+function _dfStorageGridText(v, opts) {
+  if (!v || !v.grids.length) return '';
+  opts = opts || {}; const lim = opts.nodeLimit || 40;
+  let o = `  ${_dfStorageGridSummaryLine(v)}.\n\n  Grid Inventory\n` +
+    _dfTable(['Grid', 'Customer', 'Version', 'Sites', 'Nodes', 'Tenants', 'Buckets', 'ILM Rules', 'Used %', 'Support Ends'],
+      v.grids.map(g => [g.gridName, g.customerName || '—', g.version || '—', g.sites.length || '—', g.nodes.length ? g.nodes.length + (g.installedNodeCount && g.installedNodeCount !== g.nodes.length ? '/' + g.installedNodeCount : '') : (g.installedNodeCount || '—'), g.tenants.length, g.buckets.length, g.rules.length, g.cap && g.cap.usedPct != null ? g.cap.usedPct : '—', g.supportEnd || '—'])) + '\n';
+  const nodeRows = []; v.grids.forEach(g => g.nodes.forEach(n => nodeRows.push([g.gridName, n.site, n.hostName || '—', n.storageNodeType || '—', [n.applianceModel, n.applianceType].filter(Boolean).join(' ') || '—', n.raidMode || '—', n.driveType ? `${n.driveType}${n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : ''}` : '—', n.osVersion || '—'])));
+  if (nodeRows.length) o += `\n  Node Roster (site, role, appliance)\n` + _dfTable(['Grid', 'Site', 'Node', 'Role', 'Appliance', 'RAID', 'Drives', 'Version'], nodeRows.slice(0, lim)) + (nodeRows.length > lim ? `\n  +${nodeRows.length - lim} more nodes` : '') + '\n';
+  const ruleRows = []; v.grids.forEach(g => g.rules.forEach(r => ruleRows.push([g.gridName, r.ruleName, r.isDefaultRule ? 'Yes' : 'No', r._p.text, r.referenceTime || '—', r.ingestBehavior || '—', r.filter ? (r.filter.length > 48 ? r.filter.slice(0, 45) + '...' : r.filter) : 'All objects'])));
+  if (ruleRows.length) o += `\n  ILM Rules (data protection policy)\n` + _dfTable(['Grid', 'Rule', 'Default', 'Placement', 'Reference Time', 'Ingest', 'Applies To'], ruleRows) + '\n';
+  const tenRows = []; v.grids.forEach(g => g.tenants.forEach(tn => { const b = tn.buckets || []; tenRows.push([g.gridName, tn.tenantId, b.length, b.filter(x => String(x.versioning || '').toUpperCase() === 'ENABLED').length, b.filter(x => x.isS3ObjectLockingEnabled || x.isLegacyComplianceEnabled).length, b.filter(x => x.isCloudMirror).length]); }));
+  if (tenRows.length) o += `\n  Tenants & Buckets\n` + _dfTable(['Grid', 'Tenant ID', 'Buckets', 'Versioned', 'Immutable', 'CloudMirror'], tenRows.slice(0, lim)) + (tenRows.length > lim ? `\n  +${tenRows.length - lim} more tenants` : '') + '\n';
+  const fs = v.findings.filter(f => f.severity !== 'info');
+  o += fs.length ? `\n  StorageGRID Findings\n` + _dfTable(['Severity', 'Grid', 'Finding', 'Detail'], fs.slice(0, 30).map(f => [f.severity.toUpperCase(), f.grid, f.title, f.detail])) + (fs.length > 30 ? `\n  +${fs.length - 30} more findings` : '') + '\n' : `\n  No high or medium StorageGRID findings.\n`;
+  return o;
+}
+
 // One CVE inventory for every document. Advisory feeds also carry KB articles and vendor bug
 // ids (KB-..., CONTAP-...) that are not CVEs; counting them inflated "unique CVEs" (89 vs 57
 // critical/high + the rest). A bulletin that lists several CVEs contributes each of them.
@@ -21280,6 +21423,8 @@ function enrichSystemTelemetry(s) {
     eseriesCapacity:   s.eseriesCapacity || null,
     // ── StorageGRID: per-grid capacity (StorageGrid.gridCapacity) ──
     storagegridCapacity: s.storagegridCapacity || null,
+    // ── StorageGRID topology: sites/nodes, tenants/buckets, ILM rules (StorageGrid.gridSites/tenants/ILMDetails) ──
+    storagegridTopology: s.storagegridTopology || null,
     // ── As-Built: Extended Capacity & Efficiency Metrics ──
     clusterCapacityReportedOn: s.clusterCapacityReportedOn || '',
     clusterCapacityUtilPct:    s.clusterCapacityUtilPct,
@@ -24271,6 +24416,9 @@ ${(() => { const hs = _dfSystemHealthScores(targetSystems); if (!hs) return ''; 
 
 * SYSTEMS RANKED BY ISSUE SEVERITY (Worst First):
 ${(() => { const t = _dfSystemIssueRankingText(targetSystems); return t || '  No system in scope currently has an open critical/high risk, critical/high CVE, or open support case.'; })()}
+${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `
+* STORAGEGRID GRID TOPOLOGY, TENANTS & ILM:
+${_dfStorageGridText(v)}`; })()}
 
 ${compileSvmLifSummaryText(targetSystems)}
 
@@ -24607,7 +24755,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     ? `  Per-System Health Scores: ${_sysHs.coverage}/${_sysHs.total} systems reporting a score, average ${_sysHs.avg}/100. Lowest: ${_sysHs.worst.map(r => `${r.systemName} (${r.score})`).join(', ')}\n`
     : '') + (_sysRankText
     ? `  Systems Ranked by Issue Severity (worst first):\n${_sysRankText}\n`
-    : '');
+    : '') + (() => { const v = _dfStorageGridView(targetSystems); return v.grids.length ? `  StorageGRID (object storage):\n${_dfStorageGridText(v, { nodeLimit: 12 })}\n` : ''; })();
 
   // ── Risks ──
   const critCount = allRisks.filter(r => r.severity === 'critical').length;
@@ -25253,7 +25401,11 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount ==
   RPO Lag Warnings:       ${dr.rpoText}`; })()}
 
 ${compilePerformanceText(targetSystems)}--------------------------------------------------------------------------------
-8. SVM & NETWORK HEALTH [RISK EXPOSURE]
+${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `7a. STORAGEGRID OBJECT STORAGE [RISK EXPOSURE]
+--------------------------------------------------------------------------------
+${_dfStorageGridText(v, { nodeLimit: 20 })}
+--------------------------------------------------------------------------------
+`; })()}8. SVM & NETWORK HEALTH [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${compileSvmLifSummaryText(targetSystems)}
 --------------------------------------------------------------------------------
@@ -25532,7 +25684,10 @@ ${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn || !sn.findi
     ─────────────────────────────────────────────────────────────────────────
 ${coiText}
 
-  PRIMARY CONTACT
+${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `  STORAGEGRID GRID RISK (Topology, Data Protection, Tenants)
+  ────────────────────────────────────────────────────────────────────────
+${_dfStorageGridText(v, { nodeLimit: 12 })}
+`; })()}  PRIMARY CONTACT
   ─────────────────────────────────────────────────────────────────────────────
     Primary Contact:          ${primContact}
     Email:                    ${email}
@@ -25838,7 +25993,11 @@ ${_dfSystemHealthScoreWorstTable(hs)}`; })()}
 ${(() => { const t = _dfSystemIssueRankingText(targetSystems); return t || '  No system in scope currently has an open critical/high risk, critical/high CVE, or open support case.'; })()}
 
 --------------------------------------------------------------------------------
-8. DATA PROTECTION & DR POSTURE
+${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `7c. STORAGEGRID GRIDS (Topology, Tenants, ILM)
+--------------------------------------------------------------------------------
+${_dfStorageGridText(v)}
+--------------------------------------------------------------------------------
+`; })()}8. DATA PROTECTION & DR POSTURE
 --------------------------------------------------------------------------------
 ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount === 0) return '  N/A \u2014 SnapMirror, MetroCluster and HA-pair coverage apply to ONTAP systems only (none in scope).'; return `  SnapMirror Coverage:    ${dr.smSystems}/${dr.ontapCount} systems (${dr.drCoveragePct}%)
   MetroCluster:           ${dr.mcSystems > 0 ? dr.mcView.summary + '\n  MetroCluster Health:   ' + dr.mcView.health : '0 systems'}
@@ -26101,7 +26260,10 @@ ${compileSvmLifSummaryText(targetSystems)}
     RPO at Risk:       ${dr.rpoText}${dr.mcSystems > 0 ? `
     MetroCluster:      ${dr.mcView.health}` : ''}
 ${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn || !sn.volumeSnapshotReserveOverflowCount) return ''; return `    Snapshot Reserve:  ${_dfPlural(sn.volumeSnapshotReserveOverflowCount, 'NAS volume')} with snapshot reserve over 100% used -- snapshots have overflowed into active/user data capacity, reducing the effective recovery point available on those volumes\n`; })()}
-  7. SECURITY ACTIONS
+${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `  6a. STORAGEGRID DATA PROTECTION & IMMUTABILITY
+  ────────────────────────────────────────────────────────────────────────
+${_dfStorageGridText(v, { nodeLimit: 12 })}
+`; })()}  7. SECURITY ACTIONS
   ────────────────────────────────────────────────────────────────────────────
 ${(() => {
     // Every line here is gated on a real gap found in THIS scope's actual
@@ -27439,6 +27601,21 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
     o += '\nActive IQ reports SnapMirror as a relationship count; destination and lag should be confirmed on the clusters.\n\n';
   }
 
+  // 7b StorageGRID
+  { const _sg = _dfStorageGridView(targetSystems);
+    if (_sg.grids.length) {
+      const md = (h, rows) => `| ${h.join(' | ')} |\n|${h.map(() => '---').join('|')}|\n` + rows.map(r => `| ${r.map(c => String(c == null ? '' : c).replace(/\|/g, '/')).join(' | ')} |`).join('\n') + '\n\n';
+      o += `## 7b. StorageGRID Object Storage\n\n${_dfStorageGridSummaryLine(_sg)}.\n\n`;
+      o += md(['Grid', 'Version', 'Sites', 'Nodes', 'Tenants', 'Buckets', 'ILM rules', 'Used %', 'Support ends'], _sg.grids.map(g => [g.gridName, g.version || 'not reported', g.sites.length || 'not reported', g.nodes.length || g.installedNodeCount || 'not reported', g.tenants.length, g.buckets.length, g.rules.length, g.cap && g.cap.usedPct != null ? g.cap.usedPct : 'not reported', g.supportEnd || 'not reported']));
+      const _nr = []; _sg.grids.forEach(g => g.nodes.forEach(n => _nr.push([g.gridName, n.site, n.hostName || '', n.storageNodeType || '', [n.applianceModel, n.applianceType].filter(Boolean).join(' ') || '', n.raidMode || '', n.driveType ? n.driveType + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : ''])));
+      if (_nr.length) o += `**Grid topology**\n\n` + md(['Grid', 'Site', 'Node', 'Role', 'Appliance', 'RAID', 'Drives'], _nr.slice(0, 30)) + (_nr.length > 30 ? `_+${_nr.length - 30} more nodes_\n\n` : '');
+      const _rr = []; _sg.grids.forEach(g => g.rules.forEach(r => _rr.push([g.gridName, r.ruleName, r.isDefaultRule ? 'Yes' : 'No', r._p.text, r.ingestBehavior || ''])));
+      if (_rr.length) o += `**Data protection (ILM rules)**\n\n` + md(['Grid', 'Rule', 'Default', 'Placement', 'Ingest'], _rr);
+      const _fs = _sg.findings.filter(f => f.severity !== 'info');
+      o += _fs.length ? `**Findings**\n\n` + md(['Severity', 'Grid', 'Finding', 'Detail'], _fs.slice(0, 20).map(f => [f.severity, f.grid, f.title, f.detail])) : `No high or medium StorageGRID findings were identified.\n\n`;
+      o += `_Source: Active IQ StorageGRID site, tenant and ILM data from AutoSupport; confirm live state in the Grid Manager._\n\n`;
+    } }
+
   // 8 Cases
   o += `## 8. Support Cases\n\n`;
   if (openCases.length) {
@@ -27779,6 +27956,9 @@ ${_dfSystemHealthScoreWorstTable(hs)}
 ${(() => { const t = _dfSystemIssueRankingText(targetSystems); if (!t) return ''; return `SYSTEMS RANKED BY ISSUE SEVERITY (Worst First)
   Every system with at least one open critical/high risk, critical/high security advisory, or open support case, ranked by a combined severity score.
 ${t}
+`; })()}
+${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `STORAGEGRID GRID RISK (Topology, Data Protection, Tenants)
+${_dfStorageGridText(v)}
 `; })()}
 
 ${imtFindings.length > 0 ? `INTEROPERABILITY VALIDATION (IMT)
@@ -28170,6 +28350,12 @@ PRIORITISED CORRECTIVE ACTIONS
       solutionProposals += `${sortedRisks.length + i + 1}. [SAN/NAS STORAGE] ${f}\n\n`;
     });
   } }
+  { const _sgSp = _dfStorageGridView(targetSystems); const _sgF = _sgSp.findings.filter(f => f.severity !== 'info');
+    const _sgBase = sortedRisks.length + (() => { const t = _sanNasStorageSummary(targetSystems); return t && t.findings ? t.findings.length : 0; })();
+    _sgF.forEach((f, i) => {
+      solutionProposals += `${_sgBase + i + 1}. [STORAGEGRID] ${f.grid}: ${f.title}. ${f.detail}\n\n`;
+    });
+  }
 
   if (allUpgrades.length > 0) {
     solutionProposals += `OS & FIRMWARE UPGRADES (${allUpgrades.length})
@@ -28530,6 +28716,19 @@ ${cap.atRisk.map(a => `    • ${a.name}: ${a.utilPct != null ? a.utilPct + '% u
   → Keystone capacity-on-demand (burst without CAPEX)
 `;
   }
+
+  // StorageGRID optimization upsell (second site, immutability, versioning, expansion)
+  { const _sgUp = _dfStorageGridView(targetSystems); const _sgUf = _sgUp.findings.filter(f => f.severity !== 'info');
+    if (_sgUf.length) {
+      salesProposals += `\nSTORAGEGRID OPTIMIZATION [STANDARDS & ADOPTION]
+--------------------------------------------------------------------------------
+${_sgUf.slice(0, 8).map(f => `  • ${f.grid}: ${f.title}`).join('\n')}
+  → Multi-site ILM design review (copies / erasure coding across sites)
+  → Object Lock / versioning policy for ransomware resilience
+  → Capacity expansion and node refresh planning
+--------------------------------------------------------------------------------
+`;
+    } }
 
   // SAN/NAS storage optimization upsell
   { const _snUp = _sanNasStorageSummary(targetSystems); if (_snUp && _snUp.findings.length) {
@@ -33372,6 +33571,18 @@ function generateActionPlan() {
     ${_renderSanNasStorageSection(targetSystems)}`;
   planBody.appendChild(sec25);
 
+  const sec26 = document.createElement('div');
+  sec26.className = 'plan-section';
+  sec26.setAttribute('data-section-index', '26');
+  sec26.style.display = 'none';
+  sec26.style.marginTop = '32px';
+  sec26.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
+      <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">StorageGRID</h2>
+    </div>
+    ${_renderStorageGridSection(targetSystems)}`;
+  planBody.appendChild(sec26);
+
   const sec19 = document.createElement('div');
   sec19.className = 'plan-section';
   sec19.setAttribute('data-section-index', '19');
@@ -33459,6 +33670,7 @@ function generateActionPlan() {
           <button class="plan-tab-btn" data-tab-index="17" onclick="switchPlanTab(17)" title="ONTAP feature adoption analysis — tracks which advanced features (ARP, SnapMirror, HA, encryption, etc.) are enabled or missing per system.">✅ Feature Adoption</button>
           <button class="plan-tab-btn" data-tab-index="18" onclick="switchPlanTab(18)" title="Firmware currency report — system, disk, shelf, and motherboard firmware versions compared against NetApp recommended baselines.">🔧 Firmware Currency</button>
           <button class="plan-tab-btn" data-tab-index="25" onclick="switchPlanTab(25)" title="LUN (SAN) and NAS volume inventory — counts, capacity, thin-provisioning and efficiency, with best-practice findings. Does not cover igroup-to-LUN mapping or multipathing (not available from Active IQ's API).">💾 SAN &amp; NAS Storage</button>
+          ${targetSystems.some(s => _platformFamily(s) === 'storagegrid') ? `<button class="plan-tab-btn" data-tab-index="26" onclick="switchPlanTab(26)" title="StorageGRID grid topology (sites, node roles, appliances), tenants and buckets (versioning, object lock), and ILM data-protection rules, with findings.">&#9638; StorageGRID</button>` : ''}
           <button class="plan-tab-btn" data-tab-index="20" onclick="switchPlanTab(20)" title="Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it. Complements Active IQ's AutoSupport-based view.">⚡ Performance</button>
           <button class="plan-tab-btn" data-tab-index="21" onclick="switchPlanTab(21)" title="Fleet-wide VMware/vSphere inventory -- every registered vCenter, its version, attached systems and customers, cross-referenced against the NetApp IMT for compatibility findings. Previously vcenters only rendered per-system in the As-Built Document.">🖥 VMware Inventory</button>
         </div>
@@ -38595,6 +38807,18 @@ async function importTrackerItemsFromScope() {
   // per-node) for MetroCluster so a 2-node MC pair doesn't generate two
   // identical test items.
   const _lastFailoverEvent = s => ((s.downtimeEvents && s.downtimeEvents.events) || []).filter(e => /takeover|switchover|giveback|switchback/i.test(e.category || '')).sort((a, b) => new Date(b.emsDate || 0) - new Date(a.emsDate || 0))[0];
+  // StorageGRID findings (single-site grid, single-copy ILM, no versioning/object lock, ...) from _dfStorageGridView.
+  _dfStorageGridView(systems).grids.forEach(g => {
+    g.findings.filter(f => f.severity !== 'info').forEach(f => {
+      const title = `StorageGRID: ${f.title} — ${g.gridName}`;
+      items.push({
+        itemKey: _trackerItemKey('storagegrid', g.system.serialNumber, title),
+        accountId: g.system.accountId || '', customerName: g.customerName || g.system.accountLabel || '',
+        systemSerial: g.system.serialNumber || '', systemName: g.systemName || '',
+        sourceType: 'storagegrid', severity: f.severity, title, detail: f.detail
+      });
+    });
+  });
   const mcClustersSeen = new Set();
   systems.forEach(s => {
     if (s.isMetroCluster) {
@@ -40949,6 +41173,48 @@ function bpLifPin(row) {
 // widget (category/description matching for "metrocluster"/"mediator"/
 // "mauso"), but always shows a status card instead of only appearing when
 // mcRisks.length > 0.
+function renderStorageGridStatus(view) {
+  const container = document.getElementById("tamStorageGridContainer");
+  if (!container || !view) return;
+  container.innerHTML = _storageGridHtml(view);
+}
+function _storageGridHtml(view) {
+  const esc = x => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const stat = (label, val, color, sub) => `<div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${color};"><div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${label}</div><div style="font-size:1.1rem;font-weight:700;color:${color};">${val}</div>${sub ? `<div style="font-size:0.62rem;color:var(--text-muted);margin-top:2px;">${sub}</div>` : ''}</div>`;
+  const th = 'text-align:left;padding:6px 8px;font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border-color);', td = 'padding:6px 8px;font-size:0.78rem;border-bottom:1px solid rgba(255,255,255,0.05);vertical-align:top;';
+  const hi = view.findings.filter(f => f.severity === 'high').length, md = view.findings.filter(f => f.severity === 'medium').length;
+  const sevColor = { high: 'var(--status-critical)', medium: 'var(--status-warning)', info: 'var(--text-muted)' };
+  const t = view.totals;
+  let html = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px;">` +
+    stat('Grids / sites', view.grids.length + ' / ' + t.sites, 'var(--accent-cyan)') + stat('Nodes', t.nodes, 'var(--accent-cyan)') +
+    stat('Tenants / buckets', t.tenants + ' / ' + t.buckets, 'var(--accent-cyan)') + stat('ILM rules', t.rules, 'var(--accent-cyan)') +
+    stat('Findings', hi + ' high / ' + md + ' med', hi ? 'var(--status-critical)' : md ? 'var(--status-warning)' : 'var(--status-normal)') + `</div>`;
+  view.grids.forEach(g => {
+    html += `<details open style="margin-bottom:12px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);padding:10px 12px;"><summary style="cursor:pointer;font-weight:600;">${esc(g.gridName)} <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">${esc(g.customerName)} &middot; ${g.sites.length} site${g.sites.length !== 1 ? 's' : ''} &middot; ${g.nodes.length || g.installedNodeCount || 0} nodes &middot; ${esc(g.version)}${g.licenseCapacity ? ' &middot; licence ' + esc(g.licenseCapacity) + ' TB (' + esc(g.licenseType || '') + ')' : ''}</span></summary>`;
+    if (g.nodes.length) {
+      html += `<div style="overflow-x:auto;margin-top:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Node</th><th style="${th}">Role</th><th style="${th}">Appliance</th><th style="${th}">RAID</th><th style="${th}">Drives</th><th style="${th}">Version</th></tr></thead><tbody>` +
+        g.nodes.map(n => `<tr><td style="${td}">${esc(n.site)}</td><td style="${td}">${esc(n.hostName)}${g.primaryAdmin && n.hostName === g.primaryAdmin ? ' <span style="color:var(--accent-cyan);font-size:0.68rem;">primary</span>' : ''}</td><td style="${td}">${esc(n.storageNodeType || '—')}</td><td style="${td}">${esc([n.applianceModel, n.applianceType].filter(Boolean).join(' ') || '—')}</td><td style="${td}">${esc(n.raidMode || '—')}</td><td style="${td}">${n.driveType ? esc(n.driveType) + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : '—'}</td><td style="${td}">${esc(n.osVersion || '—')}</td></tr>`).join('') + `</tbody></table></div>`;
+    } else html += `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:8px;">Active IQ did not return per-node detail for this grid.</div>`;
+    if (g.rules.length) {
+      html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">ILM rules</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Rule</th><th style="${th}">Default</th><th style="${th}">Placement</th><th style="${th}">Reference</th><th style="${th}">Ingest</th><th style="${th}">Applies to</th></tr></thead><tbody>` +
+        g.rules.map(r => `<tr><td style="${td}font-weight:600;">${esc(r.ruleName)}</td><td style="${td}">${r.isDefaultRule ? 'Yes' : 'No'}</td><td style="${td}">${esc(r._p.text)}</td><td style="${td}">${esc(r.referenceTime || '—')}</td><td style="${td}">${esc(r.ingestBehavior || '—')}</td><td style="${td}">${r.filter ? esc(r.filter) : 'All objects'}</td></tr>`).join('') + `</tbody></table></div>`;
+    }
+    if (g.tenants.length) {
+      html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">Tenants &amp; buckets</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Tenant</th><th style="${th}">Buckets</th><th style="${th}">Versioned</th><th style="${th}">Immutable</th><th style="${th}">CloudMirror</th></tr></thead><tbody>` +
+        g.tenants.map(tn => { const b = tn.buckets || []; return `<tr><td style="${td}">${esc(tn.tenantId)}</td><td style="${td}">${b.length}</td><td style="${td}">${b.filter(x => String(x.versioning || '').toUpperCase() === 'ENABLED').length}</td><td style="${td}">${b.filter(x => x.isS3ObjectLockingEnabled || x.isLegacyComplianceEnabled).length}</td><td style="${td}">${b.filter(x => x.isCloudMirror).length}</td></tr>`; }).join('') + `</tbody></table></div>`;
+    }
+    if (g.findings.length) html += `<div style="display:flex;flex-direction:column;gap:6px;margin-top:12px;">` + g.findings.map(f => `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-left:3px solid ${sevColor[f.severity]};border-radius:var(--radius-sm);padding:8px 12px;"><div style="font-size:0.78rem;font-weight:600;">${esc(f.title)} <span style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${f.severity}</span></div><div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">${esc(f.detail)}</div></div>`).join('') + `</div>`;
+    html += `</details>`;
+  });
+  html += `<div style="font-size:0.72rem;color:var(--text-muted);">Source: Active IQ StorageGrid sites, tenants and ILM data from AutoSupport. Verify live state in the Grid Manager.</div>`;
+  return html;
+}
+function _renderStorageGridSection(systems) {
+  const view = _dfStorageGridView(systems);
+  if (!view.grids.length) return `<div style="color:var(--text-muted);padding:16px;">${view.sgSystems ? `${view.sgSystems} StorageGRID system${view.sgSystems !== 1 ? 's' : ''} in scope, but Active IQ returned no grid topology for them (topology is carried by each grid's admin-node system).` : 'No StorageGRID systems in this scope.'}</div>`;
+  return _storageGridHtml(view);
+}
+
 function renderMetroClusterStatus(mcSystems) {
   const container = document.getElementById("tamMetroClusterContainer");
   if (!container) return;

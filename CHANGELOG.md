@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.203] - 2026-10-02
+
+### Added
+- ARIA is now StorageGRID-aware. Active IQ exposes, per grid, the site/node topology (role, appliance model, RAID, drives, version), tenants and buckets (versioning, S3 Object Lock, CloudMirror) and ILM rules (placements, storage pools, ingest behaviour); ARIA previously harvested only capacity. Now harvested, analysed (single-site grid, single-copy/default ILM rules, no versioning or immutability, mixed node versions, support term, capacity) and reported in the GUI and every relevant deliverable.
+- GUI: StorageGRID card (Technical Audit tab) and StorageGRID tab (Action Planner, index 26).
+- Deliverables: new StorageGRID sections in the TAM Success Plan, QBR Pack, Executive Risk Assessment, Account Handover Brief (7c), MSP Service Report (7a), Risk & Remediation Brief, Security Posture Brief (6a) and Customer Health Report (7b); findings in the Technical Solution Proposal, Sales Proposal and Remediation Tracker import.
+- `server.py`: StorageGrid topology fields added to the small StorageGRID capacity query (merged by serial) rather than the main system queries, to stay under Active IQ's field-count limit. Output field `storagegridTopology` (carried through `enrichSystemTelemetry`).
+
+---
+
 ## [5.6.202] - 2026-10-01
 
 ### Fixed
