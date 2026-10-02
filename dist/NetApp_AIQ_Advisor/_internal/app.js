@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.214";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.215";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.215",
+    date: "2 October 2026",
+    title: "StorageGRID: Unlisted Systems Flagged, Not Counted as Nodes",
+    sections: [
+      {
+        icon: "🧱",
+        label: "Fixed -- Possible Node Over-Counting",
+        color: "#22c55e",
+        items: [
+          "The node strip and fleet list show Active IQ system records, which is not the same as the grid's nodes. Some records (serial-number-only appliances, or appliances absent from the grid's own roster) cannot be tied to a node, and they were being added to the grid's node count. Totals now use the grid's own figures (its roster or installed node count), so e.g. the Liberty grid counts 8 and MIC Tanzania 4.",
+          "Records Active IQ attributes to a grid but that the grid does not list are shown in a new finding, 'Systems in Active IQ not listed in the grid topology', naming them with a recommendation: confirm in Grid Manager whether they are members, retire decommissioned assets, finish an in-progress node join, or consolidate a duplicate controller registration.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.214",
     date: "2 October 2026",
@@ -19903,6 +19919,7 @@ const _SG_RECS = [
   ['Grid capacity above', 'Plan capacity expansion (storage nodes or expansion shelves) or tighten ILM/retention to reclaim space.', ['Review growth in Active IQ capacity trend and quote expansion.']],
   ['Site ', 'Rebalance data or add capacity at the busier site; review ILM placement skew.', ['Check ILM rules favouring one site and the storage pools per site.']],
   ['Unbalanced site capacity', 'Rebalance placement or add capacity at the fuller site so a site failure cannot overfill the other.', ['Review ILM rules placing more data at one site.']],
+  ['Systems in Active IQ not listed in the grid topology', 'Confirm in Grid Manager (Nodes) whether these appliances are members of the grid. If decommissioned or never deployed, retire the asset in Active IQ; if new, finish the node join and send an AutoSupport from the admin node; if a controller is registered twice, consolidate the registration.', ['Grid Manager > Nodes: compare the node list with the serial numbers named in this finding.', 'Decide per system: remove from Active IQ, complete the grid expansion, or merge the duplicate registration with NetApp Support.']],
   ['Nodes not reporting to Active IQ', 'Enable AutoSupport for the whole grid and for E-Series appliance controllers so each node reports to Active IQ; Active IQ then shows per-node health, risks and capacity.', ['Grid Manager > Support > Tools > AutoSupport > Settings: enable weekly and event-triggered AutoSupport; confirm the destination (HTTPS or proxy) reaches support.netapp.com.', 'On the same page enable E-Series AutoSupport so appliance storage controllers report via StorageGRID.', 'For virtual nodes confirm the node is included in the grid AutoSupport; send a test message and verify it in Active IQ.']],
   ['Nodes with stale AutoSupport', 'Restore AutoSupport on the listed nodes (check proxy/HTTPS reachability to support.netapp.com and the node connection state in Grid Manager).', ['Grid Manager > Nodes: confirm the node is connected.', 'Support > Tools > AutoSupport: send a test AutoSupport and verify it in Active IQ.']],
   ['Appliance nodes past hardware end of support', 'Plan replacement or migration of the affected appliance nodes (expand with current-generation nodes, decommission via the grid ILM and node decommission procedure).', ['Quote current-generation storage appliances.', 'Add replacement nodes, let ILM rebalance, then decommission the old nodes.']],
@@ -19950,13 +19967,14 @@ function _dfStorageGridView(systems) {
     return (_pg && _byGridName[_pg]) || _byNode['s:' + x.serialNumber] || _byNode['h:' + String(x.systemName || x.hostName || '').toLowerCase()]
       || (() => { const c = _allGrids.filter(gs => gs.customerName && gs.customerName === x.customerName); return c.length === 1 ? c[0] : null; })();
   };
-  const _seenGrid = new Set(); const _fleetPer = {}; const _fleetIds = {}; const unresolved = [];
+  const _seenGrid = new Set(); const _fleetPer = {}; const _fleetIds = {}; const _fleetSys = {}; const unresolved = [];
   const _normName = x => String(x || '').toLowerCase().trim().replace(/^storagegrid-/, '').split('.')[0];
   (systems || []).forEach(sx => {
     if (_platformFamily(sx) !== 'storagegrid') return;
     sgSystems++;
     const s = _resolveGrid(sx); if (!s) { unresolved.push(sx); return; }
     _fleetPer[s.serialNumber] = (_fleetPer[s.serialNumber] || 0) + 1;
+    (_fleetSys[s.serialNumber] = _fleetSys[s.serialNumber] || []).push(sx);
     { const ids = _fleetIds[s.serialNumber] = _fleetIds[s.serialNumber] || { serials: new Set(), names: new Set() }; if (sx.serialNumber) ids.serials.add(String(sx.serialNumber)); [sx.systemName, sx.hostName, sx.clusterName].forEach(nm => { if (nm) ids.names.add(_normName(nm)); }); }
     if (_seenGrid.has(s.serialNumber)) return; _seenGrid.add(s.serialNumber);
     const t = s.storagegridTopology; if (!t) return;
@@ -20023,9 +20041,13 @@ function _dfStorageGridView(systems) {
           asupDays: m.autosupport && m.autosupport.lastReceivedDays != null ? m.autosupport.lastReceivedDays : null, eos: _eosOf(m) };
       }
     });
+    // Systems Active IQ attributes to this grid that the grid's own roster does not list. Not counted as nodes (they may be
+    // decommissioned, never joined, or a second registration of a node's controller), but surfaced for follow-up.
+    g.unlisted = g.nodes.length ? (_fleetSys[g.system.serialNumber] || []).filter(x => x !== g.system && !g.nodes.some(n => n.sys === x)) : [];
     g.nodesNotReporting = g.nodes.filter(n => !n.reporting);
     g.nodesReporting = g.nodes.length - g.nodesNotReporting.length;
     const add = (severity, title, detail) => g.findings.push({ severity, title, detail });
+    if (g.unlisted.length) add('medium', 'Systems in Active IQ not listed in the grid topology', `${g.unlisted.length} StorageGRID system${g.unlisted.length !== 1 ? 's' : ''} in Active IQ resolve to this grid but are not in its node roster (${g.unlisted.slice(0, 6).map(x => x.systemName || x.serialNumber).join(', ')}${g.unlisted.length > 6 ? ', +' + (g.unlisted.length - 6) + ' more' : ''}); they are not counted as nodes.`);
     if (g.nodes.length && g.nodesNotReporting.length) {
       const names = g.nodesNotReporting.map(n => n.hostName).filter(Boolean);
       add('medium', 'Nodes not reporting to Active IQ', `${g.nodesNotReporting.length} of ${g.nodes.length} nodes are not visible in Active IQ as their own systems (${names.slice(0, 6).join(', ')}${names.length > 6 ? ', +' + (names.length - 6) + ' more' : ''}); their individual health, risks and capacity are not monitored.`);
@@ -20058,7 +20080,7 @@ function _dfStorageGridView(systems) {
   // whole grid (installed node count + topology). nodeTotal = the most complete figure available for the grid.
   grids.forEach(g => {
     g.fleetCount = _fleetPer[g.system.serialNumber] || 0;
-    g.nodeTotal = Math.max(g.nodes.length, g.installedNodeCount || 0, g.fleetCount);
+    g.nodeTotal = Math.max(g.nodes.length, g.installedNodeCount || 0) || g.fleetCount;
     g.nodesNoDetail = Math.max(0, g.nodeTotal - g.nodes.length);
     g.forms = { Physical: 0, Virtual: 0, Unknown: 0 }; g.nodes.forEach(n => { g.forms[_dfSgForm(n).kind]++; }); g.forms.Unknown += g.nodesNoDetail;
     g.formsText = [g.forms.Physical ? g.forms.Physical + ' physical' : '', g.forms.Virtual ? g.forms.Virtual + ' virtual' : '', g.forms.Unknown ? g.forms.Unknown + ' form factor not reported' : ''].filter(Boolean).join(', ');

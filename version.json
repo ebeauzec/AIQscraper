@@ -1,8 +1,8 @@
 {
-  "version": "5.6.214",
+  "version": "5.6.215",
   "major": 5,
   "minor": 6,
-  "patch": 214,
+  "patch": 215,
   "date": "2026-10-02",
-  "notes": "StorageGRID view: findings and recommendations now sit above the tenants and buckets table (order: nodes, site capacity, ILM rules, findings, tenants)."
+  "notes": "StorageGRID node totals now use the grid's own figures (roster / installed count) instead of also counting Active IQ records that the grid does not list; those records are flagged as 'Systems in Active IQ not listed in the grid topology' with a recommendation."
 }

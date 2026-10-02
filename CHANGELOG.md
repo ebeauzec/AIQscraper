@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.215] - 2026-10-02
+
+### Fixed
+- StorageGRID node totals now use the grid's own figures (roster / installed count) instead of also counting Active IQ records that the grid does not list; those records are flagged as 'Systems in Active IQ not listed in the grid topology' with a recommendation.
+
+---
+
 ## [5.6.214] - 2026-10-02
 
 ### Changed
