@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.215";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.216";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.216",
+    date: "2 October 2026",
+    title: "Node Strip: Correct Node Types, No Duplicates",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Duplicate and Misclassified Nodes in the Controller Node Strip",
+        color: "#22c55e",
+        items: [
+          "The strip on the Technical Audit tab listed raw Active IQ records, so one physical StorageGRID appliance could appear as an E-Series controller and again as a StorageGRID record, and records the grid does not know about appeared as nodes. It now lists one entry per real node, labelled by type: an E-Series controller that belongs to a StorageGRID node (matched to the grid's roster by serial or name, or linked by parentGrid) is shown as that StorageGRID node under its grid name; two records for the same node collapse to one; standalone E-Series and ONTAP systems keep their own type.",
+          "StorageGRID records that the grid's node list does not include are hidden by default with a note and a Show toggle (they are also raised as a finding), so unverifiable records are never presented as nodes. Grids with no discovered roster are not affected.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.215",
     date: "2 October 2026",
@@ -41443,6 +41459,50 @@ function _buildControllerBackplate(sys, ports, _plat, isEseries, isCloud, isStor
 }
 
 
+
+// Node strip (Technical Audit): one entry per real node, classified correctly. Active IQ lists the same physical node
+// more than once (an appliance's E-Series storage controller and its StorageGRID node record; HA partners; records for
+// hardware the grid no longer lists). Rules: an E-Series/StorageGRID record that is a member of a grid (matched to the grid
+// roster by serial/name, or linked by parentGrid) is listed as that StorageGRID node under its roster name; two records for the
+// same roster node collapse to one (the record carrying the roster serial wins); StorageGRID records the grid does not
+// list are 'unverified' and hidden unless the user asks; everything else is listed as its own platform.
+function _dfNodeStrip(systems) {
+  const list = systems || [];
+  const view = _dfStorageGridView(state.systems || list);
+  const bySys = new Map();           // system object -> { g, n }
+  view.grids.forEach(g => g.nodes.forEach(n => { if (n.sys) bySys.set(n.sys, { g, n }); }));
+  const unlisted = new Set(); view.grids.forEach(g => (g.unlisted || []).forEach(x => unlisted.add(x)));
+  const seen = new Map(), out = [], dupSerials = new Set();
+  const seenSerial = new Set();
+  list.forEach(s => {
+    if (!s || seenSerial.has(s.serialNumber)) return; seenSerial.add(s.serialNumber);
+    const fam = _platformFamily(s);
+    const m = bySys.get(s);
+    const pg = s.platformExtras && s.platformExtras.parentGrid;
+    let e = { s, label: s.systemName || s.serialNumber, badge: '', unverified: false };
+    if (m) {
+      const role = String(m.n.storageNodeType || 'Node');
+      e.label = m.n.hostName || e.label; e.badge = `StorageGRID ${role}`;
+      const key = m.g.system.serialNumber + '|' + (m.n.serialNumber || m.n.hostName);
+      const prev = seen.get(key);
+      if (prev) {
+        // duplicate record for the same physical node: keep the one carrying the roster serial
+        if (String(s.serialNumber) === String(m.n.serialNumber) && String(prev.s.serialNumber) !== String(m.n.serialNumber)) { out[out.indexOf(prev)] = e; seen.set(key, e); }
+        return;
+      }
+      seen.set(key, e);
+    } else if (fam === 'eseries' && pg) {
+      e.badge = 'StorageGRID Storage (controller)'; e.label = s.systemName || s.serialNumber;
+    } else if (fam === 'storagegrid' && s.storagegridTopology) {
+      e.badge = 'StorageGRID Admin';
+    } else if (fam === 'storagegrid') {
+      e.badge = 'StorageGRID node'; e.unverified = unlisted.has(s); // only unverifiable when its grid has a roster that omits it
+    } else if (fam === 'eseries') e.badge = 'E-Series';
+    else if (fam === 'element') e.badge = 'Element OS';
+    out.push(e);
+  });
+  return out;
+}
 function renderNodeVisualLayout(selectedSystems, sys) {
   const container = document.getElementById("tamNodeVisualContainer");
   if (!container) return;
@@ -41452,7 +41512,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   // With a large port-mapping table + animated slots, re-rendering the same
   // node is expensive and the primary cause of hangs when clicking between nodes.
   // Skip when the already-displayed system + node-set fingerprint is unchanged.
-  const _nodeLayoutFP = (sys ? sys.serialNumber : '') + '|' +
+  const _nodeLayoutFP = (state._showUnverifiedNodes ? 'U' : 'u') + '|' + (sys ? sys.serialNumber : '') + '|' +
                         (selectedSystems ? selectedSystems.map(s => s.serialNumber).join(',') : '');
   if (renderNodeVisualLayout._lastFP === _nodeLayoutFP) return;
   renderNodeVisualLayout._lastFP = _nodeLayoutFP;
@@ -41466,22 +41526,26 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   
   // Render tabs row if multiple systems/nodes are selected
   let tabsHtml = "";
-  if (selectedSystems && selectedSystems.length > 1) {
-    tabsHtml = `<div class="node-tabs-row" style="display: flex; gap: 8px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; overflow-x: auto;">`;
-    selectedSystems.forEach(s => {
+  const _strip = _dfNodeStrip(selectedSystems);
+  const _hidden = _strip.filter(e => e.unverified);
+  const _shown = _strip.filter(e => !e.unverified || state._showUnverifiedNodes || e.s.serialNumber === sys.serialNumber);
+  if (_shown.length > 1 || _hidden.length) {
+    tabsHtml = `<div class="node-tabs-row" style="display: flex; gap: 8px; margin-bottom: ${_hidden.length ? 6 : 16}px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; overflow-x: auto;">`;
+    _shown.forEach(e => {
+      const s = e.s;
       const isActive = s.serialNumber === sys.serialNumber;
-      const btnStyle = isActive 
+      const btnStyle = isActive
         ? "background: var(--accent-cyan); color: #0b0f19; border-color: var(--accent-cyan); font-weight: 600; box-shadow: 0 0 8px rgba(0, 229, 255, 0.35);"
-        : "background: rgba(255,255,255,0.04); color: var(--text-secondary); border-color: var(--border-color);";
-      
+        : "background: rgba(255,255,255,0.04); color: var(--text-secondary); border-color: var(--border-color);" + (e.unverified ? " border-style: dashed;" : "");
       tabsHtml += `
         <button class="action-btn" style="${btnStyle} padding: 5px 12px; font-size: 0.72rem; border-radius: var(--radius-sm); transition: background-color 0.2s ease, color 0.2s ease;"
                 onclick="selectVisualNode('${s.serialNumber}')">
-          Node: ${s.systemName}
+          Node: ${e.label}${e.badge ? `<div style="font-size:0.58rem;font-weight:500;opacity:0.75;margin-top:1px;">${e.badge}${e.unverified ? ' &middot; not in grid roster' : ''}</div>` : ''}
         </button>
       `;
     });
     tabsHtml += `</div>`;
+    if (_hidden.length) tabsHtml += `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:12px;">${state._showUnverifiedNodes ? 'Showing' : 'Hiding'} ${_hidden.length} StorageGRID record${_hidden.length !== 1 ? 's' : ''} that the grid's own node list does not include (decommissioned, never joined, or duplicate registrations; see the StorageGRID findings). <a href="javascript:void(0)" onclick="state._showUnverifiedNodes = !state._showUnverifiedNodes; renderNodeVisualLayout._lastFP = null; selectVisualNode(state.activeVisualizerNodeSerial);" style="color:var(--accent-cyan);">${state._showUnverifiedNodes ? 'Hide' : 'Show'}</a></div>`;
   }
 
   const _bpNum = _bpNumberPorts(ports);

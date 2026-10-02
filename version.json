@@ -1,8 +1,8 @@
 {
-  "version": "5.6.215",
+  "version": "5.6.216",
   "major": 5,
   "minor": 6,
-  "patch": 215,
+  "patch": 216,
   "date": "2026-10-02",
-  "notes": "StorageGRID node totals now use the grid's own figures (roster / installed count) instead of also counting Active IQ records that the grid does not list; those records are flagged as 'Systems in Active IQ not listed in the grid topology' with a recommendation."
+  "notes": "Technical Audit node strip is built from classified nodes: E-Series controllers that belong to a StorageGRID node are listed as that StorageGRID node under its grid name, duplicate records for one node collapse, and StorageGRID records the grid does not list are hidden behind a Show toggle."
 }

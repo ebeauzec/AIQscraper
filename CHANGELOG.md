@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.216] - 2026-10-02
+
+### Fixed
+- Technical Audit node strip is built from classified nodes: E-Series controllers that belong to a StorageGRID node are listed as that StorageGRID node under its grid name, duplicate records for one node collapse, and StorageGRID records the grid does not list are hidden behind a Show toggle.
+
+---
+
 ## [5.6.215] - 2026-10-02
 
 ### Fixed
