@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.214] - 2026-10-02
+
+### Changed
+- StorageGRID view: findings and recommendations now sit above the tenants and buckets table (order: nodes, site capacity, ILM rules, findings, tenants).
+
+---
+
 ## [5.6.213] - 2026-10-02
 
 ### Fixed

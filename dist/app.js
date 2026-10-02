@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.213";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.214";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.214",
+    date: "2 October 2026",
+    title: "StorageGRID Findings Moved Above the Tenants Table",
+    sections: [
+      {
+        icon: "🧱",
+        label: "Changed -- StorageGRID Layout",
+        color: "#22c55e",
+        items: [
+          "In the Action Planner StorageGRID tab and the Technical Audit card, each grid now shows its findings and recommendations directly above the tenants and buckets table, so they are not buried below a table that can run to hundreds of rows. Order: nodes, site capacity, ILM rules, findings, tenants.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.213",
     date: "2 October 2026",
@@ -41885,11 +41900,11 @@ function _storageGridHtml(view) {
       html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">ILM rules as reported by Active IQ</div><div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:6px;">Active IQ returns one ILM rule set per grid (from AutoSupport) and does not say which rules belong to the active policy. Confirm in Grid Manager > ILM > Policies.</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Rule</th><th style="${th}">Default</th><th style="${th}">Placement</th><th style="${th}">Reference</th><th style="${th}">Ingest</th><th style="${th}">Applies to</th></tr></thead><tbody>` +
         g.rules.map(r => `<tr><td style="${td}font-weight:600;">${esc(r.ruleName)}</td><td style="${td}">${r.isDefaultRule ? 'Yes' : 'No'}</td><td style="${td}">${esc(r._p.text)}</td><td style="${td}">${esc(r.referenceTime || '—')}</td><td style="${td}">${esc(r.ingestBehavior || '—')}</td><td style="${td}">${r.filter ? esc(r.filter) : 'All objects'}</td></tr>`).join('') + `</tbody></table></div>`;
     }
+    if (g.findings.length) html += `<div style="display:flex;flex-direction:column;gap:6px;margin-top:12px;">` + g.findings.map(f => `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-left:3px solid ${sevColor[f.severity]};border-radius:var(--radius-sm);padding:8px 12px;"><div style="font-size:0.78rem;font-weight:600;">${esc(f.title)} <span style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${f.severity}</span></div><div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">${esc(f.detail)}</div>${f.recommendation ? `<div style="font-size:0.72rem;color:var(--accent-cyan);margin-top:4px;">Recommendation: ${esc(f.recommendation)}</div>` : ''}</div>`).join('') + `</div>`;
     if (g.tenants.length) {
       html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">Tenants &amp; buckets</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Tenant</th><th style="${th}">Buckets</th><th style="${th}">Versioned</th><th style="${th}">Immutable</th><th style="${th}">CloudMirror</th></tr></thead><tbody>` +
         g.tenants.map(tn => { const b = tn.buckets || []; return `<tr><td style="${td}">${esc(tn.tenantId)}</td><td style="${td}">${b.length}</td><td style="${td}">${b.filter(x => String(x.versioning || '').toUpperCase() === 'ENABLED').length}</td><td style="${td}">${b.filter(x => x.isS3ObjectLockingEnabled || x.isLegacyComplianceEnabled).length}</td><td style="${td}">${b.filter(x => x.isCloudMirror).length}</td></tr>`; }).join('') + `</tbody></table></div>`;
     }
-    if (g.findings.length) html += `<div style="display:flex;flex-direction:column;gap:6px;margin-top:12px;">` + g.findings.map(f => `<div style="background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.1);border-left:3px solid ${sevColor[f.severity]};border-radius:var(--radius-sm);padding:8px 12px;"><div style="font-size:0.78rem;font-weight:600;">${esc(f.title)} <span style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${f.severity}</span></div><div style="font-size:0.72rem;color:var(--text-secondary);margin-top:2px;">${esc(f.detail)}</div>${f.recommendation ? `<div style="font-size:0.72rem;color:var(--accent-cyan);margin-top:4px;">Recommendation: ${esc(f.recommendation)}</div>` : ''}</div>`).join('') + `</div>`;
     html += `</details>`;
   });
   html += `<div style="font-size:0.72rem;color:var(--text-muted);">Source: Active IQ StorageGrid sites, tenants and ILM data from AutoSupport. Verify live state in the Grid Manager.</div>`;

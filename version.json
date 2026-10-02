@@ -1,8 +1,8 @@
 {
-  "version": "5.6.213",
+  "version": "5.6.214",
   "major": 5,
   "minor": 6,
-  "patch": 213,
+  "patch": 214,
   "date": "2026-10-02",
-  "notes": "Technical Audit: the MetroCluster card now follows the selected node: shown only for a MetroCluster node, and only for that node's own pair (its cluster and DR partner cluster)."
+  "notes": "StorageGRID view: findings and recommendations now sit above the tenants and buckets table (order: nodes, site capacity, ILM rules, findings, tenants)."
 }
