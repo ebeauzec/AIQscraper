@@ -2034,7 +2034,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 after_arg = f', after: "{cursor}"' if cursor else ""
                 wl_arg = f', watchlistId: "{scope_wl_id}"' if scope_wl_id else ""
                 query_text = """{
-                  systems(pageSize: 100""" + after_arg + wl_arg + """) {
+                  systems(pageSize: 100, includeStorageGridNodes: true""" + after_arg + wl_arg + """) {
                     totalCount cursor
                     systems {""" + fields + """
                     }
@@ -3746,7 +3746,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             _raw_sfw = s.get("systemFirmware") or {}
             _raw_mbfw = s.get("motherboardFirmware") or {}
             _raw_dqp = s.get("diskQualificationPackage") or {}
-            _sys_model = hw.get("name", "")
+            _sys_model = (hw.get("name") or "")
             _sys_os = s.get("osVersion", "") or ""
             _sys_platform = s.get("platformType", "") or s.get("_source_platform", "") or ""
             _sys_type_lower = (s.get("type") or "").lower()
@@ -3870,7 +3870,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 "siteState": site.get("state", ""),
                 "nagpId": nagp.get("id", ""),
                 "nagpName": nagp.get("name", ""),
-                "model": hw.get("name", ""),
+                "model": (hw.get("name") or ""),
                 "modelRevision": hw.get("modelRevision", ""),
                 "osVersion": s.get("osVersion", ""),
                 "platform": s.get("platformType", ""),
@@ -3897,8 +3897,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 # falls back to the model-name guess otherwise.
                 "personality": (s.get("asaR2Capacity") or {}).get("ontapPersonality") or "",
                 "isDisaggregated": bool(s.get("asaR2Capacity")),
-                "isAsaR2": bool(s.get("asaR2Capacity")) or hw.get("name", "").upper().startswith("ASA A"),
-                "isAfx": "EF50" in hw.get("name", "").upper() or "EF80" in hw.get("name", "").upper() or "AFX" in hw.get("name", "").upper(),
+                "isAsaR2": bool(s.get("asaR2Capacity")) or (hw.get("name") or "").upper().startswith("ASA A"),
+                "isAfx": "EF50" in (hw.get("name") or "").upper() or "EF80" in (hw.get("name") or "").upper() or "AFX" in (hw.get("name") or "").upper(),
                 # True SAZ (Storage Availability Zone) capacity isn't queried -- not
                 # confirmed to exist as a GQL field. What IS confirmed live: ASA r2
                 # systems' capacity{physical{...}} comes back null, but they report
@@ -4532,6 +4532,7 @@ def _sync_all_accounts(extra_watchlist_ids=None):
             succeeded.append(acct.get("id"))
         except Exception as e:
             print(f"  [MULTI-ACCOUNT] Account '{acct_label}' failed: {e}", flush=True)
+            import traceback as _tb; _tb.print_exc()
             failed[acct.get("id")] = str(e)
     print(f"  [MULTI-ACCOUNT] Done: {len(succeeded)} succeeded, {len(failed)} failed", flush=True)
     return {"succeeded": succeeded, "failed": failed}

@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.207] - 2026-10-02
+
+### Fixed
+- StorageGRID node counts now reflect the whole grid, not just nodes that send AutoSupport: the harvest requests StorageGRID node systems, and totals use the grid's installed node count and topology. Nodes are broken out by role (admin, gateway, storage, archive) and form factor (physical appliance, VMware VM, bare metal).
+- Harvest crash on systems with no hardware model (`hw.get("name", "")` returned None for nodes): now `(hw.get("name") or "")`. Traceback now printed when an account's sync fails.
+
+---
+
 ## [5.6.206] - 2026-10-02
 
 ### Fixed

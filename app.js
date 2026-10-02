@@ -27,9 +27,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.206";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.207";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.207",
+    date: "2 October 2026",
+    title: "Fixed: StorageGRID Node Counts; Roles and Physical vs Virtual Nodes",
+    sections: [
+      {
+        icon: "🧱",
+        label: "Fixed -- Correct StorageGRID Node Counts Throughout",
+        color: "#22c55e",
+        items: [
+          "ARIA only saw StorageGRID nodes that happen to send AutoSupport, so a grid with 8 nodes showed as 1-2 systems in totals and the platform mix. The harvest now requests StorageGRID node systems (includeStorageGridNodes), and every total uses the grid's installed node count and topology as reported by the admin node, whichever nodes send AutoSupport themselves.",
+          "Nodes are broken out by role (primary/non-primary admin, gateway, storage, archive) and by form factor: physical StorageGRID appliance (e.g. SG5760), VMware virtual machine, or bare metal. A node whose appliance type is not reported but whose model is an SG-series appliance is correctly treated as physical. Nodes the grid knows about but cannot describe are counted as 'role not reported'.",
+          "Applied to the TAM Success Plan platform mix and system count, Customer Report, MSP/Handover totals, the Overview total, and the StorageGRID card and tab.",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- Harvest Crash on Systems With No Hardware Model",
+        color: "#ef4444",
+        items: [
+          "Systems with no hardware model (StorageGRID nodes) made the harvest post-processing fail with 'NoneType has no attribute upper', aborting that account's sync. Model lookups now tolerate a missing hardware model.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.206",
     date: "2 October 2026",
@@ -19704,6 +19729,16 @@ function _dfSystemIssueRankingText(systems, limit) {
 // behaviour, pools). Harvested in server.py (ESERIES_CAP_FIELDS merge) as
 // storagegridTopology. Everything below derives from that one object, so the
 // GUI card and every deliverable agree.
+// Node form factor: Active IQ's applianceType is VMWARE (virtual machine), STORAGE_GRID_APPLIANCE (physical
+// appliance) or BARE_METAL (software on customer hardware); it is sometimes null for an appliance, in which case an
+// SG-series applianceModel (e.g. SG5760) still identifies a physical appliance.
+function _dfSgForm(n) {
+  const t = String((n && n.applianceType) || '').toUpperCase(), m = String((n && n.applianceModel) || '');
+  if (t === 'VMWARE') return { kind: 'Virtual', label: 'VMware VM' };
+  if (t === 'STORAGE_GRID_APPLIANCE' || /^SG\d/i.test(m)) return { kind: 'Physical', label: m ? `${m} appliance` : 'Appliance' };
+  if (t === 'BARE_METAL') return { kind: 'Physical', label: 'Bare metal' };
+  return { kind: 'Unknown', label: 'Form factor not reported' };
+}
 function _dfSgRulePlacements(rule) {
   // Returns { copies, ec, sites:Set, text } across a rule's placements. For a
   // Replicated placement Active IQ's `schema` is the copy count ("2"); for
@@ -19735,11 +19770,13 @@ function _dfStorageGridView(systems) {
     return _byNode['s:' + x.serialNumber] || _byNode['h:' + String(x.systemName || x.hostName || '').toLowerCase()]
       || (() => { const c = _allGrids.filter(gs => gs.customerName && gs.customerName === x.customerName); return c.length === 1 ? c[0] : null; })();
   };
-  const _seenGrid = new Set();
+  const _seenGrid = new Set(); const _fleetPer = {}; const unresolved = [];
   (systems || []).forEach(sx => {
     if (_platformFamily(sx) !== 'storagegrid') return;
     sgSystems++;
-    const s = _resolveGrid(sx); if (!s || _seenGrid.has(s.serialNumber)) return; _seenGrid.add(s.serialNumber);
+    const s = _resolveGrid(sx); if (!s) { unresolved.push(sx); return; }
+    _fleetPer[s.serialNumber] = (_fleetPer[s.serialNumber] || 0) + 1;
+    if (_seenGrid.has(s.serialNumber)) return; _seenGrid.add(s.serialNumber);
     const t = s.storagegridTopology; if (!t) return;
     const sites = (t.sites || []).map(x => ({ name: x.name || '—', nodes: x.nodes || [] }));
     const nodes = []; sites.forEach(x => x.nodes.forEach(n => nodes.push({ ...n, site: x.name })));
@@ -19758,6 +19795,7 @@ function _dfStorageGridView(systems) {
       siteCap: (s.platformExtras && s.platformExtras.siteCapacity) || [],
       findings: []
     };
+    g.fleetCount = 0; // set after the loop (members of this grid present as fleet systems)
     const add = (severity, title, detail) => g.findings.push({ severity, title, detail });
     if (g.sites.length === 1) add('high', 'Single-site grid', `All nodes are in one site (${g.sites[0].name}); there is no site-level fault tolerance, so a site loss is a grid loss. Multi-site grids need a second site and ILM rules that place copies in it.`);
     if (g.sites.length === 0 && g.installedNodeCount) add('info', 'Node topology not reported', `Active IQ reports ${g.installedNodeCount} installed nodes but no per-site node detail for this grid.`);
@@ -19790,8 +19828,39 @@ function _dfStorageGridView(systems) {
   });
   const findings = []; grids.forEach(g => g.findings.forEach(f => findings.push({ ...f, grid: g.gridName, customer: g.customerName })));
   const order = { high: 0, medium: 1, info: 2 }; findings.sort((a, b) => order[a.severity] - order[b.severity]);
+  // Node count comes from the GRID, not from which nodes happen to send AutoSupport: the admin node reports the
+  // whole grid (installed node count + topology). nodeTotal = the most complete figure available for the grid.
+  grids.forEach(g => {
+    g.fleetCount = _fleetPer[g.system.serialNumber] || 0;
+    g.nodeTotal = Math.max(g.nodes.length, g.installedNodeCount || 0, g.fleetCount);
+    g.nodesNoDetail = Math.max(0, g.nodeTotal - g.nodes.length);
+    g.forms = { Physical: 0, Virtual: 0, Unknown: 0 }; g.nodes.forEach(n => { g.forms[_dfSgForm(n).kind]++; }); g.forms.Unknown += g.nodesNoDetail;
+    g.formsText = [g.forms.Physical ? g.forms.Physical + ' physical' : '', g.forms.Virtual ? g.forms.Virtual + ' virtual' : '', g.forms.Unknown ? g.forms.Unknown + ' form factor not reported' : ''].filter(Boolean).join(', ');
+    g.roles = {}; g.nodes.forEach(n => { const r = String(n.storageNodeType || 'Unknown role'); g.roles[r] = (g.roles[r] || 0) + 1; });
+    g.rolesText = Object.keys(g.roles).map(r => `${g.roles[r]} ${r}`).join(', ') + (g.nodesNoDetail ? `${Object.keys(g.roles).length ? ', ' : ''}${g.nodesNoDetail} role not reported` : '');
+    if (g.installedNodeCount && g.nodes.length && g.nodes.length < g.installedNodeCount) { /* partial inventory already flagged below */ }
+  });
   const sum = k => grids.reduce((a, g) => a + g[k].length, 0);
-  return { grids, sgSystems, findings, totals: { sites: sum('sites'), nodes: sum('nodes'), tenants: sum('tenants'), buckets: sum('buckets'), rules: sum('rules') } };
+  const nodeTotal = grids.reduce((a, g) => a + g.nodeTotal, 0) + unresolved.length;
+  const fleetInGrids = grids.reduce((a, g) => a + g.fleetCount, 0);
+  return { grids, sgSystems, unresolved, nodeTotal, extraNodes: Math.max(0, nodeTotal - sgSystems), findings, totals: { sites: sum('sites'), nodes: grids.reduce((a, g) => a + g.nodeTotal, 0), tenants: sum('tenants'), buckets: sum('buckets'), rules: sum('rules') } };
+}
+
+// Effective system count: StorageGRID nodes counted from the grid (installed node count / topology), not just the
+// nodes that send AutoSupport, so totals reflect the real estate. Non-StorageGRID systems count one each.
+function _dfSgExtraNodes(systems) { return _dfStorageGridView(systems).extraNodes; }
+function _dfEffectiveSystemCount(systems) { return (systems || []).length + _dfSgExtraNodes(systems); }
+// Platform mix lines: { label, count }. StorageGRID is broken out by node role / appliance model from the grid roster.
+function _dfPlatformMix(systems) {
+  const mix = {}; const add = (k, n) => { mix[k] = (mix[k] || 0) + n; };
+  (systems || []).forEach(s => { if (_platformFamily(s) !== 'storagegrid') add(s.platform || 'Unknown', 1); });
+  const v = _dfStorageGridView(systems);
+  v.grids.forEach(g => {
+    g.nodes.forEach(n => { const role = String(n.storageNodeType || 'Node'); const f = _dfSgForm(n); add(`StorageGRID ${role} (${f.label})`, 1); });
+    if (g.nodesNoDetail) add('StorageGRID node (role/model not reported)', g.nodesNoDetail);
+  });
+  v.unresolved.forEach(s => add(`StorageGRID ${s.platform || 'node'}`, 1));
+  return Object.entries(mix).map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count);
 }
 function _dfStorageGridSummaryLine(v) {
   if (!v || !v.grids.length) return '';
@@ -19804,8 +19873,10 @@ function _dfStorageGridText(v, opts) {
   opts = opts || {}; const lim = opts.nodeLimit || 40;
   let o = `  ${_dfStorageGridSummaryLine(v)}.\n\n  Grid Inventory\n` +
     _dfTable(['Grid', 'Customer', 'Version', 'Sites', 'Nodes', 'Tenants', 'Buckets', 'ILM Rules', 'Used %', 'Support Ends'],
-      v.grids.map(g => [g.gridName, g.customerName || '—', g.version || '—', g.sites.length || '—', g.nodes.length ? g.nodes.length + (g.installedNodeCount && g.installedNodeCount !== g.nodes.length ? '/' + g.installedNodeCount : '') : (g.installedNodeCount || '—'), g.tenants.length, g.buckets.length, g.rules.length, g.cap && g.cap.usedPct != null ? g.cap.usedPct : '—', g.supportEnd || '—'])) + '\n';
-  const nodeRows = []; v.grids.forEach(g => g.nodes.forEach(n => nodeRows.push([g.gridName, n.site, n.hostName || '—', n.storageNodeType || '—', [n.applianceModel, n.applianceType].filter(Boolean).join(' ') || '—', n.raidMode || '—', n.driveType ? `${n.driveType}${n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : ''}` : '—', n.osVersion || '—'])));
+      v.grids.map(g => [g.gridName, g.customerName || '—', g.version || '—', g.sites.length || '—', g.nodeTotal ? g.nodeTotal + (g.nodesNoDetail ? ` (${g.nodes.length} with detail)` : '') : '—', g.tenants.length, g.buckets.length, g.rules.length, g.cap && g.cap.usedPct != null ? g.cap.usedPct : '—', g.supportEnd || '—'])) + '\n';
+  const roleRows = []; v.grids.forEach(g => { const grp = {}; g.nodes.forEach(n => { const k = (n.storageNodeType || 'Unknown role') + '|' + _dfSgForm(n).label; grp[k] = (grp[k] || 0) + 1; }); Object.keys(grp).forEach(k => { const [r, f] = k.split('|'); roleRows.push([g.gridName, r, f, grp[k]]); }); if (g.nodesNoDetail) roleRows.push([g.gridName, 'Role not reported', 'Form factor not reported', g.nodesNoDetail]); });
+  if (roleRows.length) o += `\n  Nodes by Role and Form Factor (admin, gateway, storage, archive; physical vs virtual)\n` + _dfTable(['Grid', 'Role', 'Form Factor', 'Nodes'], roleRows) + '\n';
+  const nodeRows = []; v.grids.forEach(g => g.nodes.forEach(n => nodeRows.push([g.gridName, n.site, n.hostName || '—', n.storageNodeType || '—', _dfSgForm(n).label, n.raidMode || '—', n.driveType ? `${n.driveType}${n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : ''}` : '—', n.osVersion || '—'])));
   if (nodeRows.length) o += `\n  Node Roster (site, role, appliance)\n` + _dfTable(['Grid', 'Site', 'Node', 'Role', 'Appliance', 'RAID', 'Drives', 'Version'], nodeRows.slice(0, lim)) + (nodeRows.length > lim ? `\n  +${nodeRows.length - lim} more nodes` : '') + '\n';
   const scRows = []; v.grids.forEach(g => g.siteCap.forEach(sc => scRows.push([g.gridName, sc.site, sc.totalTB, sc.usedTB, sc.usableLeftTB, sc.usedPct != null ? sc.usedPct : '—', sc.reportedOn || '—'])));
   if (scRows.length) o += `\n  Site Capacity (TB)\n` + _dfTable(['Grid', 'Site', 'Total', 'Used', 'Usable Left', 'Used %', 'Reported'], scRows) + '\n';
@@ -23417,7 +23488,8 @@ function getFleetEnrichmentSections(targetSystems) {
   const ontapClause = ontapCount > 0
     ? `${ontapCount} system${ontapCount !== 1 ? 's' : ''} running ONTAP ${versStr} on ${modelStr !== 'N/A' ? modelStr : platStr}`
     : '';
-  const sgClause = sgCount > 0 ? `${sgCount} StorageGRID system${sgCount !== 1 ? 's' : ''} (${[...sgVersions].join(', ') || 'version unknown'})` : '';
+  const _sgNodes = Math.max(sgCount, (() => { const v = _dfStorageGridView(targetSystems); return v.nodeTotal; })());
+  const sgClause = sgCount > 0 ? `${_sgNodes} StorageGRID node${_sgNodes !== 1 ? 's' : ''} (${[...sgVersions].join(', ') || 'version unknown'})` : '';
   const esClause = esCount > 0 ? `${esCount} E-Series/SANtricity system${esCount !== 1 ? 's' : ''} (${[...esVersions].join(', ') || 'version unknown'})` : '';
   const fleetCtx = [ontapClause, sgClause, esClause].filter(Boolean).join('; ') || `${totalSystems} system${totalSystems !== 1 ? 's' : ''}`;
 
@@ -24656,12 +24728,8 @@ function compileCustomerSuccessPlanText(scopeTitle, allRisks, allUpgrades, targe
   }).join("\n\n");
 
   // ── Platform summary ──
-  const platformCounts = {};
-  targetSystems.forEach(s => {
-    const p = s.platform || 'Unknown';
-    platformCounts[p] = (platformCounts[p] || 0) + 1;
-  });
-  const platformLines = Object.entries(platformCounts).map(([p, n]) => `  - ${p}: ${n} system${n > 1 ? 's' : ''}`).join('\n');
+  const platformLines = _dfPlatformMix(targetSystems).map(({ label, count }) => `  - ${label}: ${count} ${/^StorageGRID/.test(label) ? 'node' : 'system'}${count > 1 ? 's' : ''}`).join('\n');
+  const _effCount = _dfEffectiveSystemCount(targetSystems);
 
 
   return `================================================================================
@@ -24672,13 +24740,13 @@ DATE GENERATED       : ${new Date().toISOString().split('T')[0]}
 ACCOUNT TEAM         : TAM: ${activeTAMOwner} | Account Manager: ${activeAMOwner}
 SUPPORT CASE HEALTH  : ${avgCsat} / 10.0 (Support & Account Hygiene)
 ENVIRONMENT HEALTH   : ${allRisks.length > 0 ? 'WARNING - Action Required' : 'OPTIMAL / COMPLIANT'}
-SYSTEMS IN SCOPE     : ${systemCount}
+SYSTEMS IN SCOPE     : ${_effCount}${_effCount !== systemCount ? ` (${systemCount} reporting AutoSupport directly; the rest are StorageGRID nodes counted from their grid)` : ''}
 
 --------------------------------------------------------------------------------
 1. EXECUTIVE SUMMARY & VALUE ALIGNMENT [METRICS]
 --------------------------------------------------------------------------------
 This TAM Success Plan aligns storage operations to ITIL Change Control, NIST/SANS
-hardening, and NetApp Best Practices across ${systemCount} system${systemCount !== 1 ? 's' : ''} spanning:
+hardening, and NetApp Best Practices across ${_effCount} system${_effCount !== 1 ? 's' : ''} spanning:
 ${platformLines}
 
 * ACCOUNT HEALTH SCORE: ${formatHealthScoreText(targetSystems)}
@@ -26245,7 +26313,7 @@ Classification: INTERNAL — ACCOUNT TRANSITION DOCUMENT
 --------------------------------------------------------------------------------
   Customer Name:      ${cleanScope}
   Domestic Parent:    ${domesticParent}
-  Total Systems:      ${total}
+  Total Systems:      ${total + _dfSgExtraNodes(targetSystems)}${_dfSgExtraNodes(targetSystems) ? ` (incl. ${_dfSgExtraNodes(targetSystems)} StorageGRID node${_dfSgExtraNodes(targetSystems) !== 1 ? 's' : ''} counted from their grid)` : ''}
   Total Sites:        ${uniqueSiteNames.length}
   Site Locations:
 ${siteLines}
@@ -27795,6 +27863,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
   const verOf = s => s.ontapVersion || s.santricityVersion || s.sgVersion || s.softwareVersionFull || 'not reported';
   const famLabel = { ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID', element: 'Element OS (HCI)' };
   const fams = {}; targetSystems.forEach(s => { const f = _platformFamily(s); fams[f] = (fams[f] || 0) + 1; });
+  { const _sgN = _dfStorageGridView(targetSystems); if (_sgN.grids.length || _sgN.unresolved.length) fams.storagegrid = _sgN.nodeTotal; }
   const famText = Object.keys(fams).map(f => `${fams[f]} ${famLabel[f] || f}`).join(', ');
   const models = [...new Set(targetSystems.map(s => s.model || s.platform).filter(Boolean))];
   // City when short; otherwise the site name if it is a name (some are a partner's postal address run together)
@@ -27938,8 +28007,8 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
     if (_sg.grids.length) {
       const md = (h, rows) => `| ${h.join(' | ')} |\n|${h.map(() => '---').join('|')}|\n` + rows.map(r => `| ${r.map(c => String(c == null ? '' : c).replace(/\|/g, '/')).join(' | ')} |`).join('\n') + '\n\n';
       o += `## 7b. StorageGRID Object Storage\n\n${_dfStorageGridSummaryLine(_sg)}.\n\n`;
-      o += md(['Grid', 'Version', 'Sites', 'Nodes', 'Tenants', 'Buckets', 'ILM rules', 'Used %', 'Support ends'], _sg.grids.map(g => [g.gridName, g.version || 'not reported', g.sites.length || 'not reported', g.nodes.length || g.installedNodeCount || 'not reported', g.tenants.length, g.buckets.length, g.rules.length, g.cap && g.cap.usedPct != null ? g.cap.usedPct : 'not reported', g.supportEnd || 'not reported']));
-      const _nr = []; _sg.grids.forEach(g => g.nodes.forEach(n => _nr.push([g.gridName, n.site, n.hostName || '', n.storageNodeType || '', [n.applianceModel, n.applianceType].filter(Boolean).join(' ') || '', n.raidMode || '', n.driveType ? n.driveType + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : ''])));
+      o += md(['Grid', 'Version', 'Sites', 'Nodes', 'Tenants', 'Buckets', 'ILM rules', 'Used %', 'Support ends'], _sg.grids.map(g => [g.gridName, g.version || 'not reported', g.sites.length || 'not reported', g.nodeTotal || 'not reported', g.tenants.length, g.buckets.length, g.rules.length, g.cap && g.cap.usedPct != null ? g.cap.usedPct : 'not reported', g.supportEnd || 'not reported']));
+      const _nr = []; _sg.grids.forEach(g => g.nodes.forEach(n => _nr.push([g.gridName, n.site, n.hostName || '', n.storageNodeType || '', _dfSgForm(n).label, n.raidMode || '', n.driveType ? n.driveType + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : ''])));
       if (_nr.length) o += `**Grid topology**\n\n` + md(['Grid', 'Site', 'Node', 'Role', 'Appliance', 'RAID', 'Drives'], _nr.slice(0, 30)) + (_nr.length > 30 ? `_+${_nr.length - 30} more nodes_\n\n` : '');
       const _rr = []; _sg.grids.forEach(g => g.rules.forEach(r => _rr.push([g.gridName, r.ruleName, r.isDefaultRule ? 'Yes' : 'No', r._p.text, r.ingestBehavior || ''])));
       if (_rr.length) o += `**Data protection (ILM rules)**\n\n` + md(['Grid', 'Rule', 'Default', 'Placement', 'Ingest'], _rr);
@@ -29142,7 +29211,7 @@ ${fm.perSystem.filter(s => s.pct < 60).slice(0, 5).map(s => { const gaps = []; i
   const _hwModels = [...new Set(_hwWindow.map(s => s.model || s.platform).filter(Boolean))];
   salesProposals += `\nCOMMERCIAL CONTEXT [METRICS + OWNERSHIP]
 --------------------------------------------------------------------------------
-  Estate:                      ${sysCount} systems (${Object.entries(targetSystems.reduce((a, s) => { const f = _platformFamily(s); a[f] = (a[f] || 0) + 1; return a; }, {})).map(([f, c]) => c + ' ' + ({ ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID', element: 'Element OS (HCI)' }[f] || f)).join(', ')})
+  Estate:                      ${sysCount + _dfSgExtraNodes(targetSystems)} systems (${Object.entries((() => { const a = targetSystems.reduce((a, s) => { const f = _platformFamily(s); a[f] = (a[f] || 0) + 1; return a; }, {}); const _v = _dfStorageGridView(targetSystems); if (_v.grids.length || _v.unresolved.length) a.storagegrid = _v.nodeTotal; return a; })()).map(([f, c]) => c + ' ' + ({ ontap: 'ONTAP', eseries: 'E-Series', storagegrid: 'StorageGRID', element: 'Element OS (HCI)' }[f] || f)).join(', ')})
   Support entitlement:         ${_contractFactsSales.active.length} active${_contractFactsSales.expired.length ? ', ' + _contractFactsSales.expired.length + ' lapsed' : ''}${_contractFactsSales.expiring90.length ? ', ' + _contractFactsSales.expiring90.length + ' expiring within 90 days' : ''}
   Hardware support ending within 24 months (or already ended): ${_hwWindow.length ? _hwWindow.length + ' system' + (_hwWindow.length !== 1 ? 's' : '') + ' (' + _hwModels.join(', ') + ')' : 'none reported'}
   Data reduction (ONTAP):      ${avgDRRatio === 'N/A' ? 'ratio not reported by Active IQ' : avgDRRatio + ':1, ' + savedTotalTB.toFixed(1) + ' TB saved'}
@@ -31501,7 +31570,7 @@ function _renderAsBuiltSection(systems) {
     <div style="display:flex; flex-wrap:wrap; gap:16px; margin-bottom:32px;">
         <div style="flex:1; min-width: 180px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
             <div style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Total Systems</div>
-            <div style="font-size:1.8rem; font-weight:bold; color:var(--accent-cyan);">${systems.length}</div>
+            <div style="font-size:1.8rem; font-weight:bold; color:var(--accent-cyan);">${_dfEffectiveSystemCount(systems)}</div>
         </div>
         <div style="flex:1; min-width: 180px; background: rgba(255,255,255,0.02); padding: 16px; border-radius: var(--radius-md); border: 1px solid rgba(255,255,255,0.05);">
             <div style="font-size:0.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px; margin-bottom:8px;">Platform Mix</div>
@@ -34203,7 +34272,7 @@ function downloadPlanSection(index) {
     text = `NETAPP EXECUTIVE SUMMARY REPORT
 Scope: ${scopeTitle}
 Date Generated: ${new Date().toISOString().split('T')[0]}
-Total Systems Audited: ${targetSystems.length}
+Total Systems Audited: ${_dfEffectiveSystemCount(targetSystems)}
 
 METRICS SUMMARY:
 - Technical Risks: ${allRisks.length}
@@ -34455,7 +34524,7 @@ ${recs.length === 0 ? "✓ No recommendations available. Run a data refresh to l
     let body = `NETAPP AS-BUILT CONFIGURATION DOCUMENT
 Scope: ${scopeTitle}
 Date Generated: ${new Date().toISOString().split('T')[0]}
-Total Systems: ${targetSystems.length}
+Total Systems: ${_dfEffectiveSystemCount(targetSystems)}
 ${sep}\n\n`;
 
     targetSystems.forEach((sys, idx) => {
@@ -41587,10 +41656,10 @@ function _storageGridHtml(view) {
     stat('Tenants / buckets', t.tenants + ' / ' + t.buckets, 'var(--accent-cyan)') + stat('ILM rules', t.rules, 'var(--accent-cyan)') +
     stat('Findings', hi + ' high / ' + md + ' med', hi ? 'var(--status-critical)' : md ? 'var(--status-warning)' : 'var(--status-normal)') + `</div>`;
   view.grids.forEach(g => {
-    html += `<details open style="margin-bottom:12px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);padding:10px 12px;"><summary style="cursor:pointer;font-weight:600;">${esc(g.gridName)} <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">${esc(g.customerName)} &middot; ${g.sites.length} site${g.sites.length !== 1 ? 's' : ''} &middot; ${g.nodes.length || g.installedNodeCount || 0} nodes &middot; ${esc(g.version)}${g.licenseCapacity ? ' &middot; licence ' + esc(g.licenseCapacity) + ' TB (' + esc(g.licenseType || '') + ')' : ''}</span></summary>`;
+    html += `<details open style="margin-bottom:12px;border:1px solid rgba(255,255,255,0.08);border-radius:var(--radius-sm);padding:10px 12px;"><summary style="cursor:pointer;font-weight:600;">${esc(g.gridName)} <span style="color:var(--text-muted);font-weight:400;font-size:0.75rem;">${esc(g.customerName)} &middot; ${g.sites.length} site${g.sites.length !== 1 ? 's' : ''} &middot; ${g.nodeTotal || 0} node${g.nodeTotal !== 1 ? 's' : ''}${g.rolesText ? ' (' + esc(g.rolesText) + ')' : ''}${g.formsText ? ' &middot; ' + esc(g.formsText) : ''} &middot; ${esc(g.version)}${g.licenseCapacity ? ' &middot; licence ' + esc(g.licenseCapacity) + ' TB (' + esc(g.licenseType || '') + ')' : ''}</span></summary>`;
     if (g.nodes.length) {
       html += `<div style="overflow-x:auto;margin-top:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Node</th><th style="${th}">Role</th><th style="${th}">Appliance</th><th style="${th}">RAID</th><th style="${th}">Drives</th><th style="${th}">Version</th></tr></thead><tbody>` +
-        g.nodes.map(n => `<tr><td style="${td}">${esc(n.site)}</td><td style="${td}">${esc(n.hostName)}${g.primaryAdmin && n.hostName === g.primaryAdmin ? ' <span style="color:var(--accent-cyan);font-size:0.68rem;">primary</span>' : ''}</td><td style="${td}">${esc(n.storageNodeType || '—')}</td><td style="${td}">${esc([n.applianceModel, n.applianceType].filter(Boolean).join(' ') || '—')}</td><td style="${td}">${esc(n.raidMode || '—')}</td><td style="${td}">${n.driveType ? esc(n.driveType) + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : '—'}</td><td style="${td}">${esc(n.osVersion || '—')}</td></tr>`).join('') + `</tbody></table></div>`;
+        g.nodes.map(n => `<tr><td style="${td}">${esc(n.site)}</td><td style="${td}">${esc(n.hostName)}${g.primaryAdmin && n.hostName === g.primaryAdmin ? ' <span style="color:var(--accent-cyan);font-size:0.68rem;">primary</span>' : ''}</td><td style="${td}">${esc(n.storageNodeType || '—')}</td><td style="${td}">${esc(_dfSgForm(n).label)}</td><td style="${td}">${esc(n.raidMode || '—')}</td><td style="${td}">${n.driveType ? esc(n.driveType) + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : '—'}</td><td style="${td}">${esc(n.osVersion || '—')}</td></tr>`).join('') + `</tbody></table></div>`;
     } else html += `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:8px;">Active IQ did not return per-node detail for this grid.</div>`;
     if (g.siteCap.length) {
       html += `<div style="font-size:0.7rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;">Site capacity (TB)</div><div style="overflow-x:auto;"><table style="width:100%;border-collapse:collapse;"><thead><tr><th style="${th}">Site</th><th style="${th}">Total</th><th style="${th}">Used</th><th style="${th}">Usable left</th><th style="${th}">Used %</th><th style="${th}">Reported</th></tr></thead><tbody>` +

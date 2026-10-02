@@ -1,8 +1,8 @@
 {
-  "version": "5.6.206",
+  "version": "5.6.207",
   "major": 5,
   "minor": 6,
-  "patch": 206,
+  "patch": 207,
   "date": "2026-10-02",
-  "notes": "Fixed StorageGRID data not appearing in the GUI: duplicate systems from different accounts were deduped by discarding the copy that carried the topology; node systems now resolve to their grid; the replication card no longer shows a previous selection's SnapMirror list for StorageGRID/E-Series."
+  "notes": "StorageGRID node counts now reflect the whole grid, not just nodes that send AutoSupport: the harvest requests StorageGRID node systems, and totals use the grid's installed node count and topology. Nodes are broken out by role (admin, gateway, storage, archive) and form factor (physical appliance, VMware VM, bare metal)."
 }
