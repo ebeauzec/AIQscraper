@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.242] - 2026-10-03
+
+### Fixed
+- `_dxParse` markdown mode prints no rule lines (==== / ---- / box drawing) and turns a short line above one into a heading; the three deliverable-suite Word exports had ~800 stray rule lines. Full leak audit (all 27 views, all 15 deliverables) now clean.
+
+---
+
 ## [5.6.241] - 2026-10-03
 
 ### Fixed

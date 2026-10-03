@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.241";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.242";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.242",
+    date: "3 October 2026",
+    title: "No Stray Rule Lines in Word Suites",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Raw ==== Lines in the Deliverable Suites",
+        color: "#22c55e",
+        items: [
+          "The Word exports of the three deliverable-suite views printed hundreds of raw '=====' lines because plain-text deliverables embedded in them were not recognised as underlines. Rule lines are no longer printed, and a short line above one becomes a heading.",
+          "All 27 Action Planner views and all 15 downloadable deliverables were built into Word files and scanned for leaked formatting (stray #, **, backticks, rule lines, HTML entities, 'undefined'/'NaN'): the rest were already clean.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.241",
     date: "3 October 2026",
@@ -36771,6 +36787,11 @@ function _dxParse(text, isMd, ctx) {
     for (let i = 0; i < L.length; i++) {
       const l = L[i]; let m;
       if (!l.trim()) { gap = true; continue; }
+      // Plain-text deliverables embedded in a Markdown document (the deliverable suites) carry underline rules: ==== / ---- / box-drawing lines.
+      // A rule is never printed; a short line directly above one is that block's heading.
+      const _isRule = s => /^\s*[=\-_\u2500\u2550\u2501*~]{4,}\s*$/.test(s || '');
+      if (_isRule(l)) { gap = true; continue; }
+      if (!/^\s*(\||[-*]\s|\d+\.\s|#)/.test(l) && l.trim().length <= 120 && _isRule(L[i + 1]) ) { setSub(_dxClean(l.replace(/^\s*[=\-_*]+\s*|\s*[=\-_*]+\s*$/g, '')).trim()); i++; continue; }
       if ((m = l.match(/^(#{1,6})\s+(.*)$/))) {   // levels 4-6 share the deepest Word heading style
         let h = _dxClean(m[2]).replace(/^Slide \d+\s+\u2014\s+/, '');
         if (m[1].length === 1) { const c = doc.customer ? h.match(new RegExp('^' + doc.customer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+\u2014\\s+(.*)$', 'i')) : null; const pre = h.match(/^(.+?)\s+\u2014\s+(.*)$/); if (c) h = c[1]; else if (pre && !doc.customer) { doc.customer = pre[1]; h = pre[2]; } doc.title = h; continue; }
