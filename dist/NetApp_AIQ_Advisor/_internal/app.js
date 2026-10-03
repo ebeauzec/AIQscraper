@@ -27,9 +27,34 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.234";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.235";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.235",
+    date: "3 October 2026",
+    title: "Switch Firmware and RCF Version Check",
+    sections: [
+      {
+        icon: "🔀",
+        label: "New -- Is This Switch's Firmware or RCF Out of Date?",
+        color: "#22c55e",
+        items: [
+          "Active IQ reports only what is running on a switch (firmware version and the RCF applied), never whether it is current. The switch inventory now has a 'Version check' column comparing the running firmware with the baseline ARIA keeps for that switch family (Nexus 9000-series and 9336C-FX2 NX-OS, EFOS, Cumulus, Brocade FOS, MDS); the result is below baseline, at or above it, or not assessed.",
+          "Switches with no baseline (IOS, Nexus 3000-series, unmodelled or unmonitored switches) are shown as 'Not assessed' rather than judged against the wrong family. The RCF is labelled 'RCF applied' and flagged only when switches of the same model run different RCF versions. The Technical Audit switch table and the deliverables use the same wording.",
+          "Baselines in data/firmware_baselines.json may now list the switch models they apply to, so coverage can be extended without code changes.",
+        ],
+      },
+      {
+        icon: "📊",
+        label: "Fixed -- Used Percentage on the SAN & NAS Tab",
+        color: "#3b82f6",
+        items: [
+          "Used percentage now uses Active IQ's own utilisation figure (like-for-like on the performance tier); systems with a capacity tier no longer show impossible values such as 800% used.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.234",
     date: "3 October 2026",
@@ -16326,11 +16351,11 @@ function renderTAMTab() {
 
       let actionText = `Switch matches validated baseline. <a href="${imtLink}" target="_blank" style="color:var(--accent-cyan);text-decoration:underline;" onclick="window.open(this.href,'_blank');return false;">Verify in IMT ↗</a>`;
       if (sw.status === "Warning") {
-        actionText = `Plan firmware update to target release: <strong style="color:var(--accent-cyan);">${sw.targetFirmware}</strong>. &nbsp;
+        actionText = `${(() => { const _b = _dfSwBaseline(sw.model, sw.vendor, sw.firmware); return _b.recommended ? 'Compare with the recommended firmware baseline <strong style="color:var(--accent-cyan);">' + _b.recommended + '</strong> and plan an update if the switch is below it.' : 'Check the switch against the firmware recommended for your ONTAP version.'; })()} &nbsp;
           <a href="${fwLink.url}" target="_blank" style="color:var(--accent-cyan);text-decoration:underline;font-weight:600;" onclick="window.open(this.href,'_blank');return false;">⬇ ${fwLink.label} ↗</a> &nbsp;
           <a href="${imtLink}" target="_blank" style="color:var(--accent-cyan);text-decoration:underline;" onclick="window.open(this.href,'_blank');return false;">✅ IMT ↗</a>`;
       } else if (sw.status === "Critical") {
-        actionText = `<strong style="color:var(--status-critical);">⚠ Immediate action:</strong> Install <strong>${sw.targetFirmware}</strong> to resolve bug or security vulnerability. &nbsp;
+        actionText = `<strong style="color:var(--status-critical);">⚠ Immediate action:</strong> ${(() => { const _b = _dfSwBaseline(sw.model, sw.vendor, sw.firmware); return _b.recommended ? 'update to the recommended firmware <strong>' + _b.recommended + '</strong> or later' : 'update to the firmware NetApp recommends for your ONTAP version'; })()} to resolve the reported bug or vulnerability. &nbsp;
           <a href="${fwLink.url}" target="_blank" style="color:var(--status-critical);text-decoration:underline;font-weight:600;" onclick="window.open(this.href,'_blank');return false;">⬇ ${fwLink.label} ↗</a> &nbsp;
           <a href="${imtLink}" target="_blank" style="color:var(--accent-cyan);text-decoration:underline;" onclick="window.open(this.href,'_blank');return false;">✅ IMT ↗</a>`;
       }
@@ -16347,10 +16372,10 @@ function renderTAMTab() {
       // server.py, sourced from Active IQ's harvested rcfVersion field, distinct
       // from firmware currency (a switch can be on current firmware but still
       // running a stale/wrong RCF, or vice versa).
-      let rcfBadge = '';
-      if (sw.rcfCompliant === true) {
+      let rcfBadge = sw.rcfVersion ? `<div style="margin-top:4px;"><span style="font-size:0.68rem;color:var(--text-muted);" title="The Reference Configuration File applied to this switch, as Active IQ reports it. ARIA has no per-model recommended-RCF list to compare it with.">RCF applied: ${sw.rcfVersion}</span></div>` : '';
+      if (false && sw.rcfCompliant === true) {
         rcfBadge = `<div style="margin-top:4px;"><span style="font-size:0.68rem;color:var(--status-normal);" title="Current RCF version: ${sw.rcfVersion}">✓ RCF Compliant</span></div>`;
-      } else if (sw.rcfCompliant === false) {
+      } else if (false && sw.rcfCompliant === false) {
         rcfBadge = `<div style="margin-top:4px;"><span style="font-size:0.68rem;color:var(--status-warning);" title="Active IQ recommends RCF ${sw.rcfVersion}; running firmware ${sw.firmware}">⚠ RCF Mismatch — recommended: ${sw.rcfVersion}</span></div>`;
       }
 
@@ -16383,7 +16408,7 @@ function renderTAMTab() {
           <td><span style="font-size: 0.8rem; font-weight: 500;">${sw.type}</span>${mcNote}${portNote}</td>
           <td>
             <div style="font-size: 0.8rem; color: var(--text-secondary);">Current: <code style="color: var(--text-muted);">${sw.firmware || '—'}</code></div>
-            ${sw.targetFirmware ? `<div style="font-size: 0.8rem; color: var(--accent-cyan);">Target: <code style="color: var(--accent-cyan); font-weight: 600;">${sw.targetFirmware}</code></div>` : `<div style="font-size: 0.75rem; color: var(--text-muted);">No RCF published by Active IQ for this switch — current firmware only.</div>`}
+            ${(() => { const _vc = _dfSwitchVersionCheck({ model: sw.model, vendor: sw.vendor, fwRaw: sw.firmware && !/^not reported$/i.test(sw.firmware) ? sw.firmware : '', monitored: sw.isMonitored }); const _col = _vc.status === 'behind' ? 'var(--status-warning)' : _vc.status === 'current' ? 'var(--status-normal)' : 'var(--text-muted)'; return `<div style="font-size: 0.75rem; color: ${_col};" title="ARIA compares the running firmware with the baseline it keeps for this switch family. Active IQ reports what is running, not whether it is current.">${_vc.text}</div>`; })()}
             <div style="margin-top:4px;">
               <a href="${fwLink.url}" target="_blank"
                  style="font-size:0.68rem;color:var(--accent-cyan);text-decoration:underline;"
@@ -16605,6 +16630,44 @@ function _dfSwFwShort(fw) {
   if ((m = t.match(/Fabric OS.*?v?([0-9]+\.[0-9][\w.]*)/i))) return 'FOS ' + m[1];
   return t.length > 40 ? t.slice(0, 38) + '...' : t;
 }
+// ---- Is a switch's firmware / RCF in need of an upgrade? ----
+// Active IQ reports what is RUNNING on a switch (firmware version, and the Reference Configuration File (RCF) applied to it) but does not say
+// whether either is current. ARIA therefore compares the running firmware with the baseline it keeps per switch family
+// (data/firmware_baselines.json, from NetApp's published guidance), and for RCFs flags only versions that differ between switches of the same model.
+function _dfSwVerNums(v) { return (String(v || '').replace(/[()]/g, '.').match(/\d+/g) || []).slice(0, 4).map(Number); }
+function _dfSwVerCmp(x, y) { for (let i = 0; i < Math.max(x.length, y.length); i++) { const d = (x[i] || 0) - (y[i] || 0); if (d) return d < 0 ? -1 : 1; } return 0; }
+function _dfSwBaseline(model, vendor, fwRaw) {
+  const t = (String(model || '') + ' ' + String(vendor || '') + ' ' + String(fwRaw || '')).toLowerCase(), B = (typeof _getRefLibBaselines === 'function') ? _getRefLibBaselines() : {};
+  let key = null, ver = null, m;
+  // An entry in data/firmware_baselines.json "switches" may list the models it applies to ("models": ["NX3132V", "NX3232C"], matched as
+  // case-insensitive fragments of the model name); it then takes precedence, so coverage can be extended without code changes.
+  const _fwOf = x => (String(x).match(/Version\s+([0-9][\w().]*)/i) || String(x).match(/^\s*([0-9][\w().]*)\s*$/) || String(x).match(/(\d+\.\d+\.\d+(?:\.\d+)?)/) || [])[1];
+  for (const [k, ent] of Object.entries(B)) {
+    if (ent && Array.isArray(ent.models) && ent.recommended && ent.models.some(f => String(model || '').toLowerCase().includes(String(f).toLowerCase()))) return { key: k, version: _fwOf(fwRaw) || null, recommended: ent.recommended, label: ent.label || k };
+  }
+  if (/cumulus|sn2100/.test(t)) { key = 'NVIDIA Cumulus'; ver = (String(fwRaw).match(/Cumulus Linux version\s+([0-9][\w.]*)/i) || [])[1]; }
+  else if (/efos|bes-?53248|broadcom/.test(t)) { key = 'Broadcom EFOS'; ver = (String(fwRaw).match(/(\d+\.\d+\.\d+(?:\.\d+)?)/) || [])[1]; }
+  else if (/brocade|fabric os|\bg6\d\d\b|\bg7\d\d\b/.test(t)) { key = 'Brocade FOS'; ver = (String(fwRaw).match(/v?(\d+\.\d+\.\d+[\w.]*)/) || [])[1]; }
+  else if (/\bmds\b/.test(t)) { key = 'Cisco MDS'; ver = (String(fwRaw).match(/Version\s+([0-9][\w().]*)/i) || [])[1]; }
+  else if (/nx-?os|nexus|n9k|nx3\d{3}/.test(t)) {
+    // Each baseline covers specific models: 'Cisco NX-OS' is the Nexus 9000 series (cluster/MC-IP, AFX); 'Cisco NX-OS Legacy' the 9336C-FX2. Nexus 3000-series
+    // cluster switches (NX3132V, NX3232C) and IOS/other Cisco switches have no baseline here, so they are not judged against one.
+    const m9k = String(model || '').toUpperCase();
+    key = /9336C-FX2/.test(m9k) ? 'Cisco NX-OS Legacy' : (/N9K|93(32|64)|9808|9[0-9]{3}[A-Z-]/.test(m9k) ? 'Cisco NX-OS' : null);
+    ver = (String(fwRaw).match(/Version\s+([0-9][\w().]*)/i) || String(fwRaw).match(/^\s*([0-9][\w().]*)\s*$/) || [])[1];
+  }
+  if (!key || !B[key] || !B[key].recommended || /^current$/i.test(B[key].recommended)) return { key, version: ver || null, recommended: null };
+  return { key, version: ver || null, recommended: B[key].recommended, label: B[key].label || key };
+}
+function _dfSwitchVersionCheck(e) {
+  if (!e.monitored && !e.fwRaw) return { status: 'unknown', text: 'Not assessed: switch not monitored, no firmware reported' };
+  const b = _dfSwBaseline(e.model, e.vendor, e.fwRaw);
+  if (!b.key || !b.recommended) return { status: 'unknown', text: `Not assessed: ARIA keeps no firmware baseline for ${e.model || e.vendor || 'this switch'}` };
+  if (!b.version) return { status: 'unknown', text: 'Not assessed: firmware version not reported or not recognised' };
+  const cmp = _dfSwVerCmp(_dfSwVerNums(b.version), _dfSwVerNums(b.recommended));
+  return cmp >= 0 ? { status: 'current', text: `At or above the ${b.recommended} baseline`, recommended: b.recommended }
+                  : { status: 'behind', text: `Below the ${b.recommended} baseline (running ${b.version})`, recommended: b.recommended };
+}
 function _dfSwKey(w) {
   const norm = d => String(d || '').toLowerCase().replace(/\.(cii_encrypt|pii_encrypt).*$/, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/\.int\.[a-z]+$/, '').trim();
   const ser = String(w.serialNumber || '');
@@ -16622,6 +16685,7 @@ function _dfSwitchInventory(systems) {
     if (w.model && !/not identified|^unknown/i.test(w.model) && (!e.model || /^(other|)$/i.test(e.model))) e.model = w.model;
     if (!e.type && w.type) e.type = w.type;
     const f = _dfSwFwShort(w.firmware); if (f && !e.fw) e.fw = f;
+    if (w.firmware && !/^not reported$/i.test(w.firmware) && !e.fwRaw) e.fwRaw = String(w.firmware);
     if (w.rcfVersion && !e.rcf) e.rcf = w.rcfVersion;
     if (w.ipAddress && !e.ip) e.ip = w.ipAddress;
     if (w.isMonitored) e.monitored = true;
@@ -16634,6 +16698,7 @@ function _dfSwitchInventory(systems) {
   const list = [...map.values()].sort((x, y) => String(x.name).localeCompare(String(y.name), undefined, { numeric: true }));
   const now = Date.now();
   list.forEach(e => {
+    e.check = _dfSwitchVersionCheck(e);
     e.source = e.monitored ? 'Monitored (CSHM)' : (e.discovered ? 'Discovered, not monitored' : 'Seen via port connectivity only');
     e.snmpLabel = e.snmp ? e.snmp.replace(/^SNMP/i, 'SNMP').replace(/V(\d)/i, 'v$1').replace(/v2c/i, 'v2c') : '';
     e.weakSnmp = /^SNMPV[12]/i.test(e.snmp);
@@ -16642,10 +16707,11 @@ function _dfSwitchInventory(systems) {
   const n = list.length, mon = list.filter(e => e.monitored).length, disc = list.filter(e => !e.monitored && e.discovered).length, conn = n - mon - disc;
   const weak = list.filter(e => e.weakSnmp), expired = list.filter(e => e.daysToContractEnd != null && e.daysToContractEnd < 0), soon = list.filter(e => e.daysToContractEnd != null && e.daysToContractEnd >= 0 && e.daysToContractEnd <= 180);
   const noRcf = list.filter(e => e.monitored && !e.rcf);
-  const byModel = {}; list.forEach(e => { const k = e.model || '(model not reported)'; const b = byModel[k] = byModel[k] || { n: 0, fw: new Set() }; b.n++; if (e.fw) b.fw.add(e.fw); });
+  const behind = list.filter(e => e.check && e.check.status === 'behind'), notAssessed = list.filter(e => e.check && e.check.status === 'unknown'), currentFw = list.filter(e => e.check && e.check.status === 'current');
+  const byModel = {}; list.forEach(e => { const k = e.model || '(model not reported)'; const b = byModel[k] = byModel[k] || { n: 0, fw: new Set(), rcf: new Set() }; b.n++; if (e.fw) b.fw.add(e.fw); if (e.rcf) b.rcf.add(e.rcf); });
   const systemsWithSw = (systems || []).filter(s => (s.switches || []).length).length;
   const ontapNoSw = (systems || []).filter(s => _platformFamily(s) === 'ontap' && !(s.switches || []).length).length;
-  return { list, n, mon, disc, conn, weak, expired, soon, noRcf, byModel, systemsWithSw, ontapNoSw, snmpReported: list.filter(e => e.snmp).length };
+  return { list, n, mon, disc, conn, weak, expired, soon, noRcf, behind, notAssessed, currentFw, byModel, systemsWithSw, ontapNoSw, snmpReported: list.filter(e => e.snmp).length };
 }
 function _switchInventoryHtml(v) {
   if (!v || !v.n) return `<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">Active IQ reports no cluster switches for the ONTAP systems in this scope. Switch data comes from the Cluster Switch Health Monitor (CSHM); it is empty when CSHM is not configured on the cluster or the switch information has not reached Active IQ in AutoSupport.${v && v.ontapNoSw ? ` ${v.ontapNoSw} ONTAP system${v.ontapNoSw !== 1 ? 's' : ''} in scope have no switch records.` : ''}</div>`;
@@ -16653,10 +16719,11 @@ function _switchInventoryHtml(v) {
   const th = 'text-align:left;padding:6px 8px;font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border-color);', td = 'padding:5px 8px;font-size:0.76rem;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:top;';
   const stat = (l, val, c, sub) => `<div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${c};"><div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${l}</div><div style="font-size:1.25rem;font-weight:700;">${val}</div>${sub ? `<div style="font-size:0.65rem;color:var(--text-muted);">${sub}</div>` : ''}</div>`;
   let h = `<h3 style="font-size:1rem;margin:0 0 10px;">Switch inventory</h3>`;
-  h += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px;">` +
+  h += `<div style="display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:12px;">` +
     stat('Distinct switches', v.n, 'var(--accent-cyan)', `${v.systemsWithSw} system${v.systemsWithSw !== 1 ? 's' : ''} connected`) +
     stat('Monitored (CSHM)', `${v.mon}/${v.n}`, v.mon === v.n ? 'var(--status-normal)' : 'var(--status-warning)', 'model, firmware, RCF, contract') +
     stat('Not monitored', v.disc + v.conn, (v.disc + v.conn) ? 'var(--status-warning)' : 'var(--status-normal)', `${v.disc} discovered, ${v.conn} seen via ports only`) +
+    stat('Firmware below baseline', v.behind.length, v.behind.length ? 'var(--status-warning)' : 'var(--status-normal)', `${v.currentFw.length} at/above, ${v.notAssessed.length} not assessed`) +
     stat('SNMPv1/v2c', v.weak.length, v.weak.length ? 'var(--status-warning)' : 'var(--status-normal)', v.snmpReported ? `of ${v.snmpReported} reporting SNMP version` : 'SNMP version not reported') +
     stat('Support contracts', v.expired.length + v.soon.length, (v.expired.length || v.soon.length) ? 'var(--status-warning)' : 'var(--status-normal)', `${v.expired.length} expired, ${v.soon.length} ending within 180 days`) + `</div>`;
   const notes = [];
@@ -16664,12 +16731,13 @@ function _switchInventoryHtml(v) {
   if (v.weak.length) notes.push(`${v.weak.length} switch${v.weak.length !== 1 ? 'es use' : ' uses'} SNMPv1/v2c (community-string authentication). NetApp recommends SNMPv3 for CSHM.`);
   if (v.noRcf.length) notes.push(`${v.noRcf.length} monitored switch${v.noRcf.length !== 1 ? 'es have' : ' has'} no Reference Configuration File version reported, so RCF compliance cannot be assessed.`);
   if (v.ontapNoSw) notes.push(`${v.ontapNoSw} ONTAP system${v.ontapNoSw !== 1 ? 's' : ''} in scope ha${v.ontapNoSw !== 1 ? 've' : 's'} no switch records at all (CSHM not configured, or switch data not reaching Active IQ).`);
+  notes.push(`<strong>How to tell whether firmware or RCF needs an upgrade.</strong> Active IQ reports only what is <em>running</em> on a switch: its firmware version and the RCF (Reference Configuration File) applied to it. It does not say whether either is current. The <em>Version check</em> column compares the running firmware with the baseline ARIA keeps for that switch family; the RCF is shown as applied, and ARIA has no per-model recommended-RCF list, so it flags only RCF versions that differ between switches of the same model (see the table below). Confirm any upgrade against NetApp's switch upgrade documentation and the Interoperability Matrix for your ONTAP version.`);
   if (notes.length) h += `<ul style="margin:0 0 12px 18px;padding:0;font-size:0.8rem;color:var(--text-secondary);">${notes.map(x => `<li>${x}</li>`).join('')}</ul>`;
-  h += `<div style="overflow-x:auto;margin-bottom:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr>${['Switch', 'Vendor / model', 'Network', 'Firmware', 'RCF', 'Monitoring', 'SNMP', 'Contract ends', 'Clusters served'].map(x => `<th style="${th}">${x}</th>`).join('')}</tr></thead><tbody>` +
-    v.list.map(e => `<tr><td style="${td}font-weight:600;">${esc(e.name)}${e.ip ? `<div style="font-size:0.66rem;color:var(--text-muted);">${esc(e.ip)}${e.serial && !/^(unknown|not available)$/i.test(e.serial) ? ' &middot; S/N ' + esc(e.serial) : ''}</div>` : ''}</td><td style="${td}">${esc([e.vendor, e.model].filter(Boolean).join(' ') || '\u2014')}</td><td style="${td}">${esc(e.type || '\u2014')}${e.mc ? ' <span style="color:#ff9800;font-size:0.66rem;">MetroCluster</span>' : ''}</td><td style="${td}">${esc(e.fw || '\u2014')}</td><td style="${td}">${esc(e.rcf || '\u2014')}</td><td style="${td}">${esc(e.source)}</td><td style="${td}${e.weakSnmp ? 'color:var(--status-warning);' : ''}">${esc(e.snmpLabel || '\u2014')}</td><td style="${td}${e.daysToContractEnd != null && e.daysToContractEnd < 180 ? 'color:var(--status-warning);' : ''}">${e.contractEnd ? esc(String(e.contractEnd).slice(0, 10)) + (e.daysToContractEnd != null && e.daysToContractEnd < 0 ? ' (expired)' : '') : '\u2014'}</td><td style="${td}">${esc([...e.clusters].join(', '))}</td></tr>`).join('') + `</tbody></table></div>`;
+  h += `<div style="overflow-x:auto;margin-bottom:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr>${['Switch', 'Vendor / model', 'Network', 'Firmware', 'Version check', 'RCF applied', 'Monitoring', 'SNMP', 'Contract ends', 'Clusters served'].map(x => `<th style="${th}">${x}</th>`).join('')}</tr></thead><tbody>` +
+    v.list.map(e => `<tr><td style="${td}font-weight:600;">${esc(e.name)}${e.ip ? `<div style="font-size:0.66rem;color:var(--text-muted);">${esc(e.ip)}${e.serial && !/^(unknown|not available)$/i.test(e.serial) ? ' &middot; S/N ' + esc(e.serial) : ''}</div>` : ''}</td><td style="${td}">${esc([e.vendor, e.model].filter(Boolean).join(' ') || '\u2014')}</td><td style="${td}">${esc(e.type || '\u2014')}${e.mc ? ' <span style="color:#ff9800;font-size:0.66rem;">MetroCluster</span>' : ''}</td><td style="${td}">${esc(e.fw || '\u2014')}</td><td style="${td}${e.check.status === 'behind' ? 'color:var(--status-warning);font-weight:600;' : e.check.status === 'current' ? 'color:var(--status-normal);' : 'color:var(--text-muted);'}">${esc(e.check.text)}</td><td style="${td}">${esc(e.rcf || '\u2014')}</td><td style="${td}">${esc(e.source)}</td><td style="${td}${e.weakSnmp ? 'color:var(--status-warning);' : ''}">${esc(e.snmpLabel || '\u2014')}</td><td style="${td}${e.daysToContractEnd != null && e.daysToContractEnd < 180 ? 'color:var(--status-warning);' : ''}">${e.contractEnd ? esc(String(e.contractEnd).slice(0, 10)) + (e.daysToContractEnd != null && e.daysToContractEnd < 0 ? ' (expired)' : '') : '\u2014'}</td><td style="${td}">${esc([...e.clusters].join(', '))}</td></tr>`).join('') + `</tbody></table></div>`;
   const models = Object.keys(v.byModel).sort((x, y) => v.byModel[y].n - v.byModel[x].n);
-  h += `<div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;font-weight:600;">Models and firmware in use</div><table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><thead><tr><th style="${th}">Model</th><th style="${th}">Switches</th><th style="${th}">Firmware versions</th></tr></thead><tbody>` +
-    models.map(m => `<tr><td style="${td}">${esc(m)}</td><td style="${td}">${v.byModel[m].n}</td><td style="${td}">${esc([...v.byModel[m].fw].join('; ') || '\u2014')}${v.byModel[m].fw.size > 1 ? ' <span style="color:var(--status-warning);font-size:0.66rem;">mixed versions</span>' : ''}</td></tr>`).join('') + `</tbody></table>`;
+  h += `<div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;font-weight:600;">Models and firmware in use</div><table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><thead><tr><th style="${th}">Model</th><th style="${th}">Switches</th><th style="${th}">Firmware versions</th><th style="${th}">RCF versions applied</th></tr></thead><tbody>` +
+    models.map(m => `<tr><td style="${td}">${esc(m)}</td><td style="${td}">${v.byModel[m].n}</td><td style="${td}">${esc([...v.byModel[m].fw].join('; ') || '\u2014')}${v.byModel[m].fw.size > 1 ? ' <span style="color:var(--status-warning);font-size:0.66rem;">mixed versions</span>' : ''}</td><td style="${td}">${esc([...v.byModel[m].rcf].join('; ') || '\u2014')}${v.byModel[m].rcf.size > 1 ? ' <span style="color:var(--status-warning);font-size:0.66rem;">different RCF versions on the same model</span>' : ''}</td></tr>`).join('') + `</tbody></table>`;
   return h;
 }
 // Text form of the switch inventory for the deliverables (title + rule, then a summary, notes and a table the Word builder recognises).
@@ -16679,12 +16747,13 @@ function _dfSwitchInventoryText(systems, opts) {
   if (!v.n) return '';
   const lim = opts.limit || 40, one = t => String(t == null || t === '' ? '\u2014' : t).replace(/\s+/g, ' ');
   let o = `  ${v.n} distinct cluster switch${v.n !== 1 ? 'es' : ''} serving ${v.systemsWithSw} system${v.systemsWithSw !== 1 ? 's' : ''}: ${v.mon} monitored by the Cluster Switch Health Monitor (CSHM), ${v.disc} discovered but not monitored, ${v.conn} seen only through port connectivity.\n`;
+  o += `  Firmware: ${v.behind.length} switch${v.behind.length !== 1 ? 'es are' : ' is'} below the baseline ARIA tracks, ${v.currentFw.length} at or above it, ${v.notAssessed.length} not assessed. Active IQ reports what is running, not whether it is current; the RCF is shown as applied (ARIA has no per-model recommended-RCF list).\n`;
   if (v.snmpReported) o += `  SNMP: ${v.weak.length} of ${v.snmpReported} reporting switches use SNMPv1/v2c (community strings); NetApp recommends SNMPv3 for CSHM.\n`;
   if (v.disc + v.conn) o += `  ${v.disc + v.conn} switch${(v.disc + v.conn) !== 1 ? 'es are' : ' is'} not monitored, so Active IQ holds no model, firmware, RCF or contract data for ${(v.disc + v.conn) !== 1 ? 'them' : 'it'}; enable CSHM on the cluster to get health alerts and firmware recommendations.\n`;
   if (v.ontapNoSw) o += `  ${v.ontapNoSw} ONTAP system${v.ontapNoSw !== 1 ? 's' : ''} in scope ha${v.ontapNoSw !== 1 ? 've' : 's'} no switch records at all.\n`;
   const show = v.list.slice().sort((x, y) => (y.monitored - x.monitored) || String(x.name).localeCompare(String(y.name), undefined, { numeric: true })).slice(0, lim);
-  o += `\n` + _dfTable(['Switch', 'Vendor / model', 'Network', 'Firmware', 'RCF', 'Monitoring', 'SNMP', 'Clusters'],
-    show.map(e => [e.name, [e.vendor, e.model].filter(Boolean).join(' ') || '\u2014', e.type || '\u2014', one(e.fw), one(e.rcf), e.source, e.snmpLabel || '\u2014', [...e.clusters].join(', ')]));
+  o += `\n` + _dfTable(['Switch', 'Vendor / model', 'Network', 'Firmware', 'Version check', 'RCF applied', 'Monitoring', 'SNMP', 'Clusters'],
+    show.map(e => [e.name, [e.vendor, e.model].filter(Boolean).join(' ') || '\u2014', e.type || '\u2014', one(e.fw), e.check.text, one(e.rcf), e.source, e.snmpLabel || '\u2014', [...e.clusters].join(', ')]));
   if (v.list.length > lim) o += `  ...and ${v.list.length - lim} more (see the Switch Validation tab for the full list)\n`;
   return o;
 }
@@ -28637,15 +28706,17 @@ function _sanNasStorageSummary(systems) {
         snapshotReserveOverflowCount: lv.volumeSnapshotReserveOverflowCount || 0,
         // thin-provisioning context: provisioned LUN size against this system's own physical capacity (as Active IQ reports it for the system)
         usableTB: (s.efficiency && s.efficiency.usableCapacityTB) || s.clusterUsableCapacityTB || 0,
-        physUsedTB: (s.efficiency && s.efficiency.physicalUsedTB) || 0 });
+        physUsedTB: (s.efficiency && s.efficiency.physicalUsedTB) || 0,
+        apiUtilPct: s.clusterCapacityUtilPct > 0 ? s.clusterCapacityUtilPct : null });
     }
   });
   bySystem.forEach(r => {
     r.overcommit = r.usableTB > 0 && r.lunTB > 0 ? r.lunTB / r.usableTB : null;          // provisioned LUN size / usable capacity
-    r.usedPct = r.usableTB > 0 ? r.physUsedTB / r.usableTB * 100 : null;                  // physical space actually consumed
-    // Active IQ reports a usable capacity below the used capacity for some systems (its capacity fields are not always on the same basis):
-    // a percentage over 100 would be misleading, so show no ratio for those rather than a wrong one.
-    if (r.usedPct != null && r.usedPct > 105) { r.capacityUnclear = true; r.usedPct = null; r.overcommit = null; }
+    // Active IQ's own utilisation percentage is like-for-like (performance-tier used / performance-tier usable). The all-tier used figure can
+    // exceed that usable capacity on systems that also hold data in a capacity tier (e.g. 219 TB used against 131.6 TB usable, with Active IQ
+    // reporting 60.8%), so the API percentage is preferred and only the computed one is used when it is missing.
+    r.usedPct = r.apiUtilPct != null ? r.apiUtilPct : (r.usableTB > 0 ? r.physUsedTB / r.usableTB * 100 : null);
+    if (r.apiUtilPct == null && r.usedPct != null && r.usedPct > 105) { r.capacityUnclear = true; r.usedPct = null; r.overcommit = null; }   // no trustworthy percentage
   });
   const overcommitted = bySystem.filter(r => r.overcommit != null && r.overcommit > 1);
   const overcommitHot = overcommitted.filter(r => r.usedPct != null && r.usedPct >= 80);
@@ -31798,7 +31869,7 @@ function _renderSanNasStorageSection(systems) {
       <td style="${tdStyle}">${r.volumeTB.toFixed(1)} TB</td>
       <td style="${tdStyle}">${r.thinPct.toFixed(0)}%</td>
       <td style="${tdStyle}${r.snapshotReserveOverflowCount > 0 ? ';color:#f59e0b;font-weight:600;' : ''}">${r.snapshotReserveOverflowCount || 0}</td>
-      <td style="${tdStyle}${r.usedPct != null && r.usedPct >= 80 ? ';color:#f59e0b;font-weight:600;' : ''}">${r.usedPct != null ? r.usedPct.toFixed(0) + '% of ' + r.usableTB.toFixed(1) + ' TB' : (r.capacityUnclear ? '<span title="Active IQ reports a usable capacity below this system\'s used capacity, so no percentage is shown">n/a</span>' : '\u2014')}</td>
+      <td style="${tdStyle}${r.usedPct != null && r.usedPct >= 80 ? ';color:#f59e0b;font-weight:600;' : ''}">${r.usedPct != null ? r.usedPct.toFixed(0) + '% of ' + r.usableTB.toFixed(1) + ' TB usable' : (r.capacityUnclear ? '<span title="Active IQ reports a usable capacity below this system\'s used capacity, so no percentage is shown">n/a</span>' : '\u2014')}</td>
       <td style="${tdStyle}${r.overcommit != null && r.overcommit > 1 ? (r.usedPct != null && r.usedPct >= 80 ? ';color:#ef4444;font-weight:600;' : ';color:var(--text-secondary);') : ''}">${r.overcommit != null ? r.overcommit.toFixed(1) + 'x' : (r.capacityUnclear ? 'n/a' : '\u2014')}</td>
     </tr>`).join('');
 
@@ -33147,13 +33218,13 @@ function _renderAsBuiltSection(systems) {
         let swHtml = '<div style="padding:16px; color:var(--text-muted);">No switch data available</div>';
         if (switches && switches.length > 0) {
             swHtml = '<div style="padding:16px;"><table style="' + tblStyle + '">'
-                + '<tr><th style="' + thStyle + '">Type</th><th style="' + thStyle + '">Model</th><th style="' + thStyle + '">Serial</th><th style="' + thStyle + '">Firmware</th><th style="' + thStyle + '">Target</th><th style="' + thStyle + '">Status</th><th style="' + thStyle + '">IP</th><th style="' + thStyle + '">Support Ends</th></tr>'
+                + '<tr><th style="' + thStyle + '">Type</th><th style="' + thStyle + '">Model</th><th style="' + thStyle + '">Serial</th><th style="' + thStyle + '">Firmware</th><th style="' + thStyle + '">RCF applied</th><th style="' + thStyle + '">Status</th><th style="' + thStyle + '">IP</th><th style="' + thStyle + '">Support Ends</th></tr>'
                 + switches.map(sw => '<tr>'
                     + '<td style="' + tdStyle + '">' + valOrDash(sw.type) + '</td>'
                     + '<td style="' + tdStyle + '">' + valOrDash(sw.model) + '</td>'
                     + '<td style="' + tdStyle + 'font-family:monospace;">' + valOrDash(sw.serialNumber) + '</td>'
                     + '<td style="' + tdStyle + '">' + valOrDash(sw.firmware) + '</td>'
-                    + '<td style="' + tdStyle + '">' + valOrDash(sw.targetFirmware) + '</td>'
+                    + '<td style="' + tdStyle + '">' + valOrDash(sw.rcfVersion || sw.targetFirmware) + '</td>'
                     + '<td style="' + tdStyle + '"><span style="' + getBadgeStyle(sw.status) + '">' + valOrDash(sw.status) + '</span></td>'
                     + '<td style="' + tdStyle + 'font-family:monospace;">' + valOrDash(sw.ipAddress) + '</td>'
                     + '<td style="' + tdStyle + '">' + valOrDash(sw.supportContractEnd) + '</td>'
@@ -33431,8 +33502,8 @@ function _renderAsBuiltSection(systems) {
             const thinPct = lv.volumeCount ? Math.round((lv.volumeThinProvisionedCount || 0) / lv.volumeCount * 100) : null;
             const snapOverflow = lv.volumeSnapshotReserveOverflowCount || 0;
             const _ucTB = (s.efficiency && s.efficiency.usableCapacityTB) || s.clusterUsableCapacityTB || 0, _puTB = (s.efficiency && s.efficiency.physicalUsedTB) || 0;
-            let _oc = _ucTB > 0 && lunTB > 0 ? lunTB / _ucTB : null, _usedPct = _ucTB > 0 ? _puTB / _ucTB * 100 : null;
-            if (_usedPct != null && _usedPct > 105) { _usedPct = null; _oc = null; }   // usable capacity reported below used capacity: no misleading ratio
+            let _oc = _ucTB > 0 && lunTB > 0 ? lunTB / _ucTB : null, _usedPct = s.clusterCapacityUtilPct > 0 ? s.clusterCapacityUtilPct : (_ucTB > 0 ? _puTB / _ucTB * 100 : null);
+            if (!(s.clusterCapacityUtilPct > 0) && _usedPct != null && _usedPct > 105) { _usedPct = null; _oc = null; }   // no trustworthy percentage
             const lvHtml = '<table style="' + tblStyle + '">'
                 + '<tr><th style="' + thStyle + '">LUNs (SAN)</th><td style="' + tdStyle + '">' + lv.lunCount + ' &middot; ' + lunTB.toFixed(1) + ' TB provisioned size</td>'
                 + '<th style="' + thStyle + '">Volumes</th><td style="' + tdStyle + '">' + lv.volumeCount + ' &middot; ' + volTB.toFixed(1) + ' TB configured size</td></tr>'
@@ -34396,9 +34467,9 @@ function generateActionPlan() {
           <strong>ISSU (In-Service Software Upgrade) Action Steps:</strong>
           <ol style="margin-left: 20px; margin-top: 4px; font-family: monospace; font-size: 0.78rem; line-height: 1.4;">
             <li>1. Copy NX-OS system image to switch bootflash: via SCP/SFTP.</li>
-            <li>2. Verify file checksum: <code>show file bootflash:${sw.targetFirmware}.bin md5sum</code></li>
-            <li>3. Perform pre-upgrade impact checks: <code>show install all impact nxos bootflash:${sw.targetFirmware}.bin</code></li>
-            <li>4. Initiate non-disruptive installation: <code>install all nxos bootflash:${sw.targetFirmware}.bin</code></li>
+            <li>2. Verify file checksum: <code>show file bootflash:&lt;nxos-image&gt;.bin md5sum</code></li>
+            <li>3. Perform pre-upgrade impact checks: <code>show install all impact nxos bootflash:&lt;nxos-image&gt;.bin</code></li>
+            <li>4. Initiate non-disruptive installation: <code>install all nxos bootflash:&lt;nxos-image&gt;.bin</code></li>
             <li>5. Verify switch status after reload: <code>show version</code> and check link integrity.</li>
           </ol>
         `;
@@ -34418,7 +34489,7 @@ function generateActionPlan() {
           <strong>Firmware Upgrade Steps:</strong>
           <ol style="margin-left: 20px; margin-top: 4px; font-family: monospace; font-size: 0.78rem; line-height: 1.4;">
             <li>1. Back up switch running configuration: <code>copy running-config tftp://...</code></li>
-            <li>2. Download target firmware package matching validated version ${sw.targetFirmware}.</li>
+            <li>2. Download the firmware package matching the version NetApp validates for your ONTAP release${(() => { const _b = _dfSwBaseline(sw.model, sw.vendor, sw.firmware); return _b.recommended ? ' (ARIA baseline: ' + _b.recommended + ')' : ''; })()}.</li>
             <li>3. Run system flash upgrade check and reboot switch during maintenance window.</li>
           </ol>
         `;
@@ -34437,7 +34508,7 @@ function generateActionPlan() {
             ${sw.isDiscovered ? `<span style="font-size: 0.72rem; background: rgba(0,200,255,0.08); color: var(--accent-cyan); border: 1px solid rgba(0,200,255,0.2); border-radius: 4px; padding: 1px 6px; margin-left: 4px; font-weight: 600;">🔍 Discovered</span>` : ''}
           </div>
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 8px; line-height: 1.4;">
-            Current Firmware: <code style="color: var(--text-muted);">${sw.firmware}</code> | Min. Required (To Fix): <strong style="color: ${sw.targetFirmware ? 'var(--accent-cyan)' : 'var(--text-muted)'};">${sw.targetFirmware || 'N/A — no RCF recommendation from Active IQ'}</strong> | Latest Supported: <strong style="color: var(--status-normal);">${getSwitchLatestSupportedVersion(sw)}</strong>
+            Current Firmware: <code style="color: var(--text-muted);">${sw.firmware}</code> | Firmware baseline: <strong style="color: var(--accent-cyan);">${(() => { const _b = _dfSwBaseline(sw.model, sw.vendor, sw.firmware); return _b.recommended || 'none kept for this model'; })()}</strong> | RCF applied: <strong style="color: var(--text-muted);">${sw.rcfVersion || 'not reported'}</strong> | Latest Supported: <strong style="color: var(--status-normal);">${getSwitchLatestSupportedVersion(sw)}</strong>
           </div>
           <div style="font-size: 0.85rem; color: var(--status-warning); margin-bottom: 12px; background: rgba(255, 170, 0, 0.03); padding: 10px; border-radius: var(--radius-sm); border: 1px solid rgba(255, 170, 0, 0.1);">
             <strong>Validation Drift:</strong> ${sw.validationDetails}
@@ -35515,7 +35586,7 @@ SYSTEM: ${systemName}
 ================================================================================
 ${switches.map(sw => `Switch: ${sw.model} (${sw.type}) [Status: ${sw.status}]
 - Switch S/N: ${sw.serialNumber} | IP: ${sw.ipAddress}
-- Current Firmware: ${sw.firmware} | Target Firmware: ${sw.targetFirmware} | Latest Supported: ${getSwitchLatestSupportedVersion(sw)}
+- Current Firmware: ${sw.firmware} | Firmware baseline: ${(() => { const _b = _dfSwBaseline(sw.model, sw.vendor, sw.firmware); return _b.recommended || 'none kept for this model'; })()} | RCF applied: ${sw.rcfVersion || 'not reported'} | Latest Supported: ${getSwitchLatestSupportedVersion(sw)}
 - Validation Drift Details: ${sw.validationDetails}`).join("\n\n")}`).join("\n\n")}`;
   } else if (index === 7) {
     filename = `site_logistics_${cleanScope}.txt`;

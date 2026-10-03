@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.235] - 2026-10-03
+
+### Added
+- Switch inventory 'Version check' column: running firmware compared with ARIA's per-family baseline (`data/firmware_baselines.json` `switches`; entries may carry a `models` list). Active IQ gives no 'outdated' signal, only the running firmware and the applied RCF. Switches without a baseline are 'not assessed'; the RCF is shown as applied and flagged only when it differs between switches of the same model. Used in the inventory, model table, Technical Audit switch table and deliverables.
+
+### Fixed
+- SAN & NAS used percentage uses Active IQ's like-for-like utilisation percentage (no more 800% on systems with a capacity tier).
+- Technical Audit switch table no longer presents the applied RCF as a firmware 'Target' or compares an RCF name with a firmware string.
+
+---
+
 ## [5.6.234] - 2026-10-03
 
 ### Fixed
