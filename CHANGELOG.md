@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.240] - 2026-10-03
+
+### Fixed
+- Word exports: dedicated Support Cases report (`compileCasesWordMd`, tab 4); `_wdTidyPlanMd` post-pass for converted views (drops the Scope/Date tile table, groups repeated Feature Adoption recommendations as Finding + General guidance, keeps a customer-scoped Portfolio Dashboard to that customer); ellipsis-shortened table cells export their full title text. Audited all 27 views for a customer: no build errors, no other customer names, no split URLs.
+
+---
+
 ## [5.6.239] - 2026-10-03
 
 ### Fixed

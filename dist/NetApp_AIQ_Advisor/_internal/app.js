@@ -27,9 +27,27 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.239";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.240";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.240",
+    date: "3 October 2026",
+    title: "Clearer Word Documents Across the Action Planner",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Word Exports Built From the Data, Not the Screen",
+        color: "#22c55e",
+        items: [
+          "Support Cases now has its own Word report: a summary, one table of every case (the screen shows only 30), and the detail of the cases still open. Before, each case became its own repeated Metric/Value table.",
+          "Every exported view now writes table text in full when the screen shortens it with an ellipsis (lifecycle talking points were cut off), drops the Scope/Date table that only repeated the header, and in Feature Adoption groups identical per-system recommendations once, labelled Finding (the systems affected) and General guidance (the advice).",
+          "The Portfolio Dashboard exported for one customer used to carry portfolio totals and other customers' names and figures (the accounts table, shared CVE exposure, shared refresh opportunities). A customer-scoped export now holds only that customer's row; the cross-customer sections appear only in the Total Portfolio export.",
+          "All 27 Action Planner views were regenerated for a customer and built as Word files with no errors, no other customer names, and no split web addresses.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.239",
     date: "3 October 2026",
@@ -35313,6 +35331,35 @@ function _ensurePlanWordButton(sec) {
 function _wdCell(c) { return String(c == null || c === '' ? '\u2014' : c).replace(/\|/g, '/').replace(/\s*[\r\n]+\s*/g, ' ').trim(); }
 function _wdTable(head, rows) { return rows.length ? `| ${head.join(' | ')} |\n|${head.map(() => '---').join('|')}|\n` + rows.map(r => `| ${r.map(_wdCell).join(' | ')} |`).join('\n') + '\n\n' : ''; }
 function _wdCust(scopeTitle) { return String(scopeTitle || '').replace(/_/g, ' ').replace(/^(Customer|Watchlist|Group|Custom Group|System):\s*/, '') || 'Portfolio'; }
+// Word report for the Support Cases tab: one summary, one table with every case (not just the 30 the screen shows), then the detail of the
+// cases that are still open. Replaces a conversion of the case cards, which became one repeated Metric/Value table per case.
+function compileCasesWordMd(systems, scopeTitle) {
+  const cust = _wdCust(scopeTitle), today = new Date().toISOString().split('T')[0];
+  const all = []; (systems || []).forEach(s => (s.supportCases || []).forEach(sc => all.push({ systemName: s.systemName, customerName: s.customerName, serialNumber: s.serialNumber, clusterName: s.clusterName, ...sc })));
+  let o = `# ${cust} -- Support Cases\n\nPrepared ${today} from the NetApp support cases Active IQ holds for the systems in scope.\n\n`;
+  if (!all.length) return o + `No support cases were found for the systems in scope.\n`;
+  filterActiveCases(all);
+  const act = all.filter(c => c._isActive), closed = all.filter(c => c._isClosed), proc = all.filter(c => !c._isActive && !c._isClosed);
+  const day = d => d ? String(d).split('T')[0] : '';
+  o += `## 1. Summary\n\n` + _wdTable(['Open (active)', 'Processing', 'Closed', 'Total'], [[act.length, proc.length, closed.length, all.length]]);
+  o += `## 2. All cases\n\nOpen cases first, then processing, then closed; each group by severity.\n\n`;
+  o += _wdTable(['Case', 'Status', 'Severity', 'System', 'Title', 'Opened', 'Last updated'], all.map(c => [c.id, c._isClosed ? 'Closed' : (c._isActive ? 'Open' : 'Processing'), c.severity, c.systemName || '', c.title || '', day(c.createdDate), day(c.lastUpdated)]));
+  const detail = all.filter(c => !c._isClosed);
+  if (detail.length) {
+    o += `## 3. Open case detail\n\n`;
+    detail.forEach(c => {
+      o += `### ${c.id}: ${String(c.title || '').length > 100 ? String(c.title).slice(0, 97) + '...' : (c.title || 'Case')}\n\n`;
+      o += `**Severity:** ${c.severity || 'n/a'}  |  **Status:** ${c.status || 'n/a'}  |  **System:** ${c.systemName || 'n/a'}${c.serialNumber ? ` (S/N ${c.serialNumber})` : ''}${c.clusterName ? `  |  **Cluster:** ${c.clusterName}` : ''}\n\n`;
+      if (c.description) o += `**Description:** ${c.description}\n\n`;
+      const cat = (c.criticality || '') + (c.subCategory ? ' / ' + c.subCategory : ''); if (cat.trim()) o += `**Category:** ${cat}${c.caseType ? `  |  **Type:** ${c.caseType}` : ''}\n\n`;
+      if (c.reporter) o += `**Reported by:** ${c.reporter}\n\n`;
+      if (c.nextActionBy) o += `**Next action by:** ${c.nextActionBy}\n\n`;
+      if (c.ownerNotes) o += `**Latest TAM notes:** ${c.ownerNotes}\n\n`;
+      if (c.resolution) o += `**Resolution:** ${c.resolution}\n\n`;
+    });
+  }
+  return o;
+}
 // Word report for the TAM Recommendations tab, built from the recommendation data (not from the card layout): a summary table, then one
 // block per check with the measured finding (score and systems affected) kept apart from Active IQ's general guidance text.
 function compileRecommendationsWordMd(systems, scopeTitle) {
@@ -35504,6 +35551,33 @@ function compileAdvisoriesWordMd(systems, scopeTitle) {
   });
   return o;
 }
+// Clean-ups applied to every Action Planner view that is exported by converting the screen: the scope/date tile table that only repeats the
+// header, the portfolio-wide figures and other customers' rows a customer-scoped export must not carry, and per-system recommendation lines
+// that repeat the same advice (grouped once with the systems they apply to, labelled as general guidance).
+function _wdTidyPlanMd(md, index, scopeSystems, scopeTitle) {
+  let out = String(md || '');
+  // a Metric/Value table whose only rows are Scope and Date Generated repeats the header
+  out = out.replace(/\| Metric \| Value \|\n\| --- \| --- \|\n(?:\| (?:Scope|Date Generated) \| [^\n]*\|\n)+\n?/g, '');
+  if (String(index) === '22' && !/^Total Portfolio/i.test(String(scopeTitle || ''))) {
+    // The dashboard compares customers. A customer-scoped export keeps only that customer's row: the portfolio totals and the shared CVE /
+    // refresh sections aggregate OTHER customers' systems and belong only in the Total Portfolio export.
+    const inScope = new Set((scopeSystems || []).map(s => s.customerName).filter(Boolean));
+    const head = out.split('\n').slice(0, 4).join('\n');
+    const m = out.match(/### Accounts Needing Attention\n\n((?:\|[^\n]*\n)+)/);
+    let rows = '';
+    if (m) { const ls = m[1].trim().split('\n'); rows = ls.filter((l, k) => k < 2 || inScope.has((l.match(/^\|\s*([^|]+?)\s*\|/) || [])[1])).join('\n') + '\n\n'; }
+    out = head + '\n\n' + (rows ? '### This customer\n\n' + rows : '') + 'The portfolio totals and the cross-customer sections (shared CVE exposure, shared refresh opportunities) compare several customers, so they appear only in the Total Portfolio export.\n';
+  }
+  if (String(index) === '17') {
+    const lines = out.split('\n'), groups = new Map(), keep = [];
+    lines.forEach(l => { const m = l.match(/^- ([^:\n]{2,80}): (.{20,})$/); if (m) { const g = groups.get(m[2]) || groups.set(m[2], { names: [], at: keep.length }).get(m[2]); g.names.push(m[1]); if (g.names.length === 1) keep.push(null); } else keep.push(l); });
+    if (groups.size) {
+      const fills = [...groups.entries()].map(([txt, g]) => ({ at: g.at, line: `- **Finding:** ${g.names.length} system${g.names.length !== 1 ? 's' : ''} affected (${g.names.join(', ')}). **General guidance:** ${txt}` }));
+      let k = 0; out = keep.map(l => l === null ? fills[k++].line : l).join('\n');
+    }
+  }
+  return out;
+}
 function downloadPlanSectionWord(index) {
   const body = document.getElementById('generatedPlanBody');
   const sec = body && body.querySelector(`.plan-section[data-section-index="${index}"]`);
@@ -35517,6 +35591,11 @@ function downloadPlanSectionWord(index) {
   if (String(index) === '5') {
     window.__dlScope = scopeTitle.replace(/_/g, ' ');
     triggerFileDownload(_dlFilename('OS Upgrade Roadmaps', scopeTitle.replace(/_/g, ' '), 'md'), compileUpgradesWordMd(_scopeSys, scopeTitle), { format: 'docx' });
+    return;
+  }
+  if (String(index) === '4') {
+    window.__dlScope = scopeTitle.replace(/_/g, ' ');
+    triggerFileDownload(_dlFilename('Support Cases', scopeTitle.replace(/_/g, ' '), 'md'), compileCasesWordMd(_scopeSys, scopeTitle), { format: 'docx' });
     return;
   }
   if (String(index) === '12') {
@@ -35535,9 +35614,12 @@ function downloadPlanSectionWord(index) {
   const clone = sec.cloneNode(true);
   if (_full) { const hh = clone.querySelector('h2, h3'); const wrap = document.createElement('div'); if (hh) wrap.appendChild(hh.cloneNode(true)); const body = document.createElement('div'); body.innerHTML = _full(); wrap.appendChild(body); clone.innerHTML = ''; clone.appendChild(wrap); }
   clone.querySelectorAll('button, .action-btn, select, .plan-word-btn').forEach(el => el.remove());
+  // Table cells shortened on screen (ellipsis, full text kept in the title attribute) export their full text.
+  clone.querySelectorAll('td[title], th[title]').forEach(el => { const t = el.getAttribute('title') || '', cur = (el.textContent || '').trim(); if (t.length > cur.length && /(\.\.\.|\u2026)$/.test(cur)) el.textContent = t; });
   const h = clone.querySelector('h2, h3'); const title = (h ? h.innerText.trim() : 'Action Planner View') || 'Action Planner View';
   if (h) h.remove();
-  const md = _domToMarkdown(clone, 2).trim();
+  let md = _domToMarkdown(clone, 2).trim();
+  md = _wdTidyPlanMd(md, index, _scopeSys, scopeTitle);
   if (!md) { alert('This view has no content to export.'); return; }
   const text = `# ${title}\n\nScope: ${scopeTitle}\nDate Generated: ${new Date().toISOString().split('T')[0]}\n\n${md}\n`;
   window.__dlScope = scopeTitle.replace(/_/g, ' ');

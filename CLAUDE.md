@@ -28,6 +28,8 @@ wrapping up the session, the same way you'd commit code.
 
 **v5.6.237 (2026-10-03):** TAM plan now has the switch section. Rebuilt exe verified: launches and serves/proxies when run from a local path (from the Google Drive path it fails loading pythonnet's DLL: run it from a local copy). Remaining genuinely open: Word layout never viewed in Word, Success Plan writes never exercised against a live customer account, very large exports (22 MB Technical Risks docx, ~251 MB plan HTML for the largest customer), CONTEXT.md sections 5-12 stale.
 
+**v5.6.240:** Support Cases Word report (tab 4, `compileCasesWordMd`) + `_wdTidyPlanMd` post-pass; customer-scoped Portfolio Dashboard export keeps only that customer. Dedicated Word generators: tabs 2, 3, 4, 5, 12, 18. Known leftover: As-Built key/value grids use the first row as a table header.
+
 **v5.6.239:** TAM Recommendations Word report has its own generator (`compileRecommendationsWordMd`). Tabs with dedicated Word generators now: 2, 3, 5, 12, 18. CAUTION: Python source with `` in a non-raw string writes a backspace character into app.js; check `grep -c $'' app.js` after scripted edits.
 
 **v5.6.238 (2026-10-03):** FabricPool latency/certificate risks no longer get the tiering-policy remediation (own branch in the remediation builder). Also: every deliverable carries a findings-vs-guidance legend + FINDING/GENERAL GUIDANCE tags (`_dfWithReadingGuide`, `.rk-tag`).
