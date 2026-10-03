@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.221] - 2026-10-03
+
+### Fixed
+- **Restricted accounts silently returned "unknown"/zero for many data sets.** Active IQ accounts without the `unfiltered_system_access` privilege (watchlist-scoped only) reject any unscoped query with "At least one mandatory argument is required"; several harvest queries ignored the error. Shelf-module firmware summary (`SHELVES_SUMMARY_FIELDS`) now goes through `_fetch_rows_all_scopes()`, so shelf firmware is populated for ~713 systems that previously showed "Unknown". Risk instances, support cases, customers, key recommendations, sites, sustainability score, official health score and contract renewals now fall back to the auto-discovered watchlists (`_early_watchlists`) when the unscoped query returns nothing (`_restricted_scope` flag, `_scope_wl0` for the account-level reference queries). Accounts with unfiltered access are unchanged. Because those reference queries are per-watchlist, a restricted account now queries EVERY discovered watchlist and merges (customers, recommendations, sites, renewals de-duplicated; sustainability and health score take the first watchlist that reports one). Verified live on a restricted account with 18 watchlists / 1,181 systems: risk instances 0 -> 33,274, support cases 0 -> 1,167, recommendations 23, then 111 once all watchlists were queried, sites 1 -> 68, renewals with lifecycle events 1 -> 578, sustainability scores 0 -> 28, official health score not reported -> 75/100.
+
+- **Risk Trend chart was identical for every watchlist/group.** The trend is built from per-system snapshots filtered by customer name only, so watchlist and custom-group scopes silently showed the whole fleet. New `POST /api/history/trend` (`handle_fleet_trend_post`, `_get_fleet_trend(serials=...)`) takes the scope's serial list; `renderRiskTrendChart()` uses it for WATCHLIST and GROUP filters. The 30/60/90-day trend text in the deliverables (`_dfTrendData` accepts a serial list) follows the same scope instead of falling back to the whole fleet.
+
+- **Success Plan affected-systems list was hard to read and could break.** A system with several findings was listed once per finding, and a finding whose text contained a line break spilled onto an unindented line. `_fmtAffectedSystemsBlock()` now lists each system once with its findings beneath it, drops duplicate findings, and collapses each finding to a single line. Still complete (no cap).
+
+### Added
+- **Firmware Currency Word report.** The Firmware Currency tab's Word download is now a purpose-built report (`compileFirmwareWordMd()`): summary table (SP/BMC, BIOS, DQP, drive and shelf-module firmware: current / update available / not reported / % current), outstanding component updates, drive firmware behind recommended (grouped by model and revision across the fleet), per-system status table, and an "about" note. Replaces a 24,000-line conversion of the on-screen cards.
+- `_renderFirmwareCurrencySection(systems, opts)` can now return its per-system rows (`opts.collect`) and fleet totals (`opts.stats`) for reuse by exports.
+
+### Documentation
+- README, CONTEXT.md and PLATFORM_COVERAGE.md updated for everything from v5.6.203 to v5.6.221: StorageGRID awareness, Platform Insights, Word export of every Action Planner view, Success Plan fixes, restricted-account scoping, and the list of data Active IQ genuinely does not provide.
+
+---
+
 ## [5.6.220] - 2026-10-03
 
 ### Fixed

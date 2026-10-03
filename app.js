@@ -27,9 +27,33 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.220";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.221";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.221",
+    date: "3 October 2026",
+    title: "Restricted-Account Data Fix, Firmware Word Report, Scoped Risk Trend",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- 'Unknown' and Missing Data on Watchlist-Scoped Accounts",
+        color: "#ef4444",
+        items: [
+          "Accounts without unfiltered access had many queries silently rejected, so shelf firmware showed Unknown on most systems and risks, cases, recommendations, sites, sustainability, health score and renewals could come back empty. These now fall back to the account's discovered watchlists. Shelf firmware is populated for about 713 systems that previously showed Unknown.",
+          "The Risk Trend chart (and the 30/60/90-day trend text in deliverables) was identical for every watchlist and group because it could only filter by customer; it now follows the selected watchlist or group.",
+        ],
+      },
+      {
+        icon: "📄",
+        label: "Added -- Firmware Currency Word Report",
+        color: "#22c55e",
+        items: [
+          "The Firmware Currency tab's Word download is now a purpose-built report: a summary table (current / update available / not reported per component), outstanding updates, drive firmware behind recommended grouped by model, and a per-system status table, instead of a 24,000-line conversion of the on-screen cards.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.220",
     date: "3 October 2026",
@@ -11079,7 +11103,18 @@ async function renderRiskTrendChart() {
     ? `&customer=${encodeURIComponent(state.activeFilterValue)}` : '';
   let trend = [];
   try {
-    const res = await fetch(`/api/history/trend?days=90${customerParam}`, { cache: 'no-store' });
+    // watchlists and custom groups have no snapshot column, so send their serials
+    let _scopeSerials = null;
+    if (state.activeFilterType === 'WATCHLIST') {
+      const _wl = (state.watchlists || []).find(w => w.id === state.activeFilterValue);
+      if (_wl) _scopeSerials = _wl.systemSerials || [];
+    } else if (state.activeFilterType === 'GROUP') {
+      const _g = (state.groups || []).find(g => g.id === state.activeFilterValue);
+      if (_g) _scopeSerials = _g.systemSerials || [];
+    }
+    const res = _scopeSerials
+      ? await fetch('/api/history/trend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 90, serials: _scopeSerials }), cache: 'no-store' })
+      : await fetch(`/api/history/trend?days=90${customerParam}`, { cache: 'no-store' });
     const data = await res.json();
     if (data.ok) trend = data.trend || [];
   } catch (e) {
@@ -19559,12 +19594,17 @@ const _trendCache = new Map();     // "customer|days" -> trend array | null (no 
 const _trendInFlight = new Set();
 function _dfTrendData(customerName, days) {
   days = days || 90;
-  const key = (customerName || '') + '|' + days;
+  // customerName may be a customer name, null (fleet-wide) or an ARRAY of serial numbers
+  // (a watchlist / custom group / multi-customer scope, which snapshots cannot filter by name)
+  const _serials = Array.isArray(customerName) ? customerName.slice().sort() : null;
+  const key = (_serials ? 'S:' + _serials.length + ':' + _serials[0] + ':' + _serials[_serials.length - 1] : (customerName || '')) + '|' + days;
   if (_trendCache.has(key)) return _trendCache.get(key);
   if (!_trendInFlight.has(key)) {
     _trendInFlight.add(key);
-    const qs = '?days=' + days + (customerName ? '&customer=' + encodeURIComponent(customerName) : '');
-    fetch('/api/history/trend' + qs).then(r => r.ok ? r.json() : null)
+    const qs = '?days=' + days + (!_serials && customerName ? '&customer=' + encodeURIComponent(customerName) : '');
+    (_serials
+      ? fetch('/api/history/trend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ days, serials: _serials }) })
+      : fetch('/api/history/trend' + qs)).then(r => r.ok ? r.json() : null)
       .then(j => { _trendCache.set(key, (j && j.ok && Array.isArray(j.trend) && j.trend.length >= 2) ? j.trend : null); })
       .catch(() => { _trendCache.set(key, null); })
       .finally(() => { _trendInFlight.delete(key); });
@@ -28434,12 +28474,13 @@ function compileExtendedDeliverables(targetSystems, allRisks, allUpgrades, expir
   const cleanScope = scopeTitle.replace(/_/g, ' ').replace(/^(Customer|Watchlist|Custom Group|System):\s*/, '');
   const today = new Date().toISOString().split('T')[0];
 
-  // 30/60/90-day risk trend, if this scope maps to exactly one real customerName
-  // (matches what system_snapshots stores it keyed by server-side) -- a watchlist
-  // or custom group spanning multiple customers falls back to the fleet-wide
-  // trend instead of guessing which customer it "really" means.
+  // 30/60/90-day risk trend: one customer is trended by name; any other scope narrower than
+  // the fleet (watchlist, group, several customers) by its own serial numbers, never the
+  // whole fleet.
   const _trendCustNames = new Set(targetSystems.map(s => s.customerName).filter(Boolean));
-  const _trendCustomer = _trendCustNames.size === 1 ? [..._trendCustNames][0] : null;
+  // a scope narrower than the whole fleet that is not exactly one customer is trended by its own serial list
+  const _trendCustomer = _trendCustNames.size === 1 ? [..._trendCustNames][0]
+    : (targetSystems.length && targetSystems.length < (state.systems || []).length ? targetSystems.map(s => s.serialNumber).filter(Boolean) : null);
   const _riskTrendText = _dfTrendText(_trendCustomer);
 
   // ── Canonical facts (see _dfContractFacts) ──
@@ -31268,7 +31309,7 @@ function _renderSanNasStorageSection(systems) {
   `;
 }
 
-function _renderFirmwareCurrencySection(systems) {
+function _renderFirmwareCurrencySection(systems, opts) {
   // Group HA/cluster node pairs together instead of leaving them in raw harvest-fetch
   // order (which interleaves unrelated clusters' nodes, e.g. CLUSDR-02, INTCLUS-02,
   // CLUSDR-01 -- the two CLUSDR nodes end up nowhere near each other). Sort by cluster
@@ -31431,6 +31472,16 @@ function _renderFirmwareCurrencySection(systems) {
     // Determine worst-case status for the card header color
     const anyBehind = spMatch === false || mbMatch === false || dqpMatch === false || drvMatch === false || shelfMatch === false;
     const allCurrent = spMatch === true && mbMatch === true && (dqpMatch === true || dqpMatch === null) && (drvMatch === true || drvMatch === null) && (shelfMatch === true || shelfMatch === null);
+    if (opts && opts.collect) opts.collect.push({
+      name: sysLabel, platform: sys.platformModel || sys.platformType || '', serial: sys.serialNumber || '', cluster: sys.clusterName || '',
+      sp: { label: sfw.type || 'SP/BMC', cur: sfw.currentVersion || '', rec: sfw.recommendedVersion || '', m: spMatch },
+      mb: { cur: mbfw.currentVersion || '', rec: mbfw.recommendedVersion || '', m: mbMatch },
+      dqp: { cur: dqp.currentVersion || '', rec: dqp.recommendedVersion || '', m: dqpMatch },
+      drv: { cur: sysDrvCurrent, behind: sysDrvBehind, unknown: sysDrvUnknown, total: driveCount, m: drvMatch },
+      shelf: { cur: sysShelfCurrent, behind: sysShelfBehind, unknown: sysShelfUnknown, count: shelfCount, m: shelfMatch },
+      drives: drives.map(d => ({ model: d.model, fw: d.firmware, rec: recDriveFwCard[d.model] || '', count: d.count })),
+      shelfBehind: Object.values(shelfModules).filter(i => i.currentFw && i.baseline && !_fwMatch(i.currentFw, i.baseline.recommended)).map(i => ({ mod: i.modName, cur: i.currentFw, rec: i.baseline.recommended, count: i.count }))
+    });
     const headerColor = anyBehind ? 'rgba(245,158,11,0.12)' : (allCurrent ? 'rgba(16,185,129,0.08)' : 'rgba(99,102,241,0.08)');
     const headerBorder = anyBehind ? 'rgba(245,158,11,0.3)' : (allCurrent ? 'rgba(16,185,129,0.3)' : 'rgba(99,102,241,0.3)');
 
@@ -31621,6 +31672,7 @@ function _renderFirmwareCurrencySection(systems) {
   html += `<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:10px;">Click a system to expand firmware details. ${systems.length} system${systems.length !== 1 ? 's' : ''} shown.</div>`;
   html += systemCards.join('');
 
+  if (opts && opts.stats) Object.assign(opts.stats, { spCurrent, spBehind, spUnknown, mbCurrent, mbBehind, mbUnknown, dqpCurrent, dqpBehind, dqpUnknown, driveFwCurrent, driveFwBehind, driveFwUnknown, shelfFwCurrent, shelfFwBehind, shelfFwUnknown, totalDrives, totalShelves, blDate: blDate || '', eoaDate: _eoaDate || '', imtDate: _imtDate || '' });
   return html;
 }
 
@@ -34527,7 +34579,12 @@ function downloadPlanSectionWord(index) {
   const body = document.getElementById('generatedPlanBody');
   const sec = body && body.querySelector(`.plan-section[data-section-index="${index}"]`);
   if (!sec) { alert('Generate an action plan first.'); return; }
-  const { title: scopeTitle } = _planScopeSystems();
+  const { title: scopeTitle, systems: _scopeSys } = _planScopeSystems();
+  if (String(index) === '18') {
+    window.__dlScope = scopeTitle.replace(/_/g, ' ');
+    triggerFileDownload(_dlFilename('Firmware Currency', scopeTitle.replace(/_/g, ' '), 'md'), compileFirmwareWordMd(_scopeSys, scopeTitle), { format: 'docx' });
+    return;
+  }
   if (['2', '3'].includes(String(index))) {
     // These views have purpose-built export text (grouped by system, remediation plans, advisories); use it so the Word file
     // carries the same real structure as the deliverables instead of a conversion of the card layout.
@@ -38752,9 +38809,25 @@ const SUCCESS_PLAN_HEALTH_COLORS = { 'GREEN': '#22c55e', 'YELLOW': '#f59e0b', 'R
 // Complete list by default: a plan written to Active IQ must be self-contained, never 'see the tool for the rest'.
 function _fmtAffectedSystemsBlock(items, cap = Infinity) {
   if (!items || items.length === 0) return '';
-  const shown = items.slice(0, cap);
-  const lines = shown.map(it => `  - ${it.name || it.serial || 'Unknown system'}${it.serial ? ` (S/N ${it.serial})` : ''}: ${it.detail}`);
-  const more = items.length > cap ? `\n  ...and ${items.length - cap} more` : '';
+  // One entry per system (a system with several findings is listed once, findings beneath it),
+  // and every finding text collapsed to a single line so embedded line breaks cannot spill out
+  // of the list.
+  const one = t => String(t == null ? '' : t).replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+  const groups = [], byKey = new Map();
+  items.forEach(it => {
+    const key = (it.serial || '') + '|' + (it.name || '');
+    let g = byKey.get(key);
+    if (!g) { g = { name: it.name, serial: it.serial, details: [] }; byKey.set(key, g); groups.push(g); }
+    const d = one(it.detail);
+    if (d && !g.details.includes(d)) g.details.push(d);
+  });
+  const shown = groups.slice(0, cap);
+  const lines = shown.map(g => {
+    const label = `${g.name || g.serial || 'Unknown system'}${g.serial ? ` (S/N ${g.serial})` : ''}`;
+    if (g.details.length <= 1) return `  - ${label}${g.details.length ? ': ' + g.details[0] : ''}`;
+    return `  - ${label} -- ${g.details.length} findings:\n` + g.details.map(d => `      * ${d}`).join('\n');
+  });
+  const more = groups.length > cap ? `\n  ...and ${groups.length - cap} more` : '';
   return lines.join('\n') + more;
 }
 
@@ -42216,6 +42289,51 @@ function compileStorageGridReport(targetSystems, scopeTitle) {
     o += gf.length ? `**Findings for this grid**\n\n` + md(['Severity', 'Finding', 'Detail', 'Recommendation'], gf.map(f => [sevName(f.severity), f.title, f.detail, f.recommendation])) : `No high or medium findings for this grid.\n\n`;
   });
   o += `## 4. About this report\n\nData comes from NetApp Active IQ: each grid's admin node reports the grid topology, tenants, buckets, ILM rules and capacity through AutoSupport. Node counts use the grid's own figures. VMware nodes expose no model, drive or version detail through Active IQ, and Active IQ does not publish an active-policy flag for ILM rules. Verify live state in Grid Manager before acting on any finding.\n`;
+  return o;
+}
+function compileFirmwareWordMd(systems, scopeTitle) {
+  const rows = [], st = {};
+  _renderFirmwareCurrencySection(systems, { collect: rows, stats: st });
+  const cust = String(scopeTitle || '').replace(/_/g, ' ').replace(/^(Customer|Watchlist|Group|Custom Group|System):\s*/, '') || 'Portfolio';
+  const cell = c => String(c == null || c === '' ? '—' : c).replace(/\|/g, '/').replace(/\r?\n/g, ' ');
+  const md = (h, r) => r.length ? `| ${h.join(' | ')} |\n|${h.map(() => '---').join('|')}|\n` + r.map(x => `| ${x.map(cell).join(' | ')} |`).join('\n') + '\n\n' : '';
+  const status = m => m === true ? 'Current' : m === false ? 'Update available' : 'Not reported';
+  const pct = (c, t) => t ? Math.round(c / t * 100) + '%' : '—';
+  let o = `# ${cust} -- Firmware Currency\n\nPrepared ${new Date().toISOString().split('T')[0]} from NetApp Active IQ telemetry compared with NetApp's recommended firmware baselines.\n\n`;
+  const sys = rows.length, withData = rows.filter(r => r.sp.m != null || r.mb.m != null || r.dqp.m != null || r.drv.total || r.shelf.count);
+  const noData = rows.filter(r => !withData.includes(r));
+  const behindSys = rows.filter(r => r.sp.m === false || r.mb.m === false || r.dqp.m === false || r.drv.behind || r.shelf.behind);
+  o += `## 1. Summary\n\n- **Systems in scope:** ${sys} (${st.totalShelves || 0} shelves, ${st.totalDrives || 0} drives).\n- **Systems with at least one component behind its recommended firmware:** ${behindSys.length}.\n- **Systems reporting no firmware data to Active IQ:** ${noData.length}.\n\n`;
+  const t = (cur, bh, un) => cur + bh + un;
+  o += md(['Component', 'Current', 'Update available', 'Not reported', 'Total', '% current'], [
+    ['SP / BMC firmware (systems)', st.spCurrent, st.spBehind, st.spUnknown, t(st.spCurrent, st.spBehind, st.spUnknown), pct(st.spCurrent, t(st.spCurrent, st.spBehind, st.spUnknown))],
+    ['Motherboard BIOS (systems)', st.mbCurrent, st.mbBehind, st.mbUnknown, t(st.mbCurrent, st.mbBehind, st.mbUnknown), pct(st.mbCurrent, t(st.mbCurrent, st.mbBehind, st.mbUnknown))],
+    ['Disk Qualification Package (systems)', st.dqpCurrent, st.dqpBehind, st.dqpUnknown, t(st.dqpCurrent, st.dqpBehind, st.dqpUnknown), pct(st.dqpCurrent, t(st.dqpCurrent, st.dqpBehind, st.dqpUnknown))],
+    ['Drive firmware (drives)', st.driveFwCurrent, st.driveFwBehind, st.driveFwUnknown, t(st.driveFwCurrent, st.driveFwBehind, st.driveFwUnknown), pct(st.driveFwCurrent, t(st.driveFwCurrent, st.driveFwBehind, st.driveFwUnknown))],
+    ['Shelf module firmware (modules)', st.shelfFwCurrent, st.shelfFwBehind, st.shelfFwUnknown, t(st.shelfFwCurrent, st.shelfFwBehind, st.shelfFwUnknown), pct(st.shelfFwCurrent, t(st.shelfFwCurrent, st.shelfFwBehind, st.shelfFwUnknown))]
+  ]);
+  // 2. updates needed (one row per component per system)
+  const upd = [];
+  rows.forEach(r => {
+    if (r.sp.m === false) upd.push([r.name, r.platform, r.sp.label, r.sp.cur, r.sp.rec]);
+    if (r.mb.m === false) upd.push([r.name, r.platform, 'Motherboard BIOS', r.mb.cur, r.mb.rec]);
+    if (r.dqp.m === false) upd.push([r.name, r.platform, 'Disk Qualification Package', r.dqp.cur, r.dqp.rec]);
+    r.shelfBehind.forEach(b => upd.push([r.name, r.platform, `Shelf module ${b.mod} (${b.count})`, b.cur, b.rec]));
+  });
+  o += `## 2. Firmware updates recommended\n\n`;
+  o += upd.length ? md(['System', 'Platform', 'Component', 'Current', 'Recommended'], upd) : `No SP/BMC, BIOS, DQP or shelf module updates are outstanding for systems that report this data.\n\n`;
+  // 3. drive firmware fleet table
+  const dm = {};
+  rows.forEach(r => r.drives.forEach(d => { if (d.rec && d.fw !== 'Unknown' && d.fw !== d.rec) { const k = `${d.model}|${d.fw}|${d.rec}`; const e = dm[k] = dm[k] || { model: d.model, fw: d.fw, rec: d.rec, drives: 0, systems: new Set() }; e.drives += d.count; e.systems.add(r.name); } }));
+  const dr = Object.values(dm).sort((a, b) => b.drives - a.drives);
+  o += `## 3. Drive firmware behind recommended\n\n`;
+  o += dr.length ? `Grouped by drive model and firmware revision across all systems in scope.\n\n` + md(['Drive model', 'Current firmware', 'Recommended', 'Drives', 'Systems affected'], dr.map(e => [e.model, e.fw, e.rec, e.drives, e.systems.size])) : `No drives are behind the recommended firmware for models that have a baseline.\n\n`;
+  // 4. per-system status
+  o += `## 4. Firmware status by system\n\nSystems that report firmware data; one row per system.\n\n`;
+  o += md(['System', 'Platform', 'SP/BMC', 'BIOS', 'DQP', 'Drive FW', 'Shelf FW', 'Shelves', 'Drives'],
+    withData.map(r => [r.name, r.platform, status(r.sp.m), status(r.mb.m), status(r.dqp.m), status(r.drv.m), status(r.shelf.m), r.shelf.count, r.drv.total]));
+  if (noData.length) o += `**Systems reporting no firmware data (${noData.length}):** ${noData.slice(0, 60).map(r => r.name).join(', ')}${noData.length > 60 ? `, and ${noData.length - 60} more` : ''}. These are typically StorageGRID, E-Series and similar systems whose firmware Active IQ does not report through this channel.\n\n`;
+  o += `## 5. About this report\n\nCurrent versions come from AutoSupport; recommended versions come from NetApp's firmware baselines${st.blDate ? ` (baselines updated ${String(st.blDate).slice(0, 10)})` : ''}. Active IQ reports shelf module firmware only as an outdated count, so a shelf module's installed version may show as not reported. "Not reported" means Active IQ returned no value, not that the component is current.\n`;
   return o;
 }
 function _planScopeSystems() {

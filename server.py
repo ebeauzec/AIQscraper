@@ -1054,7 +1054,7 @@ def _maybe_send_webhook_alert(db, result, account_label):
         print(f"  [WEBHOOK] Alert failed (non-fatal): {e}", flush=True)
 
 
-def _get_fleet_trend(db, days=90, customer_name=None):
+def _get_fleet_trend(db, days=90, customer_name=None, serials=None):
     """Aggregate system_snapshots across ALL systems (or one customer, if
     given) into one row per date: total critical/high risks, total open
     critical cases, and how many distinct systems were captured that day.
@@ -1066,7 +1066,16 @@ def _get_fleet_trend(db, days=90, customer_name=None):
     system_snapshots data already captured on every harvest; no new capture
     logic needed.
     """
-    if customer_name:
+    if serials is not None:
+        # watchlist / group scope: restrict to that list of serial numbers
+        wanted = set(str(x) for x in serials)
+        rows = [r for r in db.execute("""
+            SELECT snapshot_date, snapshot_json, serial_number FROM system_snapshots
+            WHERE snapshot_date >= date('now', ?)
+            ORDER BY snapshot_date ASC
+        """, (f"-{days} days",)).fetchall() if r[2] in wanted]
+        rows = [(r[0], r[1]) for r in rows]
+    elif customer_name:
         rows = db.execute("""
             SELECT snapshot_date, snapshot_json FROM system_snapshots
             WHERE snapshot_date >= date('now', ?) AND customer_name = ?
@@ -2474,8 +2483,10 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         # ── Shelf module firmware currency merge (see SHELVES_SUMMARY_FIELDS) ──
         try:
             _shsum_by_serial = {}
-            for _shsum_scope in (list(watchlist_ids) if watchlist_ids else [None]):
-                _shsum_rows, _ = _fetch_systems_for_scope(SHELVES_SUMMARY_FIELDS, _shsum_scope)
+            for _shsum_scope in [None]:
+                # same scoping fix as the StorageGRID/extras merges: accounts without unfiltered_system_access
+                # (watchlist-scoped only) returned nothing here, leaving shelf firmware "unknown" for most systems
+                _shsum_rows = _fetch_rows_all_scopes(SHELVES_SUMMARY_FIELDS)
                 for _r in _shsum_rows:
                     _ss = _r.get("shelvesSummary")
                     if _ss:
@@ -2688,6 +2699,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             return items
 
         all_risk_instances = []
+        _restricted_scope = False
         if watchlist_ids:
             _ri_seen = set()
             for _wl_id in watchlist_ids:
@@ -2701,6 +2713,17 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                         all_risk_instances.append(_ri)
         else:
             all_risk_instances = _fetch_risk_instances_for_scope(None)
+            if not all_risk_instances and _early_watchlists:
+                # account without unfiltered_system_access: scope per discovered watchlist
+                _restricted_scope = True
+                _ri_seen = set()
+                for _wl_id in _early_watchlists:
+                    for _ri in _fetch_risk_instances_for_scope(_wl_id):
+                        _key = ((_ri.get("system") or {}).get("serialNumber"), (_ri.get("risk") or {}).get("riskId"))
+                        if _key not in _ri_seen:
+                            _ri_seen.add(_key)
+                            all_risk_instances.append(_ri)
+                print(f"  [HARVEST] Risk instances via {len(_early_watchlists)} discovered watchlist(s): {len(all_risk_instances)}", flush=True)
         print(f"  [HARVEST] Total risk instances: {len(all_risk_instances)}", flush=True)
 
         # 7. Fetch all support cases — paginated + fallback without productTypes if the
@@ -2774,6 +2797,19 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 print("  [HARVEST] Cases: retrying without productTypes filter...", flush=True)
                 _cases_result = _fetch_cases_pages(with_product_types=False) or []
             all_cases = _cases_result or []
+            if not all_cases and _early_watchlists:
+                _restricted_scope = True
+                _case_seen = set()
+                for _wl_id in _early_watchlists:
+                    _wl_cases = _fetch_cases_pages(with_product_types=True, scope_wl_id=_wl_id)
+                    if _wl_cases is None:
+                        _wl_cases = _fetch_cases_pages(with_product_types=False, scope_wl_id=_wl_id) or []
+                    for _c in _wl_cases:
+                        _cid = _c.get("caseId")
+                        if _cid and _cid not in _case_seen:
+                            _case_seen.add(_cid)
+                            all_cases.append(_c)
+                print(f"  [HARVEST] Cases via {len(_early_watchlists)} discovered watchlist(s): {len(all_cases)}", flush=True)
         print(f"  [HARVEST] Cases total: {len(all_cases)}", flush=True)
 
         # Accounts without `unfiltered_system_access` need a watchlistId on
@@ -2787,23 +2823,38 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         # data, not deeply per-watchlist like systems/risks/cases -- same
         # "informational, first ID is enough" reasoning already used for the
         # `summary` query above).
-        _wl_scope_arg = f', watchlistId: "{watchlist_ids[0]}"' if watchlist_ids else ''
+        _scope_wl0 = watchlist_ids[0] if watchlist_ids else (_early_watchlists[0] if (_restricted_scope and _early_watchlists) else None)
+        _wl_scope_arg = f', watchlistId: "{_scope_wl0}"' if _scope_wl0 else ''
+        # Restricted (watchlist-scoped-only) account: these reference queries are per-watchlist, so a single
+        # watchlist undercounts (e.g. 1 site / 1 renewal for a 1,181-system account). Query every discovered
+        # watchlist and merge; configured/unrestricted accounts keep their single scope.
+        _all_scopes = list(_early_watchlists) if (_restricted_scope and _early_watchlists and not watchlist_ids) else [_scope_wl0]
+        def _scope_arg(_w): return f', watchlistId: "{_w}"' if _w else ''
 
         # 8. Fetch customers (with sustainability)
-        _, cust_resp = _gql(token, '{ customers(pageSize: 100' + _wl_scope_arg + ''') { customers {
-            id cmatId name
-            sustainabilityScorePercentage { overall }
-        } } }''')
-        customers = (((cust_resp.get("data") or {}).get("customers") or {}).get("customers")) or [] if isinstance(cust_resp, dict) else []
+        customers, _cust_seen = [], set()
+        for _w in _all_scopes:
+            _, cust_resp = _gql(token, '{ customers(pageSize: 100' + _scope_arg(_w) + ''') { customers {
+                id cmatId name
+                sustainabilityScorePercentage { overall }
+            } } }''')
+            for _c in ((((cust_resp.get("data") or {}).get("customers") or {}).get("customers")) or [] if isinstance(cust_resp, dict) else []):
+                if _c.get("id") not in _cust_seen:
+                    _cust_seen.add(_c.get("id")); customers.append(_c)
 
         # ── TAM: Recommendations ──
         tam_recommendations = []
         try:
             print("  [HARVEST] Fetching TAM recommendations...", flush=True)
-            _, rec_resp = _gql(token, '{ recommendations(isTopKeyRecommendation: true, limit: 50' + _wl_scope_arg + ''') {
-                recommendation rank category subCategory score
-            } }''')
-            tam_recommendations = (rec_resp.get("data") or {}).get("recommendations") or [] if isinstance(rec_resp, dict) else []
+            _rec_seen = set()
+            for _w in _all_scopes:
+                _, rec_resp = _gql(token, '{ recommendations(isTopKeyRecommendation: true, limit: 50' + _scope_arg(_w) + ''') {
+                    recommendation rank category subCategory score
+                } }''')
+                for _r in ((rec_resp.get("data") or {}).get("recommendations") or [] if isinstance(rec_resp, dict) else []):
+                    _k = (_r.get("recommendation"), _r.get("category"))
+                    if _k not in _rec_seen:
+                        _rec_seen.add(_k); tam_recommendations.append(_r)
             print(f"  [HARVEST] Recommendations: {len(tam_recommendations)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Recommendations failed: {e}", flush=True)
@@ -2812,12 +2863,16 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         tam_sites = []
         try:
             print("  [HARVEST] Fetching TAM sites...", flush=True)
-            _, sites_resp = _gql(token, '{ sites(pageSize: 100' + _wl_scope_arg + ''') { sites {
-                id cmatId name countryCode postalCode city state streetAddress
-                vmwareFlag systemsWithCriticalPropensity systemsWithHighPropensity
-                operationalDate ageInYears
-            } } }''')
-            tam_sites = (((sites_resp.get("data") or {}).get("sites") or {}).get("sites")) or []
+            _site_seen = set()
+            for _w in _all_scopes:
+                _, sites_resp = _gql(token, '{ sites(pageSize: 100' + _scope_arg(_w) + ''') { sites {
+                    id cmatId name countryCode postalCode city state streetAddress
+                    vmwareFlag systemsWithCriticalPropensity systemsWithHighPropensity
+                    operationalDate ageInYears
+                } } }''')
+                for _st in ((((sites_resp.get("data") or {}).get("sites") or {}).get("sites")) or []):
+                    if _st.get("id") not in _site_seen:
+                        _site_seen.add(_st.get("id")); tam_sites.append(_st)
             print(f"  [HARVEST] Sites: {len(tam_sites)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Sites failed: {e}", flush=True)
@@ -2826,12 +2881,16 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         tam_sustainability = []
         try:
             print("  [HARVEST] Fetching sustainability score...", flush=True)
-            _sust_args = f'watchlistId: "{watchlist_ids[0]}"' if watchlist_ids else ''
-            _sust_call = f'sustainabilityScore({_sust_args})' if _sust_args else 'sustainabilityScore'
-            _, sust_resp = _gql(token, '{ ' + _sust_call + ''' { sustainabilityScores {
-                scorePercentage percentageChange generatedDate changeFactors
-            } } }''')
-            tam_sustainability = (((sust_resp.get("data") or {}).get("sustainabilityScore") or {}).get("sustainabilityScores")) or [] if isinstance(sust_resp, dict) else []
+            # a score is per scope, not additive: use the first watchlist that reports one
+            for _w in _all_scopes:
+                _sust_args = f'watchlistId: "{_w}"' if _w else ''
+                _sust_call = f'sustainabilityScore({_sust_args})' if _sust_args else 'sustainabilityScore'
+                _, sust_resp = _gql(token, '{ ' + _sust_call + ''' { sustainabilityScores {
+                    scorePercentage percentageChange generatedDate changeFactors
+                } } }''')
+                tam_sustainability = (((sust_resp.get("data") or {}).get("sustainabilityScore") or {}).get("sustainabilityScores")) or [] if isinstance(sust_resp, dict) else []
+                if tam_sustainability:
+                    break
             print(f"  [HARVEST] Sustainability scores: {len(tam_sustainability)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Sustainability failed: {e}", flush=True)
@@ -2847,21 +2906,25 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         tam_official_health_score = []
         try:
             print("  [HARVEST] Fetching official Active IQ health score...", flush=True)
-            _, hs_resp = _gql(token, '{ summary(pageSize: 1' + _wl_scope_arg + ''') { healthScore {
-                overallHealthScore calculatedAt
-                kpis {
-                    asup { gainedPercentage improvementPercentage }
-                    osFreshness { gainedPercentage improvementPercentage }
-                    firmware { gainedPercentage improvementPercentage }
-                    securityHardening { gainedPercentage improvementPercentage }
-                    sustainability { gainedPercentage improvementPercentage }
-                    uptime { gainedPercentage improvementPercentage }
-                    eos { gainedPercentage improvementPercentage }
-                    addon { gainedPercentage improvementPercentage }
-                    techRefresh { gainedPercentage improvementPercentage }
-                }
-            } } }''')
-            _hs = (((hs_resp.get("data") or {}).get("summary") or {}).get("healthScore")) if isinstance(hs_resp, dict) else None
+            _hs = None
+            for _w in _all_scopes:
+              _, hs_resp = _gql(token, '{ summary(pageSize: 1' + _scope_arg(_w) + ''') { healthScore {
+                  overallHealthScore calculatedAt
+                  kpis {
+                      asup { gainedPercentage improvementPercentage }
+                      osFreshness { gainedPercentage improvementPercentage }
+                      firmware { gainedPercentage improvementPercentage }
+                      securityHardening { gainedPercentage improvementPercentage }
+                      sustainability { gainedPercentage improvementPercentage }
+                      uptime { gainedPercentage improvementPercentage }
+                      eos { gainedPercentage improvementPercentage }
+                      addon { gainedPercentage improvementPercentage }
+                      techRefresh { gainedPercentage improvementPercentage }
+                  }
+              } } }''')
+              _hs = (((hs_resp.get("data") or {}).get("summary") or {}).get("healthScore")) if isinstance(hs_resp, dict) else None
+              if _hs and _hs.get("overallHealthScore") is not None:
+                  break
             if _hs and _hs.get("overallHealthScore") is not None:
                 tam_official_health_score = [_hs]
                 print(f"  [HARVEST] Official health score: {_hs.get('overallHealthScore')}/100", flush=True)
@@ -2962,17 +3025,21 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         tam_renewals = []
         try:
             print("  [HARVEST] Fetching contract renewals...", flush=True)
-            _, ren_resp = _gql(token, '{ systemContractRenewals(pageSize: 200, beginDate: "2024-01-01", endDate: "2030-12-31"' + _wl_scope_arg + ''') { systems {
+            _ren_seen = set()
+            for _w in _all_scopes:
+              _, ren_resp = _gql(token, '{ systemContractRenewals(pageSize: 200, beginDate: "2024-01-01", endDate: "2030-12-31"' + _scope_arg(_w) + ''') { systems {
                 serialNumber hostName platformType serviceTier techRefreshStatus
                 contract { expiryDate isContractActive hardwareServiceLevel hardwareContractEndDate softwareContractEndDate overallContractEndDate hardwareWarrantyEndDate }
                 hardwareModel { name endOfAvailability endOfSupport }
                 endOfSupport { earliestEndOfSupportDate latestPVRDate latestEndOfSupportDate }
-            } } }''')
+              } } }''')
+              for _rs in ((((ren_resp.get("data") or {}).get("systemContractRenewals") or {}).get("systems")) or [] if isinstance(ren_resp, dict) else []):
+                  if _rs.get("serialNumber") not in _ren_seen:
+                      _ren_seen.add(_rs.get("serialNumber")); tam_renewals.append(_rs)
             # .get("systemContractRenewals", {}) only applies its default when the key
             # is MISSING — GraphQL can return {"data": {"systemContractRenewals": null}}
             # (e.g. no privilege/no systems in scope), where the key exists with value
             # None, crashing the chained .get("systems") call. Use "or {}" instead.
-            tam_renewals = (((ren_resp.get("data") or {}).get("systemContractRenewals") or {}).get("systems")) or [] if isinstance(ren_resp, dict) else []
             print(f"  [HARVEST] Renewals with lifecycle events: {len(tam_renewals)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Contract renewals failed: {e}", flush=True)
@@ -9168,6 +9235,8 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
             self.handle_asup_import()
         elif self.path == '/api/asup/associate':
             self.handle_asup_associate()
+        elif self.path == '/api/history/trend':
+            self.handle_fleet_trend_post()
         elif self.path == '/api/history/annotate':
             self.handle_history_annotate()
         elif self.path == '/api/webhook/test':
@@ -9364,6 +9433,24 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         except Exception as e:
             print(f"  [HISTORY] Error: {e}", flush=True)
             self._json_response(500, {"ok": False, "error": str(e), "history": []})
+
+    def handle_fleet_trend_post(self):
+        """POST /api/history/trend {days, serials:[...]} -- trend for an arbitrary
+        set of systems (a watchlist or custom group), which have no snapshot column."""
+        try:
+            length = int(self.headers.get('Content-Length') or 0)
+            body = json.loads(self.rfile.read(length).decode('utf-8') or '{}')
+            days = int(body.get('days') or 90)
+            serials = body.get('serials') or []
+            db = _init_db()
+            try:
+                trend = _get_fleet_trend(db, days=days, serials=serials)
+            finally:
+                db.close()
+            self._json_response(200, {"ok": True, "trend": trend, "count": len(trend)})
+        except Exception as e:
+            print(f"  [HISTORY] Trend (scoped) error: {e}", flush=True)
+            self._json_response(500, {"ok": False, "error": str(e), "trend": []})
 
     def handle_fleet_trend(self):
         """GET /api/history/trend?days=90[&customer=Name] — fleet-wide or

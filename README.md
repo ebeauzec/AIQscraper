@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.162-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.221-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -26,7 +26,7 @@
 3. [Use Cases](#3-use-cases)
 4. [Getting Started](#4-getting-started)
 5. [Dashboard Guide](#5-dashboard-guide)
-6. [Action Planner — All 19 Sections](#6-action-planner--all-19-sections)
+6. [Action Planner — All Sections](#6-action-planner--all-sections)
 7. [Downloadable Deliverables](#7-downloadable-deliverables)
 8. [Scores, KPIs & Metrics Reference](#8-scores-kpis--metrics-reference)
 9. [Security & Data Privacy](#9-security--data-privacy)
@@ -74,6 +74,7 @@ Everything below applies to both: a TAM scoping a report to one customer and an 
 | **Sustainability requires per-customer navigation** | **Cross-customer ESG dashboard** — fleet sustainability score, carbon/energy data, and data reduction ratios all in one view |
 | **Cluster identity gaps** — systems not mapped to a cluster in the API appear unnamed | **Automatic cluster name derivation** — when the API cluster lookup returns empty, the hostname is used with node suffixes stripped (e.g. `A150-CLUSTER-01` → `A150-CLUSTER`) to produce meaningful labels in tables and charts |
 | **No visual hardware references** — you must manually check hardware guides for layout | **Platform-specific rear-panel backplate visualization** — renders accurate physical controller rear views for 8+ NetApp hardware families (A70/A90/A1K, A400/A900, A800/C800, A250/C250/FAS2820, E-Series, Cloud, StorageGRID, generic ONTAP) |
+| **StorageGRID shows up as a handful of systems** — only nodes that send AutoSupport appear, with no view of ILM rules, tenants or buckets | **Full grid awareness** — every node counted from the admin node's topology (role, physical/virtual, model, version), ILM rules, tenants, buckets and site capacity, with findings, recommendations and a formatted Word assessment report |
 
 ### Where this tool is most effective
 
@@ -149,6 +150,9 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - **SVM & LIF Inventory** — harvests vserver data (SVM name, type, LIFs with IPs, service policies, failover configuration) from the Active IQ GraphQL API and displays per-node LIF tables in the cabling audit view.
 - **Official Active IQ Health Score** — NetApp's own 0–100 score with a 9-factor breakdown (AutoSupport freshness, OS freshness, firmware, security hardening, sustainability, uptime, EOS exposure, add-on adoption, tech refresh), fetched **per real customer** (not one account-wide figure restated for everyone) via `summary(nagpId: ...)`. Distinct from this tool's own risk-based Account Health Score — both are shown, never conflated.
 - **Per-aggregate storage detail** — real per-aggregate efficiency ratio, FabricPool tiering status, and dedup/compression-disabled volume counts, harvested for every ONTAP system Active IQ reports aggregate telemetry for. Feeds the Risk & Remediation Brief's Storage Efficiency Opportunities section and the Storage Efficiency & Cost Optimization Success Plan template.
+- **StorageGRID topology** — for every grid: sites, every node (admin, gateway, storage, archive; physical appliance, VMware or bare metal; model, RAID, drives, version) even when only the admin node sends AutoSupport, ILM rules (placements, storage pools, ingest behaviour, copy count / erasure coding), tenants and buckets (versioning, S3 Object Lock, CloudMirror) and per-site capacity
+- **Platform Insights** — power and heat, drive inventory with firmware and end-of-support, ONTAP upgrade history, hardware expansion limits, E-Series NVSRAM, ARP/AI and timezone file currency, ONTAP FC adapters, Cloud Insights hosts and tenants, Active IQ talking points
+- **Real Success Plans** — plans, objectives, milestones and actions, readable and writable
 - **Per-customer TAM Recommendation scoring** — Active IQ's `recommendations` Score % fetched once per real customer via `recommendations(customerId: ...)`, so every customer sees their own genuine percentage instead of the account-wide figure.
 
 **Added by the Reference Library (not in Active IQ):**
@@ -160,6 +164,8 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 - Kerberos AES enforcement detection
 - SnapMirror synchronous policy alignment audit
 - Legacy firewall policy deprecation detection
+- **StorageGRID best-practice and risk checks** — nodes not sending AutoSupport, single admin or gateway node, single-site grid, single-copy or default-only ILM, no versioning or Object Lock, mixed node versions, appliance end-of-availability (NetApp notice CPC-00602), capacity and support term, each with a recommendation, injected into the same risk engine as every other platform
+- **Restricted-account support** — accounts without unfiltered Active IQ access (watchlist-scoped only) are harvested through their discovered watchlists for every query
 - **Harvest Resilience** — merge-back guard prevents transient API failures from wiping cached system and cluster data.
 
 ---
@@ -321,6 +327,31 @@ In a single sync, the tool harvests your complete fleet telemetry from the Activ
 
 ---
 
+### StorageGRID Assessment (grids, nodes, ILM, tenants)
+
+**Goal:** Understand and report on object-storage estates (StorageGRID) with the same depth as ONTAP, even when only the admin node sends AutoSupport.
+
+**Workflow:**
+1. Select the customer, then open **Action Planner → StorageGRID**. Every grid shows its **real node count**: Active IQ publishes the whole grid topology from the admin node, so nodes that never send AutoSupport themselves are still counted, broken out by role (admin, gateway, storage, archive) and form factor (physical appliance, VMware VM, bare metal).
+2. Read the findings and recommendations (above the tenants table): nodes not reporting AutoSupport, single admin or gateway node, single-site grid, single-copy or default-only ILM rules, buckets without versioning or S3 Object Lock, mixed node software versions, appliance models under end-of-availability notice CPC-00602, capacity, and support term.
+3. Review the **ILM rules** (placements, storage pools, ingest behaviour, copy counts / erasure-coding scheme, time periods in days), **tenants and buckets**, and per-site capacity.
+4. Click **Download Word** for the full **StorageGRID Assessment Report** (executive summary, prioritised findings and recommended actions, per-grid node roster, ILM rules, tenants and buckets).
+5. The same data feeds the TAM Success Plan, QBR, Executive Risk Assessment, Handover, MSP, Risk & Remediation, Security Brief and Customer Health deliverables, and StorageGRID findings are injected into the risk engine so they appear in Technical Risks and the Remediation Tracker.
+
+**Output:** A grid-accurate inventory and a prioritised, recommendation-backed assessment, as a screen view and a formatted Word document.
+
+### Cross-Platform Hardware & Energy Review (Platform Insights)
+
+**Goal:** Use the telemetry Active IQ exposes for ONTAP, E-Series and StorageGRID that older tooling ignored.
+
+**Workflow:** open **Action Planner → Platform Insights** for power and heat (projected vs actual), drive inventory with firmware currency and end-of-support, ONTAP upgrade history, hardware expansion limits, E-Series NVSRAM, ARP/AI and timezone file currency, ONTAP FC adapters (WWNN), Cloud Insights hosts and tenants, and Active IQ's own talking points. Each also appears in the relevant deliverables.
+
+### Word Reports for Any View
+
+**Goal:** Hand a customer or colleague a formatted document of exactly what is on screen.
+
+**Workflow:** every Action Planner tab has a **Download Word** button. Summary tiles become tables, card headers become headings, lists stay lists and links keep their URLs. Views with a purpose-built report use it instead of a screen conversion: **StorageGRID** (Assessment Report), **Firmware Currency** (summary, outstanding updates, drive firmware by model, per-system status), **Technical Risks** and **Security Advisories** (grouped by system with remediation plans), **Recommendations** (untruncated).
+
 ### Enterprise Fleet Operations (Large End-Customer Environments)
 
 **Goal:** For an enterprise running its own NetApp estate — not a TAM/MSP managing someone else's — get a single operational view across the entire fleet without navigating Active IQ system-by-system, and produce the internal reporting (security posture, license compliance, capacity runway, feature adoption) that storage operations, security, and IT leadership actually need.
@@ -403,11 +434,15 @@ The sidebar provides eight primary navigation areas:
 
 Fleet-wide KPI cards (systems, clusters, critical risks, open cases), interactive charts (capacity trend, risk distribution, platform mix), and a sortable/filterable system inventory table.
 
+The **Risk Trend** chart (critical and high findings over time, from the snapshots captured on every sync) follows the current scope: a customer, a watchlist or a custom group each get their own series, not the whole fleet.
+
 The **Official AIQ Health Score** KPI tile shows Active IQ's own real score — scoped to whichever single customer is selected in the sidebar (falling back to an honestly-labeled fleet-wide figure when no single customer is in scope) — displayed alongside, never in place of, this tool's own risk-based scoring elsewhere in the app.
 
 ### Technical Audit
 
 The risk and security intelligence hub. Displays all Active IQ risks sorted by severity, security advisories with CVE cross-referencing, and Reference Library enrichment checks (Kerberos, SnapMirror, Varonis, firewall deprecation). Each advisory links to the NetApp Security Advisory portal.
+
+The **node strip** lists each real node once, classified by what it actually is: an E-Series controller that belongs to a StorageGRID storage node is listed as a StorageGRID node under its grid name, duplicate records for one node collapse into one, and StorageGRID records the grid itself does not list are hidden behind a **Show** toggle. For a StorageGRID grid a **StorageGRID card** shows the grid's nodes, ILM, tenants and findings (the full view is Action Planner → StorageGRID). The **MetroCluster card** appears only for a MetroCluster node and only for that node's own cluster pair, never for an E-Series or StorageGRID node. The **OS Upgrade card** shows the right "latest supported" release per platform, including StorageGRID appliance nodes.
 
 The **Controller Node Port Assignments** card draws the selected controller's **rear panel as a scale SVG drawing** traced from NetApp's own hardware diagrams and documentation, for every current ONTAP family (FAS/AFF/ASA/AFX/C-series), E-Series and StorageGRID appliance:
 
@@ -445,7 +480,8 @@ Storage efficiency and capacity intelligence:
 - **Data Reduction Ratio** — dedupe + compression only. Snapshot-inclusive ratio shown as a secondary annotation for reference
 - **Space Saved** — TB saved through deduplication and compaction (not including snapshot space)
 - **FabricPool** — tiering ratio and adoption status
-- **SnapMirror** — async/sync relationship counts
+- **SnapMirror** — async/sync relationship counts (shown for ONTAP only; never for a StorageGRID or E-Series node)
+- **StorageGRID** — licensed and used capacity per grid (more in the Action Planner StorageGRID tab)
 - **Capacity Projection Chart** — toggle between **Aggregate** (fleet-wide) and **Per Node** (individual node trend lines)
 - **Capacity Breakdown by Node** — Used TB, Raw TB, Utilisation %, Growth/day, Runway, Data Source per node
 
@@ -459,7 +495,7 @@ Storage efficiency and capacity intelligence:
 
 ### Action Planner
 
-The core reporting engine. Click **Generate** to build all 19 sections. Use the numbered tab row to navigate. See [Section 6](#6-action-planner--all-19-sections) for full detail on each section.
+The core reporting engine. Click **Generate** to build every section (27 tabs in five groups). Use the tab row to navigate; every tab has a **Download Word** button. See [Section 6](#6-action-planner--all-sections) for full detail on each section.
 
 ### Remediation Tracker
 
@@ -478,7 +514,7 @@ Mirrors NetApp Digital Advisor's own Success Plans feature — confirmed via liv
 
 Select any number and adopt them in one action; each becomes a real Success Plan via the same write-back. Every template also carries the **specific findings behind its trigger** — real affected system names and serial numbers, real finding text (risk descriptions, CVE IDs, EOS dates, support case numbers), and the real Active IQ remediation text for each. Adopting a suggestion writes this detail into the created plan's challenges/goals, objectives, and TAM notes fields instead of a generic count summary, so the plan is fully actionable from inside Active IQ itself.
 
-Since Active IQ's Success Plan object has no progress/percentage field, adopting a suggestion records the real trigger metric's value locally (purely local bookkeeping about a real plan id, never written back to Active IQ) and the Success Plans table shows a Progress column with the live baseline-to-current delta on every view.
+Active IQ's plan object has no overall percentage field, but each plan's real **milestones and actions** (status, owner, due date) are harvested and shown as a **Milestone Progress** tile, per-plan milestone counts and an open-milestone table (also in the deliverables' Success Plan Alignment). In addition, adopting a suggestion records the real trigger metric's value locally (purely local bookkeeping about a real plan id, never written back to Active IQ) and the Success Plans table shows a Progress column with the live baseline-to-current delta on every view.
 
 ### Settings & Config
 
@@ -486,9 +522,9 @@ API token management, sync interval, custom account groups, watchlist IDs, and s
 
 ---
 
-## 6. Action Planner — All 24 Sections
+## 6. Action Planner — All Sections
 
-Click **Action Planner** in the sidebar, then **Generate**. All 24 sections are built and the tab row appears above the content area as five bordered, labeled groups, each with a one-line description of what it covers. Tab buttons show a plain label, not a number — an earlier numbered scheme collided as sections were added over time, so numbers were dropped entirely rather than risk another collision; navigate by group and label instead.
+Click **Action Planner** in the sidebar, then **Generate**. Every section is built and the tab row appears above the content area as five bordered, labeled groups, each with a one-line description of what it covers. Tab buttons show a plain label, not a number — an earlier numbered scheme collided as sections were added over time, so numbers were dropped entirely rather than risk another collision; navigate by group and label instead.
 
 <p align="center">
   <img src="docs/images/deliverables-suite-tabs.png" alt="Action Planner tab row showing five groups (Overview, Risk & Security, Operations & Health, Account & Commercial, Customer Deliverables) with the Deliverables Suite split into Risk & Remediation, Customer & Sales, and TAM / MSP tabs" width="820">
@@ -499,7 +535,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 24 sections are 
 |---|---|
 | **Overview** — where every reviewer should start | Summary · 📊 Portfolio Dashboard |
 | **Risk & Security** — what could go wrong | Technical Risks · Security Advisories · OS Upgrades · Switch Validation |
-| **Operations & Health** — day-to-day operational posture | Support Cases · Operational Health · 🔄 DR & Replication Health · ✅ Feature Adoption · 🔧 Firmware Currency · ⚡ Performance · 🖥 VMware Inventory |
+| **Operations & Health** — day-to-day operational posture | Support Cases · Operational Health · 🔄 DR & Replication Health · ✅ Feature Adoption · 🔧 Firmware Currency · 💾 SAN & NAS Storage · ▦ StorageGRID · ⚡ Platform Insights · ⚡ Performance · 🖥 VMware Inventory |
 | **Account & Commercial** — contracts, lifecycle, account context | Contracts & Lifecycle · Contract Compliance · Sustainability · Recommendations · Account Intelligence · Logistics & Health · Guidelines |
 | **★ Customer Deliverables** — ready to export and present | Risk & Remediation · Customer & Sales · TAM / MSP · As-Built Document |
 
@@ -516,6 +552,7 @@ Click **Action Planner** in the sidebar, then **Generate**. All 24 sections are 
 | **🔄 DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
 | **✅ Feature Adoption** | Per-system feature matrix — ARP, SnapMirror, HA, and AutoSupport, each tri-state rendered (✅ confirmed enabled / ❌ confirmed disabled / — not reported by the API). Score column counts only these 4 real feature checks (e.g. "3/4"), not a blended health score |
 | **🔧 Firmware Currency** | Per-system firmware cards: ONTAP version, system FW, motherboard FW, DQP, shelf module FW (current version and recommended baseline, current sourced live from Active IQ's `shelvesSummary` field — a separate harvest pass, since it's not on the per-shelf object), drive firmware table with model/current FW/recommended FW/status badge/vendor/count. Fleet-wide currency summary (current/behind/unknown) for every component including shelves. Drive FW recommendations sourced from Active IQ DQP telemetry |
+| **💾 SAN & NAS Storage** | LUN and NAS volume inventory, capacity and best-practice findings (thin provisioning, snapshot health and reserve overflow) |
 | **⚡ Performance** | Measured performance from the customer's own StoragePerf: latency, CPU, capacity runway, and whether a slowdown is the array or the network path in front of it — complements Active IQ's AutoSupport-based view |
 | **🖥 VMware Inventory** | Fleet-wide vCenter rollup — every registered vCenter, its version, attached systems and customers, cross-referenced against the NetApp IMT for compatibility findings. Previously vCenter data only rendered per-system inside the As-Built Document, with no fleet-wide view |
 | **Contracts & Lifecycle** | Contract pipeline (Active/Expiring/Expired), lifecycle table sorted by urgency, tech refresh status, service tier breakdown |
@@ -529,6 +566,16 @@ Click **Action Planner** in the sidebar, then **Generate**. All 24 sections are 
 | **★ Customer & Sales** | Deliverables D-I: Customer Advisory & QBR Communications, Technical Solution & Architecture Proposals, Sales Refresh & Renewal Proposals, Risk & Remediation Brief, Security Posture Executive Brief, Sustainability & ESG Report — with its own scoped "Download All" |
 | **★ TAM / MSP** | Deliverables J-O: TAM Success & Posture Optimization Plan, TAM QBR Pack, MSP Service Delivery Report, Account Handover & Transition Brief, Customer Value Report, Customer Health & Lifecycle Report — with its own scoped "Download All" |
 | **★ As-Built Document** | Complete as-built configuration document — every parameter needed to audit or rebuild each system from scratch. Downloadable as TXT/MD/DOCX like every other deliverable, plus a dedicated **Export Excel** button producing a 4-sheet workbook (Systems, Shelves, SVMs & LIFs, Risks) for scopes large enough to want filtering/sorting/pivoting instead of reading top to bottom |
+
+**StorageGRID, Platform Insights and Success Plans:**
+
+| Section | What's Inside |
+|---|---|
+| **StorageGRID** | Per-grid node roster (role, form factor, appliance model, version, reporting/health), site capacity, ILM rules as reported by Active IQ (Active IQ returns one rule set per grid and no active-policy flag, so ARIA never claims a rule is part of the active policy), findings and recommendations, tenants and buckets (versioning, S3 Object Lock, CloudMirror). Download Word gives the full StorageGRID Assessment Report |
+| **Platform Insights** | Power and heat, drive inventory and firmware currency/EOS, ONTAP upgrade history, hardware expansion limits, E-Series NVSRAM, security/system file currency (ARP/AI, timezone), ONTAP FC adapters, Cloud Insights hosts/tenants, Active IQ talking points |
+| **Success Plans** (Success tab) | Real Active IQ Success Plans with milestone and action progress. Plans ARIA submits carry the **complete** affected-system list (never "see the tool for the full list"); an oversized field is automatically resent split across the plan's notes |
+
+Every tab has a **Download Word** button (see [Use Cases](#word-reports-for-any-view)).
 
 ---
 
@@ -546,21 +593,21 @@ All deliverables are generated in the browser from your local data. Nothing is u
 
 | ID | Deliverable | Audience | Contents |
 |---|---|---|---|
-| **A** | **Executive Risk Assessment** | TAM / Enterprise IT Leadership | Decisions needed, fleet health summary, key risks, operational health scorecard, prioritized corrective actions (each distinct finding once, with its system count), account team context |
+| **A** | **Executive Risk Assessment** | TAM / Enterprise IT Leadership | Decisions needed, fleet health summary, key risks, operational health scorecard, prioritized corrective actions (each distinct finding once, with its system count), account team context; StorageGRID and Platform Insights sections |
 | **B** | **ITIL Change Control & Dispatch Tickets** | TAM / Change Mgmt / CAB | One ticket per system that has something to change (systems with nothing to do are listed once at the end, with "not assessed" called out for systems that send no AutoSupport), pre-checks, tasks, upgrade steps, rollback |
 | **C** | **CLI Runbooks & Upgrade Execution Plans** | Implementation Eng / Storage Ops | ONTAP CLI commands, multi-hop upgrade paths, CVE-specific remediation options, platform-specific checks |
 | **D** | **Customer Advisory & QBR Communications** | TAM | Advisory email with health snapshot and recommended actions, QBR executive summary |
-| **E** | **Technical Solution & Architecture Proposals** | SE / Solutions | Prioritized corrections, OS upgrade targets, phased implementation timeline |
-| **F** | **Sales Refresh & Renewal Proposals** | Sales Rep | Contract renewals and lapsed contracts, lifecycle refresh candidates, upsell opportunities, a commercial-context summary (no invented pricing) |
-| **G** | **Risk & Remediation Brief** | TAM / Sales / Exec | Metrics, ownership, feature adoption, efficiency, network health, contracts, risk exposure, modernization outlook |
-| **H** | **Security Posture Executive Brief** | CISO / Security | CVE remediation matrix (real CVE ids, one inventory across all documents), ARP coverage, feature gaps |
-| **I** | **Sustainability & ESG Report** | Exec / ESG | Active IQ sustainability score (per-system average, never the account-wide figure), data reduction impact, optimization roadmap. No power/CO2 estimates |
-| **J** | **TAM Success & Posture Optimization Plan** | TAM | Phased roadmap, ITIL governance guidelines, KB enrichment by category |
-| **K** | **TAM Quarterly Business Review (QBR) Pack** | TAM / Exec | KPI scorecard, risk posture, lifecycle & renewal pipeline, data protection, capacity forecast, Active IQ recommendations, action items |
-| **L** | **MSP Service Delivery Report** | MSP / Storage Ops Reporting | SLA compliance matrix, incident management, contract portfolio, capacity and efficiency |
-| **M** | **Account Handover & Transition Brief** | TAM Transitions | Environment inventory, personnel, risk posture, contract status, recent activity, talking points (internal) |
-| **N** | **Customer Value Report** | TAM / Exec | Text, one heading per slide: executive summary, value delivered, security and planning, optimisation opportunities, renewals, decisions needed |
-| **O** | **Customer Health & Lifecycle Report** | Customer-facing | Paste-ready report: at a glance, decisions needed, estate table, support and lifecycle (software and hardware windows), security (risks vs CVEs explained), monitoring, capacity and trend, data protection incl. MetroCluster per pair, cases, recommended plan, upgrade sequence, hardware refresh planning |
+| **E** | **Technical Solution & Architecture Proposals** | SE / Solutions | Prioritized corrections, OS upgrade targets, phased implementation timeline; StorageGRID and platform findings |
+| **F** | **Sales Refresh & Renewal Proposals** | Sales Rep | Contract renewals and lapsed contracts, lifecycle refresh candidates, upsell opportunities, a commercial-context summary (no invented pricing); StorageGRID and platform findings |
+| **G** | **Risk & Remediation Brief** | TAM / Sales / Exec | Metrics, ownership, feature adoption, efficiency, network health, contracts, risk exposure, modernization outlook; StorageGRID and Platform Insights sections |
+| **H** | **Security Posture Executive Brief** | CISO / Security | CVE remediation matrix (real CVE ids, one inventory across all documents), ARP coverage, feature gaps; StorageGRID and Platform Insights sections |
+| **I** | **Sustainability & ESG Report** | Exec / ESG | Active IQ sustainability score (per-system average, never the account-wide figure), data reduction impact, optimization roadmap. No power/CO2 estimates; Platform Insights (power and heat) section |
+| **J** | **TAM Success & Posture Optimization Plan** | TAM | Phased roadmap, ITIL governance guidelines, KB enrichment by category; StorageGRID and Platform Insights sections |
+| **K** | **TAM Quarterly Business Review (QBR) Pack** | TAM / Exec | KPI scorecard, risk posture, lifecycle & renewal pipeline, data protection, capacity forecast, Active IQ recommendations, action items; StorageGRID and Platform Insights sections |
+| **L** | **MSP Service Delivery Report** | MSP / Storage Ops Reporting | SLA compliance matrix, incident management, contract portfolio, capacity and efficiency; StorageGRID and Platform Insights sections |
+| **M** | **Account Handover & Transition Brief** | TAM Transitions | Environment inventory, personnel, risk posture, contract status, recent activity, talking points (internal); StorageGRID and Platform Insights sections |
+| **N** | **Customer Value Report** | TAM / Exec | Text, one heading per slide: executive summary, value delivered, security and planning, optimisation opportunities, renewals, decisions needed; Platform Insights on the second slide |
+| **O** | **Customer Health & Lifecycle Report** | Customer-facing | Paste-ready report: at a glance, decisions needed, estate table, support and lifecycle (software and hardware windows), security (risks vs CVEs explained), monitoring, capacity and trend, data protection incl. MetroCluster per pair, cases, recommended plan, upgrade sequence, hardware refresh planning; StorageGRID and Platform Insights sections |
 | — | **Fleet Inventory CSV** | Data Export / ITAM / CMDB Reconciliation | Complete system inventory with all enriched fields, exportable to Excel |
 | — | **Config State JSON** | Backup | Full application configuration state for import/export across environments |
 
@@ -570,6 +617,14 @@ All deliverables are generated in the browser from your local data. Nothing is u
 Every download button asks which format to save: **Text (.txt)**, **Markdown (.md)** or **Word (.docx)**. **Download All** asks once and applies the choice to all files. The Word file is built inside the app (no library, fully offline) as **A4 portrait** with real structure: titles and sections become Word headings, "Label: value" blocks and " | " rows become tables with shaded headers, bullets and numbered steps become lists, and CLI commands are set in a shaded monospaced style. Every Word deliverable carries the same **customer-ready house format** -- a title block (title, customer, date), a running header, a "Confidential -- prepared for <customer>" footer with Page X of Y, one heading scale, navy-header banded tables and consistent spacing -- so it needs no reformatting before it goes out. Markdown deliverables (N, O) convert directly.
 
 The **As-Built Configuration Document** additionally has its own **Export Excel** button — a real 4-sheet `.xlsx` workbook (Systems, Shelves, SVMs & LIFs, Risks; one row per system/shelf/LIF/risk, frozen header row, autofilter), also built inside the app with no library. It's the one deliverable whose underlying data is genuinely tabular; the narrative deliverables stay txt/md/docx since reflowing prose into spreadsheet cells wouldn't be more useful than the document.
+
+### Tracker import
+
+StorageGRID and Platform Insights findings are also imported into the Remediation Tracker like any other finding (ids `sg-<serial>-<slug>`, category StorageGRID).
+
+### Word export of every Action Planner view
+
+Besides the deliverables, **every Action Planner tab** has a **Download Word** button that exports what is on screen as a formatted A4 document, built in the app with no library (offline). The converter keeps every word, separates paragraphs, turns tile rows into Metric / Value / Detail tables, turns `SYSTEM:` lines and card headers into headings, removes sort arrows and UI-only labels, and never truncates text the screen truncated for space. Tabs with a dedicated export (StorageGRID, Firmware Currency, Technical Risks, Security Advisories, Recommendations) use it instead. Layout was verified from the generated Markdown/structure for every view and several customers; open one in Word before sending it to a customer if layout matters.
 
 ### What every narrative deliverable opens with
 
@@ -838,7 +893,19 @@ KEV-flagged advisories in the dashboard include full detail: affected products, 
 | **Sync takes 60–90 seconds** | Large portfolio, first sync | Normal. Subsequent loads use the SQLite cache. Add `?force=1` to URL to force re-harvest |
 | **Charts not rendering** | `chart.js` missing | Verify file exists in project folder. Hard refresh (Ctrl+Shift+R) |
 | **Node capacity shows 0.0** | API reports cluster-aggregate, not per-node | Dashboard falls back to monthly telemetry. Ensure a full sync completed |
+| **Many values show "Unknown" / "Not reported" (shelf firmware, risks, cases, recommendations, renewals)** | Account has no `unfiltered_system_access` privilege (watchlist-scoped only), so unscoped Active IQ queries are rejected | Fixed in v5.6.221: ARIA falls back to the auto-discovered watchlists. Restart the server and run a forced harvest (`/api/harvest?force=1`). Anything still "Not reported" is a genuine Active IQ limit, see *Data Active IQ does not provide* below |
+| **StorageGRID grids missing topology/ILM after upgrading** | Cached harvest predates the topology fields | Restart the server and force a re-harvest |
+| **Nav footer version differs from `version.json`** | `APP_VERSION` not bumped | Bump `APP_VERSION` in `app.js` with `version.json` and the changelog (console warns when they diverge) |
 | **Desktop app won't launch** | Missing `pywebview` | `pip install -r requirements_desktop.txt` |
+
+### Data Active IQ does not provide
+
+Confirmed by live schema introspection; these show as *Not reported*, never as a guess:
+- E-Series (SANtricity) and StorageGRID nodes have no controller, port or WWPN fields; E-Series reports projected, not actual, power.
+- VMware StorageGRID nodes expose no model, drive, version or health detail; no open per-model end-of-support dates for StorageGRID appliances (NetApp notice CPC-00602 is flagged, dates are on mysupport.netapp.com).
+- StorageGRID ILM has no active-policy flag; ILM time periods are in days.
+- SP/BMC, BIOS and DQP firmware for StorageGRID and E-Series; shelf module firmware is reported only as an outdated count on some systems.
+- No parts-logistics hub/depot status (only RMA parts), no per-volume identifiers, SnapMirror destinations/lag, or MetroCluster partner (pairs are inferred from names and labelled as such).
 
 ---
 
@@ -890,12 +957,21 @@ ARIA/
 └── version.json     ← Version metadata
 ```
 
+### StorageGRID, Platform Insights and account scoping (v5.6.203 - v5.6.221)
+
+- **Harvest (`server.py`)**: the StorageGrid topology (sites, nodes, ILM rules, tenants, buckets) and the platform extras are merged by serial from small separate queries (Active IQ rejects queries over its field-count limit). `ESERIES_CAP_FIELDS` -> `storagegridTopology` and `platformExtras` (`_build_platform_extras`); ONTAP-only extras (`ONTAP_EXTRA2_FIELDS`, `_build_ontap_extras2`) are a separate query. The systems query sets `includeStorageGridNodes: true`.
+- **Restricted-account scoping**: `_fetch_rows_all_scopes()` queries configured watchlists, else unfiltered, else the auto-discovered watchlists when unfiltered access is blocked. Risk instances, cases and account-level reference data use the same fallback (`_restricted_scope`, `_scope_wl0`).
+- **Client (`app.js`)**: new fields must be listed in `enrichSystemTelemetry`'s explicit return object; systems are deduped by serial with fields merged; `_dfStorageGridView` resolves node systems to grids (nodes counted from the grid, not from Active IQ records), `applyStorageGridRisks` injects findings (ids `sg-<serial>-<slug>`, `ariaGenerated`) with recommendations from `_SG_RECS`; `_dfPlatformInsights` builds Platform Insights; `_dfNodeStrip` lists each real node once, classified by its true platform (an E-Series controller that belongs to a StorageGRID node is listed as StorageGRID).
+- **Word**: `downloadPlanSectionWord`, `_domToMarkdown`, `compileStorageGridReport`, `compileFirmwareWordMd`, then `triggerFileDownload(..., {format:'docx'})`.
+- **Success Plans**: `_buildSuccessPlanPayload` (full system list, notes fallback), `_cspProgress` (milestones/actions); mutation inputs use `notes: [{message}]`.
+- **Release rule**: bump `APP_VERSION`, `version.json`, `CHANGELOG.md` and the top `APP_CHANGELOG` entry together; sync `dist/` and rebuild the exe when `server.py` changes.
+
 ### Component Reference
 
 | File | Size | Role |
 |---|---|---|
-| `server.py` | ~560 KB / ~10,000 lines | Python HTTP server. OAuth exchange, GraphQL queries (systems/risks/cases/TAM data, per-customer health score, per-customer recommendations, per-aggregate detail), normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints, cluster name derivation, E-Series hardware synthesis, fleet-driven DQP-based drive firmware auto-discovery, `EnrichmentScheduler` (reference data) and `HarvestScheduler` (live fleet data) background timers |
-| `app.js` | ~2.5 MB / ~40,000 lines | JavaScript. ARIA enrichment intelligence engine, risk engine, platform-aware upgrade calculator (ONTAP + StorageGRID + E-Series), 24-section Action Planner renderer (incl. a cross-customer Portfolio Dashboard), deliverable generators with KB enrichment + DR/capacity/adoption/firmware intelligence, chart rendering, Reference Library, Success Plans (real Active IQ read/write, 18 auto-suggestion templates) |
+| `server.py` | ~640 KB / ~11,000 lines | Python HTTP server. OAuth exchange, GraphQL queries (systems/risks/cases/TAM data, per-customer health score, per-customer recommendations, per-aggregate detail), normalization, SQLite cache (WAL mode), static file serving, `/api/*` endpoints, cluster name derivation, E-Series hardware synthesis, fleet-driven DQP-based drive firmware auto-discovery, `EnrichmentScheduler` (reference data) and `HarvestScheduler` (live fleet data) background timers |
+| `app.js` | ~2.9 MB / ~43,500 lines | JavaScript. ARIA enrichment intelligence engine, risk engine, platform-aware upgrade calculator (ONTAP + StorageGRID + E-Series), 27-tab Action Planner renderer (incl. a cross-customer Portfolio Dashboard), deliverable generators with KB enrichment + DR/capacity/adoption/firmware intelligence, chart rendering, Reference Library, Success Plans (real Active IQ read/write, 18 auto-suggestion templates) |
 | `index_src.html` | ~128 KB | Dev HTML shell — loads external `app.js` + `styles.css`. Changes to `app.js` take effect on browser refresh |
 | `index.html` | ~125 KB | Compiled single-file HTML with all JS/CSS inlined. Rebuild after code changes |
 | `styles.css` | ~31 KB | Dark-theme CSS, glassmorphism effects, responsive layout |

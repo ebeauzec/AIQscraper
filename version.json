@@ -1,8 +1,8 @@
 {
-  "version": "5.6.220",
+  "version": "5.6.221",
   "major": 5,
   "minor": 6,
-  "patch": 220,
+  "patch": 221,
   "date": "2026-10-03",
-  "notes": "Word export of Action Planner views checked across every view and several customers and improved: stat tiles become tables, label/value pairs are tidy, SYSTEM: lines are headings, double numbering, sort arrows, duplicated text and stray UI labels removed, the risk and advisory views use their purpose-built export. Also fixed StorageGRID nodes showing 'Latest Supported: ONTAP'."
+  "notes": "Restricted accounts no longer show 'Unknown'/zero for shelf firmware, risks, cases, recommendations, sites, sustainability, health score and renewals (scoped watchlist fallback); new Firmware Currency Word report; Risk Trend chart and deliverable trend text now follow the selected watchlist/group."
 }

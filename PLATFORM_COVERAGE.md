@@ -119,6 +119,28 @@ scope.
 
 ---
 
+## StorageGRID and cross-platform telemetry (v5.6.203 - v5.6.221)
+
+| Data | Source | Status |
+|---|---|---|
+| Grid sites / nodes (role, appliance model, RAID, drives, OS version) | `StorageGrid.gridSites{nodes}`, live-verified 2026-10-02 | ✅ harvested |
+| Tenants, buckets (versioning, Object Lock, CloudMirror) | `StorageGrid.tenants{buckets}` | ✅ harvested |
+| ILM rules (placements, pools, ingest behaviour, days) | `StorageGrid.ILMDetails{rules}` | ✅ harvested; no active-policy flag exists |
+| Per-site capacity | `gridSites.siteCapacity` | ✅ harvested |
+| Power/heat, drive inventory, upgrade history, NVSRAM, ARP/AI and timezone files | per-type fields (ONTAP / E-Series / StorageGRID) | ✅ harvested (Platform Insights) |
+| ONTAP FC adapters (WWNN), Cloud Insights, talking points | ONTAP-only separate query | ✅ harvested |
+| Shelf module firmware summary | `SHELVES_SUMMARY_FIELDS` | ✅ harvested via scoped fallback (v5.6.221) |
+| E-Series / StorageGRID controller, port, WWPN | not in schema | ❌ genuinely unavailable |
+| VMware StorageGRID node model/drive/version/health | not in schema | ❌ genuinely unavailable |
+| Per-model StorageGRID appliance EOS dates | not published via API | ❌ (EOA notice CPC-00602 flagged, no dates) |
+| SP/BMC, BIOS, DQP for StorageGRID / E-Series | not reported | ❌ genuinely unavailable |
+| Parts-logistics hub/depot status | only RMA parts exposed | ❌ genuinely unavailable |
+
+Accounts without `unfiltered_system_access` need watchlist-scoped queries; ARIA falls back to auto-discovered watchlists
+for every harvest query. See `CONTEXT.md` for details.
+
+---
+
 ## How to keep this file honest
 
 - When a platform/switch/ISL figure is verified or corrected, update the
@@ -135,4 +157,4 @@ scope.
 
 ---
 
-*Last updated: 2026-08-17*
+*Last updated: 2026-10-03*
