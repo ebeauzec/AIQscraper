@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.225";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.226";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.226",
+    date: "3 October 2026",
+    title: "Technical Audit Shows Every Node, Grouped by Cluster",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Nodes Missing From the Technical Audit",
+        color: "#ef4444",
+        items: [
+          "The Technical Audit selected only the first 20 systems of a scope, so on a 43-system customer one node of a MetroCluster pair (denotfs20b) was missing from the node strip and the MetroCluster card reported 3 nodes instead of 4. It now selects every system in the scope (the largest customer, 672 systems, renders in about a third of a second).",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Improved -- Node Strip Grouped by Cluster",
+        color: "#22c55e",
+        items: [
+          "Cluster members are always grouped together: one box per cluster (or StorageGRID grid) with its node count, nodes sorted by name, MetroCluster partner clusters side by side, and standalone arrays grouped rather than one box each. The MetroCluster card always shows whole clusters, and says when it includes nodes outside the current selection.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.225",
     date: "3 October 2026",
@@ -12208,6 +12231,24 @@ function selectSystem(serial) {
 // TAM checkbox dropdown). Stamp guard skips the DOM work when scope is unchanged.
 let _selectorStamp = null;
 
+// Technical Audit auto-selection when the scope is larger than the performance cap. Taking the first N systems split HA
+// pairs and MetroCluster pairs (one node of a pair selected, its partner not), so the node strip and the MetroCluster
+// card showed incomplete clusters. Select whole clusters instead, pulling in each MetroCluster DR partner cluster, until
+// the cap is reached (the last cluster is completed even if that goes slightly over).
+function _dfTamAutoSelect(systems, cap) {
+  const list = systems || [];
+  if (list.length <= cap) return list.map(s => s.serialNumber);
+  const byC = new Map();
+  list.forEach(s => { const k = s.clusterName || ('~' + s.serialNumber); if (!byC.has(k)) byC.set(k, []); byC.get(k).push(s); });
+  const out = [], taken = new Set();
+  const take = k => { if (taken.has(k) || !byC.has(k)) return; taken.add(k); byC.get(k).forEach(s => out.push(s.serialNumber)); };
+  for (const [k, nodes] of byC) {
+    if (out.length >= cap) break;
+    take(k);
+    nodes.forEach(s => { if (s.isMetroCluster && s.mcDrClusterName) take(s.mcDrClusterName); });
+  }
+  return out;
+}
 function populateSystemSelectors() {
   const currentFiltered = getFilteredSystems();
   
@@ -12236,12 +12277,8 @@ function populateSystemSelectors() {
     // ── Performance cap: selecting ALL systems at once (e.g. 169 nodes, 5000+ risks)
     // generates megabytes of HTML and freezes the browser.  Cap initial auto-select
     // to 20 systems. Users can manually select more via the multi-select dropdown.
-    const TAM_AUTO_SELECT_CAP = 20;
-    if (allSerialsInScope.length <= TAM_AUTO_SELECT_CAP) {
-      state.selectedTAMSerials = [...allSerialsInScope];
-    } else {
-      state.selectedTAMSerials = allSerialsInScope.slice(0, TAM_AUTO_SELECT_CAP);
-    }
+    const TAM_AUTO_SELECT_CAP = Infinity; // always select every system in scope (a 20-system cap hid nodes, e.g. half of a MetroCluster pair)
+    state.selectedTAMSerials = _dfTamAutoSelect(currentFiltered, TAM_AUTO_SELECT_CAP);
   }
 
   // ── Dirty guard: skip expensive DOM dropdown rebuilds if scope/selection unchanged
@@ -15591,6 +15628,10 @@ function renderTAMTab() {
       _scopeText = _wl ? _wl.name : "";
     }
     _scopeLabelEl.textContent = _scopeText ? ` — ${_scopeText}` : "";
+    const _nSel = (state.selectedTAMSerials || []).filter(x => allSerialsInScope.includes(x)).length;
+    if (_nSel && _nSel < allSerialsInScope.length) {
+      _scopeLabelEl.textContent += ` (${_nSel} of ${allSerialsInScope.length} systems selected -- clusters kept whole; add more with the system selector)`;
+    }
   }
 
   // Prune/initialize selectedTAMSerials if scope changed
@@ -15598,12 +15639,8 @@ function renderTAMTab() {
   const hasTAMFilterMismatch = state.selectedTAMSerials.some(ser => !allSerialsInScope.includes(ser)) || 
                                 (state.selectedTAMSerials.length === 0 && currentFiltered.length > 0);
   if (hasTAMFilterMismatch) {
-    const TAM_AUTO_SELECT_CAP = 20;
-    if (allSerialsInScope.length <= TAM_AUTO_SELECT_CAP) {
-      state.selectedTAMSerials = [...allSerialsInScope];
-    } else {
-      state.selectedTAMSerials = allSerialsInScope.slice(0, TAM_AUTO_SELECT_CAP);
-    }
+    const TAM_AUTO_SELECT_CAP = Infinity; // always select every system in scope (a 20-system cap hid nodes, e.g. half of a MetroCluster pair)
+    state.selectedTAMSerials = _dfTamAutoSelect(currentFiltered, TAM_AUTO_SELECT_CAP);
   }
 
   const activeSerials = (state.selectedTAMSerials || []).filter(ser => allSerialsInScope.includes(ser));
@@ -41876,7 +41913,15 @@ function _dfNodeStrip(systems) {
     const m = bySys.get(s);
     const pg = s.platformExtras && s.platformExtras.parentGrid;
     let e = { s, label: s.systemName || s.serialNumber, badge: '', unverified: false };
+    // group = the cluster (or StorageGRID grid) this node belongs to; order keeps a MetroCluster pair side by side
+    const _cl = s.clusterName || '';
+    e.group = _cl || 'No cluster name reported';
+    const _noCl = !_cl || _cl === s.serialNumber;   // standalone arrays report their serial number as the cluster name
+    if (_noCl) e.group = fam === 'eseries' ? 'E-Series arrays (standalone)' : fam === 'ontap' ? 'ONTAP (no cluster name reported)' : 'No cluster name reported';
+    e.order = (s.isMetroCluster && s.mcDrClusterName ? [_cl, s.mcDrClusterName].sort()[0] : _cl) + '\u0001' + _cl;
+    if (_noCl) e.order = '\uffff' + e.group + '\u0001';
     if (m) {
+      e.group = 'StorageGRID: ' + (m.g.gridName || m.g.system.systemName); e.order = e.group + '\u0001';
       const role = String(m.n.storageNodeType || 'Node');
       e.label = m.n.hostName || e.label; e.badge = `StorageGRID ${role}`;
       const key = m.g.system.serialNumber + '|' + (m.n.serialNumber || m.n.hostName);
@@ -41889,8 +41934,10 @@ function _dfNodeStrip(systems) {
       seen.set(key, e);
     } else if (fam === 'eseries' && pg) {
       e.badge = 'StorageGRID Storage (controller)'; e.label = s.systemName || s.serialNumber;
+      e.group = 'StorageGRID: ' + pg; e.order = e.group + '\u0001';
     } else if (fam === 'storagegrid' && s.storagegridTopology) {
       e.badge = 'StorageGRID Admin';
+      e.group = 'StorageGRID: ' + (s.storagegridTopology.gridName || s.systemName); e.order = e.group + '\u0001';
     } else if (fam === 'storagegrid') {
       e.badge = 'StorageGRID node'; e.unverified = unlisted.has(s); // only unverifiable when its grid has a roster that omits it
     } else if (fam === 'eseries') e.badge = 'E-Series';
@@ -41987,8 +42034,14 @@ function renderNodeVisualLayout(selectedSystems, sys) {
   const _hidden = _strip.filter(e => e.unverified);
   const _shown = _strip.filter(e => !e.unverified || state._showUnverifiedNodes || e.s.serialNumber === sys.serialNumber);
   if (_shown.length > 1 || _hidden.length) {
-    tabsHtml = `<div class="node-tabs-row" style="display: flex; gap: 8px; margin-bottom: ${_hidden.length ? 6 : 16}px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px; overflow-x: auto;">`;
-    _shown.forEach(e => {
+    tabsHtml = `<div class="node-tabs-row" style="display: flex; flex-wrap: wrap; align-items: flex-start; gap: 10px; margin-bottom: ${_hidden.length ? 6 : 16}px; border-bottom: 1px solid var(--border-color); padding-bottom: 10px;">`;
+    // cluster members are always grouped together: one box per cluster (or StorageGRID grid), nodes sorted by name inside it
+    const _groups = new Map();
+    _shown.slice().sort((x, y) => (x.order < y.order ? -1 : x.order > y.order ? 1 : 0) || String(x.label).localeCompare(String(y.label), undefined, { numeric: true }))
+      .forEach(e => { if (!_groups.has(e.group)) _groups.set(e.group, []); _groups.get(e.group).push(e); });
+    [..._groups.entries()].forEach(([gName, gNodes]) => {
+    tabsHtml += `<div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:6px 8px;background:rgba(255,255,255,0.02);"><div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:5px;">${gName} <span style="font-weight:500;">(${gNodes.length} node${gNodes.length !== 1 ? 's' : ''})</span></div><div style="display:flex;gap:6px;flex-wrap:wrap;">`;
+    gNodes.forEach(e => {
       const s = e.s;
       const isActive = s.serialNumber === sys.serialNumber;
       const btnStyle = isActive
@@ -42000,6 +42053,8 @@ function renderNodeVisualLayout(selectedSystems, sys) {
           Node: ${e.label}${e.badge ? `<div style="font-size:0.58rem;font-weight:500;opacity:0.75;margin-top:1px;">${e.badge}${e.unverified ? ' &middot; not in grid roster' : ''}</div>` : ''}
         </button>
       `;
+    });
+    tabsHtml += `</div></div>`;
     });
     tabsHtml += `</div>`;
     if (_hidden.length) tabsHtml += `<div style="font-size:0.7rem;color:var(--text-muted);margin-bottom:12px;">${state._showUnverifiedNodes ? 'Showing' : 'Hiding'} ${_hidden.length} StorageGRID record${_hidden.length !== 1 ? 's' : ''} that the grid's own node list does not include (decommissioned, never joined, or duplicate registrations; see the StorageGRID findings). <a href="javascript:void(0)" onclick="state._showUnverifiedNodes = !state._showUnverifiedNodes; renderNodeVisualLayout._lastFP = null; selectVisualNode(state.activeVisualizerNodeSerial);" style="color:var(--accent-cyan);">${state._showUnverifiedNodes ? 'Hide' : 'Show'}</a></div>`;
@@ -42600,6 +42655,16 @@ function _syncMetroClusterCard(selectedSystems, activeSys) {
 function renderMetroClusterStatus(mcSystems) {
   const container = document.getElementById("tamMetroClusterContainer");
   if (!container) return;
+  let _mcExtraN = 0;
+  // a MetroCluster is judged as whole clusters: add every other node of a shown cluster, and of its DR partner cluster, that is in
+  // the current scope, even when it is not among the selected systems (otherwise a pair appears with a node missing)
+  try {
+    const want = new Set();
+    mcSystems.forEach(s => { if (s.clusterName) want.add(s.clusterName); if (s.mcDrClusterName) want.add(s.mcDrClusterName); });
+    const have = new Set(mcSystems.map(s => s.serialNumber));
+    const extra = getFilteredSystems().filter(s => s.isMetroCluster && want.has(s.clusterName) && !have.has(s.serialNumber));
+    if (extra.length) { mcSystems = mcSystems.concat(extra); _mcExtraN = extra.length; }
+  } catch (e) { /* keep the selection as given */ }
 
   const allMcRisks = [];
   mcSystems.forEach(sys => {
@@ -42632,7 +42697,7 @@ function renderMetroClusterStatus(mcSystems) {
   const stat = (label, val, color, sub) => `<div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${color};"><div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${label}</div><div style="font-size:1.1rem;font-weight:700;color:${color};">${val}</div>${sub ? `<div style="font-size:0.62rem;color:var(--text-muted);margin-top:2px;">${sub}</div>` : ''}</div>`;
   let html = `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:14px;">` +
     stat('MetroCluster configurations', pairs.length + (unpaired.length ? ' + ' + unpaired.length + ' unpaired' : ''), '#ff9800', pairs.length ? `${realCount} confirmed by Active IQ${pairs.length - realCount ? `, ${pairs.length - realCount} inferred` : ''}` : 'pairs inferred from cluster names') +
-    stat('Clusters / nodes', clusterNames.length + ' / ' + mcSystems.length, '#ff9800') +
+    stat('Clusters / nodes', clusterNames.length + ' / ' + mcSystems.length, '#ff9800', _mcExtraN ? `includes ${_mcExtraN} node${_mcExtraN !== 1 ? 's' : ''} outside the current selection` : '') +
     stat('Mediator', hasMediatorIssue ? '⚠ UNREACHABLE' : 'No issue reported', hasMediatorIssue ? 'var(--status-critical)' : 'var(--status-normal)', hasMediatorIssue ? 'from an Active IQ finding' : 'absence of a finding, not a live check') +
     stat('Auto switchover (AUSO)', hasMausoDisabled ? '⚠ DISABLED' : 'No issue reported', hasMausoDisabled ? 'var(--status-warning)' : 'var(--status-normal)', hasMausoDisabled ? 'from an Active IQ finding' : 'absence of a finding, not a live check') +
     stat('MC findings', allMcRisks.length, allMcRisks.length > 0 ? '#ff9800' : 'var(--status-normal)') + `</div>`;

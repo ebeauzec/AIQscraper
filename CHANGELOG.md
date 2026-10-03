@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.226] - 2026-10-03
+
+### Fixed
+- Technical Audit now selects every system in the scope (it auto-selected only the first 20, hiding nodes such as half of a MetroCluster pair), the node strip groups cluster members together (one box per cluster or StorageGRID grid, MetroCluster partners adjacent), and the MetroCluster card always shows whole clusters. (`TAM_AUTO_SELECT_CAP` is now unlimited in `populateSystemSelectors`/`renderTAMTab`; `_dfNodeStrip` returns `group`/`order`; `renderNodeVisualLayout` renders grouped boxes; `renderMetroClusterStatus` completes clusters.) The cap existed to avoid a freeze with ~170 nodes; measured: 672 systems render in ~340 ms.
+
+---
+
 ## [5.6.225] - 2026-10-03
 
 ### Fixed

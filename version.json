@@ -1,8 +1,8 @@
 {
-  "version": "5.6.225",
+  "version": "5.6.226",
   "major": 5,
   "minor": 6,
-  "patch": 225,
+  "patch": 226,
   "date": "2026-10-03",
-  "notes": "Systems with no measured capacity growth (593 on the live fleet: every StorageGRID and E-Series record and 248 ONTAP) no longer get an invented growth rate, back-filled history, projection, runway or limit date derived from raw capacity; the forecast chart says no capacity history is reported, the aggregate shows how many systems growth was measured on, and runway is N/A when none were."
+  "notes": "Technical Audit now selects every system in the scope (it auto-selected only the first 20, hiding nodes such as half of a MetroCluster pair), the node strip groups cluster members together (one box per cluster or StorageGRID grid, MetroCluster partners adjacent), and the MetroCluster card always shows whole clusters."
 }
