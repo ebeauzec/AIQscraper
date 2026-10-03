@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.219";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.220";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.220",
+    date: "3 October 2026",
+    title: "Word Exports Checked Across All Views; StorageGRID Latest-Version Fix",
+    sections: [
+      {
+        icon: "📄",
+        label: "Improved -- Word Exports of Every Action Planner View",
+        color: "#22c55e",
+        items: [
+          "Every exportable view was exported and checked for several customers (including the largest) for dropped content, broken tables, stray 'undefined'/'null' text and failed Word builds. Fixes: rows of stat tiles and version comparisons become Metric / Value / Detail tables instead of scattered fragments; 'SYSTEM: name' lines become real headings; 'Label: value' lines get a bold label; numbered lists no longer show '1. 1.'; table sort arrows, a cut-off duplicate of a description, and a label for a button that is not exported are removed; the Technical Risks and Security Advisories tabs use their purpose-built export (grouped by system with remediation plans) instead of a conversion of the card layout.",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- StorageGRID Nodes Showed 'Latest Supported: ONTAP'",
+        color: "#ef4444",
+        items: [
+          "The OS Upgrade card looked up the latest supported version by platform name; StorageGRID appliance nodes report a model such as SG5760, which was not recognised and fell through to the ONTAP default. SG-series models now resolve to the StorageGRID release.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.219",
     date: "3 October 2026",
@@ -14633,7 +14656,8 @@ function getSwitchLatestSupportedVersion(sw) {
 
 function getLatestSupportedVersion(platform) {
   const p = (platform || "").toLowerCase();
-  if (p.includes("storagegrid")) {
+  // StorageGRID appliance nodes report their model (SG5712, SG5760, SG6060, SG1000...) rather than the product name
+  if (p.includes("storagegrid") || /^sg\d{2,4}/.test(p.trim())) {
     const db = SOFTWARE_VERSION_DATABASES.storagegrid;
     return "StorageGRID " + db[db.length - 1];
   } else if (p.includes("e-series") || p.includes("ef600") || p.includes("ef300") || p.includes("ef50") || p.includes("ef80") || p.includes("e5700") || p.includes("e2800") || p.includes("e2900") || p.includes("e4000") || p.includes("santricity") || /^(28|29|57|40)\d{2}$/.test(p.trim())) {
@@ -34504,6 +34528,15 @@ function downloadPlanSectionWord(index) {
   const sec = body && body.querySelector(`.plan-section[data-section-index="${index}"]`);
   if (!sec) { alert('Generate an action plan first.'); return; }
   const { title: scopeTitle } = _planScopeSystems();
+  if (['2', '3'].includes(String(index))) {
+    // These views have purpose-built export text (grouped by system, remediation plans, advisories); use it so the Word file
+    // carries the same real structure as the deliverables instead of a conversion of the card layout.
+    const hh = sec.querySelector('h2, h3'); const ttl = (hh ? hh.innerText.trim() : 'Action Planner View') || 'Action Planner View';
+    const real = window.triggerFileDownload; let cap = null;
+    window.triggerFileDownload = (fn, t) => { cap = t; }; window.__dlFmtOverride = 'txt';
+    try { downloadPlanSection(parseInt(index, 10)); } finally { window.triggerFileDownload = real; window.__dlFmtOverride = null; }
+    if (cap) { window.__dlScope = scopeTitle.replace(/_/g, ' '); triggerFileDownload(_dlFilename(ttl, scopeTitle.replace(/_/g, ' '), 'txt'), cap, { format: 'docx' }); return; }
+  }
   const _full = { '12': () => _renderRecommendationsSection(_planScopeSystems().systems, { full: true }) }[String(index)];
   const clone = sec.cloneNode(true);
   if (_full) { const hh = clone.querySelector('h2, h3'); const wrap = document.createElement('div'); if (hh) wrap.appendChild(hh.cloneNode(true)); const body = document.createElement('div'); body.innerHTML = _full(); wrap.appendChild(body); clone.innerHTML = ''; clone.appendChild(wrap); }
@@ -36094,7 +36127,7 @@ function _domToMarkdown(root, headingLevel) {
   const BLOCK_SEL = 'div,p,ul,ol,table,h1,h2,h3,h4,h5,h6,details,pre,textarea,blockquote,section,article,hr';
   const SKIP = new Set(['SCRIPT', 'STYLE', 'BUTTON', 'SVG', 'CANVAS', 'SELECT', 'INPUT', 'NOSCRIPT']);
   const BLOCK = new Set(['DIV', 'P', 'UL', 'OL', 'TABLE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'DETAILS', 'PRE', 'TEXTAREA', 'BLOCKQUOTE', 'SECTION', 'ARTICLE', 'HR']);
-  const clean = t => String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+  const clean = t => String(t == null ? '' : t).replace(/[\u21C5\u25B2\u25BC\u25B4\u25BE]/g, '').replace(/\s+/g, ' ').trim();
   const inline = node => {
     let out = '';
     node.childNodes.forEach(n => {
@@ -36109,7 +36142,8 @@ function _domToMarkdown(root, headingLevel) {
     });
     return out;
   };
-  const para = t => { const c = clean(t); if (c) lines.push(c, ''); };
+  let lastPara = '';
+  const para = t => { let c = clean(t); if (!c) return; if (/^(\u26A0\uFE0F? )?Writes to Active IQ:?$/i.test(c)) return; /* label for a button that is not exported */ if (lastPara && lastPara.length >= c.length && lastPara.startsWith(c.replace(/\u2026$/, '')) && c.length > 8) return; lastPara = c; if (/^(SYSTEM|CLUSTER|CUSTOMER|SITE|NODE|GRID):\s+\S/.test(c) && c.length < 120) { lines.push('### ' + c, ''); return; } const m = /^([A-Z][A-Za-z0-9 &\/()'.+-]{2,38}):\s+(\S.*)$/.exec(c); if (m && !/^https?$/i.test(m[1]) && !c.startsWith('**')) c = `**${m[1]}:** ${m[2]}`; lines.push(c, ''); };
   const heading = (lvl, t) => { const c = clean(t); if (c) lines.push('#'.repeat(Math.min(6, Math.max(1, lvl))) + ' ' + c, ''); };
   const hasBlock = el => !!el.querySelector(BLOCK_SEL);
   function walkTable(table) {
@@ -36123,12 +36157,34 @@ function _domToMarkdown(root, headingLevel) {
     lines.push('');
   }
   function walkList(list, ordered) {
-    Array.from(list.children).filter(c => c.tagName === 'LI').forEach((li, idx) => { const t = clean(inline(li)); if (t) lines.push((ordered ? `${idx + 1}. ` : '- ') + t); });
+    Array.from(list.children).filter(c => c.tagName === 'LI').forEach((li, idx) => { const t = clean(inline(li)); if (t) lines.push((ordered ? `${idx + 1}. ` : '- ') + (ordered ? t.replace(/^\d+[.)]\s+/, '') : t)); });
     lines.push('');
+  }
+  // A row of stat tiles (value + label + note in each) becomes one Metric / Value / Detail table instead of scattered fragments.
+  function leafParts(el) { const out = []; (function w(n) { Array.from(n.children).forEach(c => { if (SKIP.has(String(c.tagName).toUpperCase())) return; if (!c.querySelector('*') || !hasBlock(c)) { const t = clean(inline(c)); if (t) out.push(t); } else w(c); }); })(el); return out; }
+  function tryTiles(el) {
+    const kids = Array.from(el.children).filter(c => !SKIP.has(String(c.tagName).toUpperCase()));
+    if (kids.length < 3 || el.querySelector('table,ul,ol,details,h1,h2,h3,h4,h5,h6')) return false;
+    const rows = []; let skipped = 0;
+    for (const k of kids) {
+      const parts = leafParts(k).filter(p => /[A-Za-z0-9]/.test(p));
+      if (parts.length <= 1) { skipped++; continue; }   // connector (arrow / separator) between tiles
+      if (parts.length > 5 || parts.some(p => p.length > 110)) return false;
+      let vi = parts.findIndex(p => /\d/.test(p) && p.length <= 16);
+      if (vi < 0) { if (parts.length === 2) { rows.push([parts[0], parts[1], '']); continue; } return false; }
+      const value = parts[vi], rest = parts.filter((_, i) => i !== vi);
+      rows.push([rest[0], value, rest.slice(1).join('; ')]);
+    }
+    if (rows.length < 2 || skipped > rows.length) return false;
+    lines.push('| Metric | Value | Detail |', '| --- | --- | --- |');
+    rows.forEach(r => lines.push('| ' + r.map(x => String(x || '').replace(/\|/g, '\\|') || ' ').join(' | ') + ' |'));
+    lines.push('');
+    return true;
   }
   function walkBlock(el, lvl) {
     const tag = String(el.tagName).toUpperCase();
     if (SKIP.has(tag)) return;
+    if ((tag === 'DIV' || tag === 'SECTION') && tryTiles(el)) return;
     if (tag === 'TABLE') { walkTable(el); return; }
     if (tag === 'UL') { walkList(el, false); return; }
     if (tag === 'OL') { walkList(el, true); return; }
@@ -36145,7 +36201,7 @@ function _domToMarkdown(root, headingLevel) {
       const kids = Array.from(el.children).filter(c => !SKIP.has(String(c.tagName).toUpperCase()));
       if (el.style && el.style.display === 'flex' && kids.length >= 2) {
         const parts = kids.map(k => clean(inline(k))).filter(Boolean);
-        para(parts.length === 2 ? `**${parts[0]}** -- ${parts[1]}` : parts.join('  |  '));
+        para(parts.length === 2 ? (/:$/.test(parts[0]) ? `**${parts[0]}** ${parts[1]}` : `**${parts[0]}** -- ${parts[1]}`) : parts.join('  |  '));
       } else para(inline(el));
       return;
     }

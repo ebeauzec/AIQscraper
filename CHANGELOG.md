@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.220] - 2026-10-03
+
+### Fixed
+- Word export of Action Planner views checked across every view and several customers and improved: stat tiles become tables, label/value pairs are tidy, SYSTEM: lines are headings, double numbering, sort arrows, duplicated text and stray UI labels removed, the risk and advisory views use their purpose-built export. Also fixed StorageGRID nodes showing 'Latest Supported: ONTAP'.
+
+---
+
 ## [5.6.219] - 2026-10-03
 
 ### Fixed
