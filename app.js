@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.221";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.222";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.222",
+    date: "3 October 2026",
+    title: "Fleet Capacity No Longer Double-Counts StorageGRID Arrays",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Capacity Counted Twice Across Platforms",
+        color: "#ef4444",
+        items: [
+          "A StorageGRID grid reports its own capacity, and the E-Series arrays that are that grid's storage nodes also report their raw capacity, so fleet totals counted those arrays twice. The Overview capacity donut and bars, the Value & ROI Capacity Projection chart and runway, and the fleet capacity summary now count each byte once. On the live fleet used capacity falls from 167,260 TB to 127,920 TB (StorageGRID 35,256, ONTAP 86,638, standalone E-Series 6,025). Arrays are only excluded when their grid is also in scope, so a view limited to the arrays alone keeps their capacity.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.221",
     date: "3 October 2026",
@@ -10724,8 +10739,9 @@ function renderCharts() {
   //   1. Physical Used — actual data on disk
   //   2. Free Space — usable capacity minus physical used
   //   3. Dedupe + Compression — pure data reduction savings (no snapshots)
-  const physicalSum   = filteredSystems.reduce((a, s) => a + (s.efficiency.physicalUsedTB  || 0), 0);
-  const usableSum     = filteredSystems.reduce((a, s) => a + (s.efficiency.usableCapacityTB || s.efficiency.physicalUsedTB || 0), 0);
+  const _capSys = _dfCapacityUniqueSystems(filteredSystems); // each byte once: grid-member E-Series are inside their grid's capacity
+  const physicalSum   = _capSys.reduce((a, s) => a + (s.efficiency.physicalUsedTB  || 0), 0);
+  const usableSum     = _capSys.reduce((a, s) => a + (s.efficiency.usableCapacityTB || s.efficiency.physicalUsedTB || 0), 0);
   const availableSum  = Math.max(0, usableSum - physicalSum);
 
   // Pure dedupe + compression savings (excluding snapshots).
@@ -10855,7 +10871,7 @@ function renderCharts() {
   }
 
   // ── Bar: top 15 systems by physical used — used / available ──
-  const barSystems = [...filteredSystems]
+  const barSystems = [..._capSys]
     .filter(s => (s.efficiency.physicalUsedTB || 0) > 0)
     .sort((a, b) => b.efficiency.physicalUsedTB - a.efficiency.physicalUsedTB)
     .slice(0, 15);
@@ -17983,7 +17999,7 @@ function renderCSMTab() {
     // Sum fleet totals for capacity-based runway calculation
     let fleetPhysicalTB = 0, fleetUsableTB = 0;
 
-    targetCSMSystems.forEach(s => {
+    _dfCapacityUniqueSystems(targetCSMSystems).forEach(s => {
       const p = s.projections || { growthRateGBPerDay: 0, daysToLimit: null, limitDate: "N/A", peakIops: 0, avgLatencyMs: 0, historicalCapacityMonths: [], projectedCapacityMonths: [], growthSource: 'unavailable' };
       const pGrowth = (p.growthRateGBPerDay != null) ? p.growthRateGBPerDay : 0;
       const pIops   = (p.peakIops      != null) ? p.peakIops      : 0;
@@ -27512,7 +27528,7 @@ function computeFleetCapacitySummary(targetSystems) {
   let redCount = 0, amberCount = 0, greenCount = 0;
   const atRisk = [];
   let totalGrowthGBDay = 0, growthCounted = 0;
-  targetSystems.forEach(s => {
+  _dfCapacityUniqueSystems(targetSystems).forEach(s => {
     if (s.efficiency) {
       totalPhysTB += s.efficiency.physicalUsedTB || 0;
       totalLogTB += s.efficiency.logicalUsedTB || 0;
@@ -41780,6 +41796,28 @@ function _dfNodeStrip(systems) {
     out.push(e);
   });
   return out;
+}
+// Fleet capacity must count each byte once. A StorageGRID grid reports its OWN capacity (StorageGrid.gridCapacity, on the
+// grid's admin record), and the E-Series arrays that are that grid's storage nodes also report their own raw capacity, so
+// summing every record counts those arrays twice. Returns the list without E-Series members of a grid whose capacity-bearing
+// record is also in the list. If the grid record is not in scope (or reports no capacity) the members are kept, so scoped
+// views never lose capacity.
+function _dfCapacityUniqueSystems(list) {
+  const src = list || [];
+  const inList = new Set(src);
+  let view;
+  try { view = _dfStorageGridView(state.systems || src); } catch (e) { return src; }
+  const members = new Set();
+  (view.grids || []).forEach(g => {
+    const gs = g.system;
+    if (!gs || !inList.has(gs) || !(((gs.efficiency || {}).physicalUsedTB) > 0)) return;
+    (g.nodes || []).forEach(n => { if (n.sys && n.sys !== gs && _platformFamily(n.sys) === 'eseries') members.add(n.sys); });
+    src.forEach(s => {
+      const pg = s.platformExtras && s.platformExtras.parentGrid;
+      if (pg && _platformFamily(s) === 'eseries' && String(pg) === String(g.gridName)) members.add(s);
+    });
+  });
+  return members.size ? src.filter(s => !members.has(s)) : src;
 }
 function renderNodeVisualLayout(selectedSystems, sys) {
   const container = document.getElementById("tamNodeVisualContainer");
