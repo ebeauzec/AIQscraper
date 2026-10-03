@@ -1,8 +1,8 @@
 {
-  "version": "5.6.226",
+  "version": "5.6.227",
   "major": 5,
   "minor": 6,
-  "patch": 226,
+  "patch": 227,
   "date": "2026-10-03",
-  "notes": "Technical Audit now selects every system in the scope (it auto-selected only the first 20, hiding nodes such as half of a MetroCluster pair), the node strip groups cluster members together (one box per cluster or StorageGRID grid, MetroCluster partners adjacent), and the MetroCluster card always shows whole clusters."
+  "notes": "Technical Audit's Selected Systems header is collapsed by default (count plus 'Show list'); expanding it shows the names in a short scrolling box."
 }

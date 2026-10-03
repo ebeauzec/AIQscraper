@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.227] - 2026-10-03
+
+### Changed
+- Technical Audit's Selected Systems header is collapsed by default (count plus 'Show list'); expanding it shows the names in a short scrolling box.
+
+---
+
 ## [5.6.226] - 2026-10-03
 
 ### Fixed

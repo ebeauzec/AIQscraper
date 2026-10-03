@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.226";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.227";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.227",
+    date: "3 October 2026",
+    title: "Compact Selected Systems Header",
+    sections: [
+      {
+        icon: "✨",
+        label: "Improved -- Technical Audit Header Uses Less Screen",
+        color: "#22c55e",
+        items: [
+          "With every system in scope now selected, the Selected Systems header listed every name and filled a screen on large scopes. It now shows the count and whether it is all systems in scope, with a Show list toggle that opens the names in a short scrolling box.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.226",
     date: "3 October 2026",
@@ -15764,8 +15779,13 @@ function renderTAMTab() {
   } else if (selectedSystems.length > 1) {
     const names = selectedSystems.map(s => s.systemName).join(", ");
     const _mcCountInSel = selectedSystems.filter(s => s.isMetroCluster).length;
+    // collapsed by default: the full name list of a large scope took a screenful; the toggle expands it into a short scrolling box
+    const _open = !!state._tamSelListOpen;
+    const _nAll = (getFilteredSystems() || []).length;
     document.getElementById("tamActiveSystem").innerHTML = `
-      <strong>Selected Systems (${selectedSystems.length})</strong>: <span style="font-size: 0.8rem; color: var(--text-primary);">${names}</span>${_mcCountInSel > 0 ? ` <span style="font-size:0.68rem;color:#ff9800;">(${_mcCountInSel} MetroCluster)</span>` : ''}
+      <strong>Selected Systems (${selectedSystems.length})</strong>${selectedSystems.length === _nAll ? ' <span style="font-size:0.72rem;color:var(--text-muted);">all systems in scope</span>' : ` <span style="font-size:0.72rem;color:var(--text-muted);">of ${_nAll} in scope</span>`}${_mcCountInSel > 0 ? ` <span style="font-size:0.68rem;color:#ff9800;">(${_mcCountInSel} MetroCluster)</span>` : ''}
+      <a href="javascript:void(0)" style="font-size:0.72rem;margin-left:8px;color:var(--accent-cyan);" onclick="state._tamSelListOpen=!state._tamSelListOpen;document.getElementById('tamSelList').style.display=state._tamSelListOpen?'block':'none';this.textContent=state._tamSelListOpen?'Hide list \u25B4':'Show list \u25BE';">${_open ? 'Hide list \u25B4' : 'Show list \u25BE'}</a>
+      <div id="tamSelList" style="display:${_open ? 'block' : 'none'};max-height:110px;overflow:auto;margin-top:6px;font-size:0.78rem;color:var(--text-primary);">${names}</div>
     `;
   }
 

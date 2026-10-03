@@ -22,7 +22,7 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-10-03 (Windows dev station, v5.6.226)
+## Session handoff -- 2026-10-03 (Windows dev station, v5.6.227)
 
 **State:** `main`, v5.6.221 (APP_VERSION + version.json + CHANGELOG.md + top APP_CHANGELOG entry all bumped together). `dist/` synced
 (app.js, `_internal/server.py`, rebuilt exe + base_library.zip from `%LOCALAPPDATA%\Temp\aiqbuild221`). See `git log` for pushed state.
