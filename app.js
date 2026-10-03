@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.222";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.223";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.223",
+    date: "3 October 2026",
+    title: "No Invented Capacity Projections",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Projection Drawn From Zero Capacity",
+        color: "#ef4444",
+        items: [
+          "Systems that report no used capacity (43 on the live fleet, mostly ONTAP and E-Series) showed a capacity forecast chart with no history and a projection climbing from zero, plus a growth rate, runway and limit date derived from a default 1 GB/day estimate. The chart now says no capacity history is reported, growth, runway and limit date show N/A, and these systems no longer add a default growth rate to the fleet aggregate.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.222",
     date: "3 October 2026",
@@ -18001,7 +18016,8 @@ function renderCSMTab() {
 
     _dfCapacityUniqueSystems(targetCSMSystems).forEach(s => {
       const p = s.projections || { growthRateGBPerDay: 0, daysToLimit: null, limitDate: "N/A", peakIops: 0, avgLatencyMs: 0, historicalCapacityMonths: [], projectedCapacityMonths: [], growthSource: 'unavailable' };
-      const pGrowth = (p.growthRateGBPerDay != null) ? p.growthRateGBPerDay : 0;
+      const _hasHist = (p.historicalCapacityMonths || []).some(v => v > 0);
+      const pGrowth = (_hasHist && p.growthRateGBPerDay != null) ? p.growthRateGBPerDay : 0; // no measured history = no growth to add
       const pIops   = (p.peakIops      != null) ? p.peakIops      : 0;
       const pLat    = (p.avgLatencyMs  != null) ? p.avgLatencyMs  : 0;
       totalGrowthGB += pGrowth;
@@ -18546,13 +18562,14 @@ function renderCSMTab() {
   const proj = sys.projections || { growthRateGBPerDay: 0, daysToLimit: null, limitDate: null, peakIops: 0, avgLatencyMs: 0, historicalCapacityMonths: [], projectedCapacityMonths: [], growthSource: 'unavailable' };
   
   const srcLabel = {'actual-monthly':'Actual','qoq':'QoQ','yoy':'YoY','estimated':'Est.'}[proj.growthSource || 'estimated'] || 'Est.';
-  document.getElementById("csmGrowthRateText").innerText = `Average Growth: +${proj.growthRateGBPerDay ?? 0} GB/day (${srcLabel})`;
+  const _sHasHist = (proj.historicalCapacityMonths || []).some(v => v > 0);
+  document.getElementById("csmGrowthRateText").innerText = _sHasHist ? `Average Growth: +${proj.growthRateGBPerDay ?? 0} GB/day (${srcLabel})` : 'Growth: not available (no capacity history reported)';
   
   const limitLabel = document.getElementById("csmDaysToLimitText");
-  limitLabel.innerText = (proj.daysToLimit == null || proj.daysToLimit >= 9999) ? '> 10 Years' : `${(proj.daysToLimit ?? 9999).toLocaleString()} Days`;
+  limitLabel.innerText = !_sHasHist ? 'N/A' : (proj.daysToLimit == null || proj.daysToLimit >= 9999) ? '> 10 Years' : `${(proj.daysToLimit ?? 9999).toLocaleString()} Days`;
   limitLabel.style.color = (proj.daysToLimit != null && proj.daysToLimit <= 60) ? "var(--status-critical)" : ((proj.daysToLimit != null && proj.daysToLimit <= 120) ? "var(--status-warning)" : "var(--status-normal)");
   
-  document.getElementById("csmLimitDateText").innerText = proj.limitDate ? `Est. Limit reached: ${proj.limitDate}` : 'Limit date: N/A (insufficient capacity data)';
+  document.getElementById("csmLimitDateText").innerText = (_sHasHist && proj.limitDate) ? `Est. Limit reached: ${proj.limitDate}` : 'Limit date: N/A (insufficient capacity data)';
   document.getElementById("csmPeakIopsText").innerHTML = proj.peakIops > 0
     ? `${(proj.peakIops || 0).toLocaleString()} IOPS`
     : '<span style="font-size:0.85rem;color:var(--text-muted);font-weight:400;">Not available via API</span>';
@@ -18580,9 +18597,28 @@ function renderProjectionsChart(proj, systemName) {
 
   if (projectionsChartInstance) {
     projectionsChartInstance.destroy();
+    projectionsChartInstance = null;
   }
 
   if (typeof Chart === "undefined") return;
+
+  // No real capacity history (Active IQ reported no used capacity for this system/scope): a projection drawn from zero
+  // would be an invented figure (it was a default 1 GB/day 'estimate'), so say so instead of plotting it.
+  if (!((proj.historicalCapacityMonths || []).some(v => v > 0))) {
+    const c2 = ctx.getContext('2d');
+    c2.clearRect(0, 0, ctx.width, ctx.height);
+    c2.save();
+    c2.fillStyle = '#9ca3af'; c2.textAlign = 'center';
+    const _wrap = (t, max) => { const out = []; let cur = ''; t.split(' ').forEach(wd => { const tryL = cur ? cur + ' ' + wd : wd; if (c2.measureText(tryL).width > max && cur) { out.push(cur); cur = wd; } else cur = tryL; }); if (cur) out.push(cur); return out; };
+    const _msg = [['14px sans-serif', 'No capacity history reported by Active IQ' + (systemName ? ' for ' + systemName : '')],
+                  ['12px sans-serif', 'A growth projection is not shown because there is no measured capacity to project from.']];
+    const _lines = [];
+    _msg.forEach(([f, t]) => { c2.font = f; _wrap(t, ctx.width - 24).forEach(l => _lines.push([f, l])); });
+    let _y = ctx.height / 2 - (_lines.length * 9);
+    _lines.forEach(([f, l]) => { c2.font = f; c2.fillText(l, ctx.width / 2, _y); _y += 18; });
+    c2.restore();
+    return;
+  }
 
   // Generate real month labels: past 6 months through next 3 months from today
   const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];

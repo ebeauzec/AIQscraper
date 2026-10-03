@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.223] - 2026-10-03
+
+### Fixed
+- Capacity projection chart no longer draws an invented projection for systems with no capacity history (43 systems): it says no capacity history is reported, and growth, runway and limit date show N/A. Such systems no longer add a default 1 GB/day to the aggregate growth. (`renderProjectionsChart`, `renderCSMTab` in app.js.) The same default estimate still feeds some per-system capacity lists elsewhere.
+
+---
+
+## [5.6.222] - 2026-10-03
+
+### Fixed
+- Fleet capacity (Overview donut and bars, Value & ROI projection chart and runway, capacity summary) no longer counts StorageGRID storage-node E-Series arrays twice: they are inside their grid's own capacity. On the live fleet used capacity drops from 167,260 TB to 127,920 TB. New helper `_dfCapacityUniqueSystems()` (app.js, after `_dfNodeStrip`); applied in the Overview capacity charts, the Value & ROI aggregate projection and `computeFleetCapacitySummary()`. Other capacity sums (ONTAP-only data-reduction figures) are unaffected. Not yet applied to the per-node capacity breakdown table or to every deliverable's capacity figure.
+
+---
+
 ## [5.6.221] - 2026-10-03
 
 ### Fixed

@@ -1,8 +1,8 @@
 {
-  "version": "5.6.221",
+  "version": "5.6.223",
   "major": 5,
   "minor": 6,
-  "patch": 221,
+  "patch": 223,
   "date": "2026-10-03",
-  "notes": "Restricted accounts no longer show 'Unknown'/zero for shelf firmware, risks, cases, recommendations, sites, sustainability, health score and renewals (scoped watchlist fallback); new Firmware Currency Word report; Risk Trend chart and deliverable trend text now follow the selected watchlist/group."
+  "notes": "Capacity projection chart no longer draws an invented projection for systems with no capacity history (43 systems): it says no capacity history is reported, and growth, runway and limit date show N/A. Such systems no longer add a default 1 GB/day to the aggregate growth."
 }
