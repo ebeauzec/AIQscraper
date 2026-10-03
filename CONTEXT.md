@@ -860,3 +860,5 @@ E-Series actual power is 0; no SP/BMC/BIOS/DQP for StorageGRID/E-Series.
 **Pitfalls.** New harvested fields must be added to `enrichSystemTelemetry`'s explicit return; stay under the field-count
 limit by using separate merged queries; client dedupe must merge not first-wins; bump the systems cache schema (v16) when
 shape changes; write JS edit scripts with the Write tool, not heredocs (escape mangling); judge exports visually, not by word counts.
+
+**Cluster switches (v5.6.231).** The `ClusterNetworkSwitch` type is small (see PLATFORM_COVERAGE.md). Active IQ reports a switch per cluster, so raw data repeats a shared switch per node; `_dfSwitchInventory` de-duplicates by serial (else normalised name). Only CSHM-monitored switches have model/firmware/RCF/contract; discovered-only switches carry a name and a firmware-description string; connectivity-only switches (from the ONTAP port side) have just a name. SNMP version is now harvested (`snmpVersion`; most switches are SNMPv2c). Do not re-investigate: no switch ports/ISL/health fields exist, and switch support-contract dates came back empty. Switches are not yet in the deliverables.

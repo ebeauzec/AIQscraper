@@ -546,7 +546,7 @@ Click **Action Planner** in the sidebar, then **Generate**. Every section is bui
 | **Technical Risks** | All Active IQ risks — severity sorted, fix-grouped to eliminate duplicates, with affected systems and remediation |
 | **Security Advisories** | CVE-referenced bulletins with CVSS, affected version ranges, fix versions, specific CLI remediation commands, and (when applicable) a **Portfolio Exposure** table showing which other managed customers are also affected by a given CVE |
 | **OS Upgrades** | Hop-by-hop upgrade paths. Direct where possible; multi-hop with intermediate versions and per-version notes. Covers ONTAP, StorageGRID, SANtricity |
-| **Switch Validation** | Cluster and MetroCluster switch inventory with firmware currency check and ISL parameter validation |
+| **Switch Validation** | **Switch inventory** (each distinct switch once: vendor/model, network, firmware, RCF, CSHM monitoring status, SNMP version, contract end, clusters served; models and firmware in use; notes on gaps) followed by the switches needing attention: firmware currency check and MetroCluster ISL parameter validation |
 | **Support Cases** | Active, in-progress, and recently closed cases — priority sorted, with case age and system link |
 | **Operational Health** | AutoSupport recency audit (7-day silence detection), ARP enablement fleet audit, firmware currency, last reboot timeline |
 | **🔄 DR & Replication Health** | SnapMirror inventory, relationship state/lag analysis, RPO/RTO assessment, MetroCluster status, SnapMirror Active Sync coverage, unprotected system identification |
@@ -907,6 +907,7 @@ Confirmed by live schema introspection; these show as *Not reported*, never as a
 - VMware StorageGRID nodes expose no model, drive, version or health detail; no open per-model end-of-support dates for StorageGRID appliances (NetApp notice CPC-00602 is flagged, dates are on mysupport.netapp.com).
 - StorageGRID ILM has no active-policy flag; ILM time periods are in days.
 - SP/BMC, BIOS and DQP firmware for StorageGRID and E-Series; shelf module firmware is reported only as an outdated count on some systems.
+- Cluster switches: only switches monitored by the Cluster Switch Health Monitor (CSHM) carry model, firmware, RCF version and contract; others have only a name. No switch ports, ISL or health fields, and no switch support-contract dates were returned. Some customers have no switch records at all.
 - No parts-logistics hub/depot status (only RMA parts), no per-volume identifiers, SnapMirror destinations/lag, or MetroCluster partner (pairs are inferred from names and labelled as such).
 
 ---

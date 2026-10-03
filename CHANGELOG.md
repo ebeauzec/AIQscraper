@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.231] - 2026-10-03
+
+### Added
+- New cluster-switch inventory at the top of Action Planner > Switch Validation: distinct switches (a switch shared by several nodes is listed once) with vendor/model, network, firmware, RCF, monitoring status, SNMP version, support-contract end and clusters served, plus a models/firmware table and notes on gaps. The harvest now also collects each switch's SNMP version (on the live fleet 337 of 360 switches use SNMPv2c, 4 SNMPv3). (`_dfSwitchInventory`, `_switchInventoryHtml`, `_dfSwFwShort` in app.js; `snmpConfiguration { version }` added to both clusters switch queries and `snmpVersion` to each switch record in server.py.)
+
+### Notes
+- Verified live against the Active IQ schema: `ClusterNetworkSwitch` has only serial, name, network, role, vendor, model, firmware, RCF, IP, support contract, SNMP version and the discovered/monitored flags. Monitored: 188 of 360 distinct switches; not monitored: 172 (134 discovered, 38 seen via ports only). 22 customers have no switch records; no support-contract dates came back. Deliverables do not yet include the switch inventory.
+
+---
+
 ## [5.6.230] - 2026-10-03
 
 ### Fixed

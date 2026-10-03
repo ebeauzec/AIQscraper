@@ -1,8 +1,8 @@
 {
-  "version": "5.6.230",
+  "version": "5.6.231",
   "major": 5,
   "minor": 6,
-  "patch": 230,
+  "patch": 231,
   "date": "2026-10-03",
-  "notes": "Word downloads of the Action Planner tabs reworked and audited tab by tab: Technical Risks, Security Advisories and OS Upgrade Roadmaps are now purpose-built reports (correct title, summary, a compact per-system table, each distinct issue or upgrade path written once with every affected system, hop-by-hop steps as lists); stat tiles become clean Metric/Value tables, stat cards become one bold line, case and system and switch headers become headings, label lines become bold, and runs of label/value lines become tables."
+  "notes": "New cluster-switch inventory at the top of Action Planner > Switch Validation: distinct switches (a switch shared by several nodes is listed once) with vendor/model, network, firmware, RCF, monitoring status, SNMP version, support-contract end and clusters served, plus a models/firmware table and notes on gaps. The harvest now also collects each switch's SNMP version (on the live fleet 337 of 360 switches use SNMPv2c, 4 SNMPv3)."
 }

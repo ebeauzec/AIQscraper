@@ -27,9 +27,33 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.230";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.231";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.231",
+    date: "3 October 2026",
+    title: "Cluster Switch Inventory and SNMP Version",
+    sections: [
+      {
+        icon: "🔌",
+        label: "Added -- Switch Inventory",
+        color: "#22c55e",
+        items: [
+          "The Switch Validation tab only listed switches with problems, and the Technical Audit table repeated a switch shared by several nodes once per node (40 rows for 14 real switches on one customer). A new inventory lists each distinct switch once with vendor and model, network (cluster, storage, management), firmware, RCF version, whether it is monitored by the Cluster Switch Health Monitor, SNMP version, support-contract end and the clusters it serves, with summary counts, a models and firmware table and notes on what is missing.",
+          "The harvest now collects each switch's SNMP version from Active IQ. SNMPv1/v2c is flagged because NetApp recommends SNMPv3 for the Cluster Switch Health Monitor.",
+        ],
+      },
+      {
+        icon: "ℹ️",
+        label: "What Active IQ does and does not report about switches",
+        color: "#3b82f6",
+        items: [
+          "Only monitored switches carry model, firmware, RCF version and contract; switches seen only through port connectivity have just a name. Some customers have no switch records at all (monitoring not configured or not reaching Active IQ). Active IQ exposes no switch ports, ISL or health fields, and no support-contract dates were returned for these switches.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.230",
     date: "3 October 2026",
@@ -16473,6 +16497,83 @@ function renderTAMTab() {
 // number whenever Active IQ hadn't discovered/monitored a switch for that system.
 // That is fabricated vulnerability data presented as real for actual customer
 // equipment. Now honestly reports that no switch was discovered/monitored instead.
+// Cluster-switch inventory. Active IQ reports switches per cluster, so a switch shared by several nodes (or both nodes of a pair)
+// appears once per node in the raw data. This de-duplicates to the distinct physical switches and summarises what Active IQ
+// actually knows about them: only switches monitored by the Cluster Switch Health Monitor (CSHM) carry model, firmware, RCF
+// version and support contract; switches merely seen through port connectivity have just a name; and the SNMP version in use
+// is reported for every discovered switch.
+function _dfSwFwShort(fw) {
+  const t = String(fw || '').replace(/\s+/g, ' ').trim(); if (!t || /^not reported$/i.test(t)) return '';
+  let m;
+  if ((m = t.match(/NX-OS.*?Version\s+([0-9][\w().]*)/i))) return 'NX-OS ' + m[1];
+  if ((m = t.match(/Cumulus Linux version\s+([0-9][\w.]*)/i))) return 'Cumulus Linux ' + m[1];
+  if ((m = t.match(/Cisco IOS.*?Version\s+([0-9][\w().]*)/i))) return 'IOS ' + m[1];
+  if ((m = t.match(/^(?:EFOS\s*)?(\d+\.\d+\.\d+(?:\.\d+)?)$/i))) return 'EFOS ' + m[1];
+  if ((m = t.match(/Fabric OS.*?v?([0-9]+\.[0-9][\w.]*)/i))) return 'FOS ' + m[1];
+  return t.length > 40 ? t.slice(0, 38) + '...' : t;
+}
+function _dfSwitchInventory(systems) {
+  const norm = d => String(d || '').toLowerCase().replace(/\.(cii_encrypt|pii_encrypt).*$/, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/\.int\.[a-z]+$/, '').trim();
+  const map = new Map();
+  (systems || []).forEach(sys => (sys.switches || []).forEach(w => {
+    const ser = String(w.serialNumber || '');
+    const key = (ser && !/^(unknown|not available)$/i.test(ser)) ? 'S:' + ser : 'N:' + norm(w.deviceName);
+    let e = map.get(key);
+    if (!e) { e = { key, name: String(w.deviceName || '').replace(/\.(cii_encrypt|pii_encrypt)[^\s]*/g, '').replace(/\s*\([0-9a-f:]{17}\)\s*$/i, '').trim() || '(unnamed)', vendor: '', model: '', type: '', fw: '', rcf: '', ip: '', serial: ser, monitored: false, discovered: false, snmp: '', contractEnd: '', clusters: new Set(), systems: new Set(), mc: false }; map.set(key, e); }
+    if (w.vendor && !e.vendor) e.vendor = w.vendor;
+    if (w.model && !/not identified|^unknown/i.test(w.model) && (!e.model || /^(other|)$/i.test(e.model))) e.model = w.model;
+    if (!e.type && w.type) e.type = w.type;
+    const f = _dfSwFwShort(w.firmware); if (f && !e.fw) e.fw = f;
+    if (w.rcfVersion && !e.rcf) e.rcf = w.rcfVersion;
+    if (w.ipAddress && !e.ip) e.ip = w.ipAddress;
+    if (w.isMonitored) e.monitored = true;
+    if (w.isDiscovered) e.discovered = true;
+    if (w.snmpVersion && !e.snmp) e.snmp = w.snmpVersion;
+    if (w.supportContractEnd && (!e.contractEnd || w.supportContractEnd > e.contractEnd)) e.contractEnd = w.supportContractEnd;
+    if (w.mcContext) e.mc = true;
+    e.clusters.add(sys.clusterName || sys.systemName); e.systems.add(sys.systemName);
+  }));
+  const list = [...map.values()].sort((x, y) => String(x.name).localeCompare(String(y.name), undefined, { numeric: true }));
+  const now = Date.now();
+  list.forEach(e => {
+    e.source = e.monitored ? 'Monitored (CSHM)' : (e.discovered ? 'Discovered, not monitored' : 'Seen via port connectivity only');
+    e.snmpLabel = e.snmp ? e.snmp.replace(/^SNMP/i, 'SNMP').replace(/V(\d)/i, 'v$1').replace(/v2c/i, 'v2c') : '';
+    e.weakSnmp = /^SNMPV[12]/i.test(e.snmp);
+    e.daysToContractEnd = e.contractEnd ? Math.floor((Date.parse(e.contractEnd) - now) / 86400000) : null;
+  });
+  const n = list.length, mon = list.filter(e => e.monitored).length, disc = list.filter(e => !e.monitored && e.discovered).length, conn = n - mon - disc;
+  const weak = list.filter(e => e.weakSnmp), expired = list.filter(e => e.daysToContractEnd != null && e.daysToContractEnd < 0), soon = list.filter(e => e.daysToContractEnd != null && e.daysToContractEnd >= 0 && e.daysToContractEnd <= 180);
+  const noRcf = list.filter(e => e.monitored && !e.rcf);
+  const byModel = {}; list.forEach(e => { const k = e.model || '(model not reported)'; const b = byModel[k] = byModel[k] || { n: 0, fw: new Set() }; b.n++; if (e.fw) b.fw.add(e.fw); });
+  const systemsWithSw = (systems || []).filter(s => (s.switches || []).length).length;
+  const ontapNoSw = (systems || []).filter(s => _platformFamily(s) === 'ontap' && !(s.switches || []).length).length;
+  return { list, n, mon, disc, conn, weak, expired, soon, noRcf, byModel, systemsWithSw, ontapNoSw, snmpReported: list.filter(e => e.snmp).length };
+}
+function _switchInventoryHtml(v) {
+  if (!v || !v.n) return `<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">Active IQ reports no cluster switches for the ONTAP systems in this scope. Switch data comes from the Cluster Switch Health Monitor (CSHM); it is empty when CSHM is not configured on the cluster or the switch information has not reached Active IQ in AutoSupport.${v && v.ontapNoSw ? ` ${v.ontapNoSw} ONTAP system${v.ontapNoSw !== 1 ? 's' : ''} in scope have no switch records.` : ''}</div>`;
+  const esc = x => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const th = 'text-align:left;padding:6px 8px;font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border-color);', td = 'padding:5px 8px;font-size:0.76rem;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:top;';
+  const stat = (l, val, c, sub) => `<div style="background:rgba(0,0,0,0.2);padding:10px;border-radius:var(--radius-sm);text-align:center;border-left:3px solid ${c};"><div style="font-size:0.65rem;color:var(--text-muted);text-transform:uppercase;">${l}</div><div style="font-size:1.25rem;font-weight:700;">${val}</div>${sub ? `<div style="font-size:0.65rem;color:var(--text-muted);">${sub}</div>` : ''}</div>`;
+  let h = `<h3 style="font-size:1rem;margin:0 0 10px;">Switch inventory</h3>`;
+  h += `<div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:12px;">` +
+    stat('Distinct switches', v.n, 'var(--accent-cyan)', `${v.systemsWithSw} system${v.systemsWithSw !== 1 ? 's' : ''} connected`) +
+    stat('Monitored (CSHM)', `${v.mon}/${v.n}`, v.mon === v.n ? 'var(--status-normal)' : 'var(--status-warning)', 'model, firmware, RCF, contract') +
+    stat('Not monitored', v.disc + v.conn, (v.disc + v.conn) ? 'var(--status-warning)' : 'var(--status-normal)', `${v.disc} discovered, ${v.conn} seen via ports only`) +
+    stat('SNMPv1/v2c', v.weak.length, v.weak.length ? 'var(--status-warning)' : 'var(--status-normal)', v.snmpReported ? `of ${v.snmpReported} reporting SNMP version` : 'SNMP version not reported') +
+    stat('Support contracts', v.expired.length + v.soon.length, (v.expired.length || v.soon.length) ? 'var(--status-warning)' : 'var(--status-normal)', `${v.expired.length} expired, ${v.soon.length} ending within 180 days`) + `</div>`;
+  const notes = [];
+  if (v.disc + v.conn) notes.push(`${v.disc + v.conn} switch${(v.disc + v.conn) !== 1 ? 'es are' : ' is'} not monitored by CSHM, so Active IQ holds no model, firmware, RCF or contract data for ${(v.disc + v.conn) !== 1 ? 'them' : 'it'}. Enable CSHM on the cluster (<code>system switch ethernet create</code> with SNMPv3) to get health alerts and firmware recommendations.`);
+  if (v.weak.length) notes.push(`${v.weak.length} switch${v.weak.length !== 1 ? 'es use' : ' uses'} SNMPv1/v2c (community-string authentication). NetApp recommends SNMPv3 for CSHM.`);
+  if (v.noRcf.length) notes.push(`${v.noRcf.length} monitored switch${v.noRcf.length !== 1 ? 'es have' : ' has'} no Reference Configuration File version reported, so RCF compliance cannot be assessed.`);
+  if (v.ontapNoSw) notes.push(`${v.ontapNoSw} ONTAP system${v.ontapNoSw !== 1 ? 's' : ''} in scope ha${v.ontapNoSw !== 1 ? 've' : 's'} no switch records at all (CSHM not configured, or switch data not reaching Active IQ).`);
+  if (notes.length) h += `<ul style="margin:0 0 12px 18px;padding:0;font-size:0.8rem;color:var(--text-secondary);">${notes.map(x => `<li>${x}</li>`).join('')}</ul>`;
+  h += `<div style="overflow-x:auto;margin-bottom:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr>${['Switch', 'Vendor / model', 'Network', 'Firmware', 'RCF', 'Monitoring', 'SNMP', 'Contract ends', 'Clusters served'].map(x => `<th style="${th}">${x}</th>`).join('')}</tr></thead><tbody>` +
+    v.list.map(e => `<tr><td style="${td}font-weight:600;">${esc(e.name)}${e.ip ? `<div style="font-size:0.66rem;color:var(--text-muted);">${esc(e.ip)}${e.serial && !/^(unknown|not available)$/i.test(e.serial) ? ' &middot; S/N ' + esc(e.serial) : ''}</div>` : ''}</td><td style="${td}">${esc([e.vendor, e.model].filter(Boolean).join(' ') || '\u2014')}</td><td style="${td}">${esc(e.type || '\u2014')}${e.mc ? ' <span style="color:#ff9800;font-size:0.66rem;">MetroCluster</span>' : ''}</td><td style="${td}">${esc(e.fw || '\u2014')}</td><td style="${td}">${esc(e.rcf || '\u2014')}</td><td style="${td}">${esc(e.source)}</td><td style="${td}${e.weakSnmp ? 'color:var(--status-warning);' : ''}">${esc(e.snmpLabel || '\u2014')}</td><td style="${td}${e.daysToContractEnd != null && e.daysToContractEnd < 180 ? 'color:var(--status-warning);' : ''}">${e.contractEnd ? esc(String(e.contractEnd).slice(0, 10)) + (e.daysToContractEnd != null && e.daysToContractEnd < 0 ? ' (expired)' : '') : '\u2014'}</td><td style="${td}">${esc([...e.clusters].join(', '))}</td></tr>`).join('') + `</tbody></table></div>`;
+  const models = Object.keys(v.byModel).sort((x, y) => v.byModel[y].n - v.byModel[x].n);
+  h += `<div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;font-weight:600;">Models and firmware in use</div><table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><thead><tr><th style="${th}">Model</th><th style="${th}">Switches</th><th style="${th}">Firmware versions</th></tr></thead><tbody>` +
+    models.map(m => `<tr><td style="${td}">${esc(m)}</td><td style="${td}">${v.byModel[m].n}</td><td style="${td}">${esc([...v.byModel[m].fw].join('; ') || '\u2014')}${v.byModel[m].fw.size > 1 ? ' <span style="color:var(--status-warning);font-size:0.66rem;">mixed versions</span>' : ''}</td></tr>`).join('') + `</tbody></table>`;
+  return h;
+}
 function getSystemSwitches(sys) {
   if (sys.switches && sys.switches.length > 0) return sys.switches;
   return [];
@@ -34071,6 +34172,8 @@ function generateActionPlan() {
       </div>
   `;
 
+  html += _switchInventoryHtml(_dfSwitchInventory(targetSystems));
+  html += `<h3 style="font-size:1rem;margin:6px 0 10px;">Switches needing attention</h3>`;
   if (switchAlerts.length === 0) {
     html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ All interconnect and storage network fabric switches match validated firmware baselines.</p>`;
   } else {

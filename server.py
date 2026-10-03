@@ -2537,6 +2537,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     isDiscovered
                     isMonitored
                     versionInfo { fwVersion rcfVersion }
+                    snmpConfiguration { version }
                     supportContract { startDate endDate offerDescription }
                   }
                   shelves {
@@ -2611,7 +2612,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                         ' snapMirrorRelationships { totalCount }'
                         ' systems { serialNumber }'
                         ' switches { switchSerialNumber deviceName role network vendor model ipAddress'
-                        '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion }'
+                        '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } snmpConfiguration { version }'
                         '   supportContract { startDate endDate offerDescription } }'
                         ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } } }'
                         ' vservers { id name type subType logicalInterfaces { name ipAddress worldWidePortName status { administrative operation } serviceConfiguration { servicePolicy dataProtocols } failoverConfiguration { homeNode { hostName serialNumber } homePort currentNode { hostName serialNumber } currentPort failoverPolicy } } }'
@@ -3643,6 +3644,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     "supportContractEnd":   sw_contract_end,
                     "supportContractStart": sw_contract_start,
                     "supportContractDesc":  sw_contract_desc,
+                    "snmpVersion":       (csw.get("snmpConfiguration") or {}).get("version") or "",   # SNMPV1 / SNMPV2C / SNMPV3
                     "connectedPort":     (_conn or {}).get("connectedPort", ""),
                     "portSpeed":         (_conn or {}).get("portSpeed", ""),
                     "portState":         (_conn or {}).get("portState", ""),
@@ -3666,7 +3668,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                                           f"or health data is available for it.",
                     "ipAddress": "", "deviceName": _conn["deviceName"], "vendor": "",
                     "isMonitored": False, "isDiscovered": False, "mcContext": _sys_is_mcc,
-                    "supportContractEnd": "", "supportContractStart": "", "supportContractDesc": "",
+                    "supportContractEnd": "", "supportContractStart": "", "supportContractDesc": "", "snmpVersion": "",
                     "connectedPort": _conn.get("connectedPort", ""), "portSpeed": _conn.get("portSpeed", ""),
                     "portState": _conn.get("portState", ""), "sourcePort": _conn.get("sourcePort", ""),
                 })
