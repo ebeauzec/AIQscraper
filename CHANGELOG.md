@@ -7,6 +7,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.233] - 2026-10-03
+
+### Fixed
+- Fixes from a post-harvest sanity check: 'database is locked' errors while a harvest is saving (requests now wait for the lock; the reporting mirror is built before the write lock is taken), duplicate renewals/sites/other records when two accounts see the same system are shown once, and the 26 support cases on non-controller records are now visible with those records. (server.py `_init_db`: `timeout=120`, `busy_timeout`, journal mode only switched when not already WAL; `_populate_reporting_tables` deletes and inserts only after all rows are built. app.js: `_dedupeBy` for `tamRenewals`/`tamSites`/`otherProductSystems`, `state.otherProductCases`, `_dfOtherProductCases`.)
+
+### Notes
+- v5.6.232 was committed without its documentation and `version.json` (they were not staged); this release includes them, so the changelog entry for 5.6.232 below is the one that applies to that code.
+- Sanity check results on a fresh two-account harvest: 1,315 unique systems, 0 truncated LUN/volume lists, 0 shelves short on drives, no NaN capacities, 15 deliverables compile for the largest customer (672 systems) in 7 s, all 23 tab Word exports build, no JavaScript errors. LUN capacity is provisioned (thin) size and can be many times a cluster's usable capacity.
+
+---
+
+## [5.6.232] - 2026-10-03
+
+### Fixed
+- Harvest no longer drops data to page-size caps or default filters (LUN lists, shelf drives, aggregates, renewals, sites, customers, success plans, OS catalog, 30-watchlist cluster cap, talking points, and records of non-controller product types); switch inventory now also in the MSP Service Report, Account Handover Brief, Security Posture Brief and the Technical Audit (one row per physical switch, listing every node it serves); contract renewals, sites and customers are paged through completely instead of stopping at the first 200/100 (restricted-account renewals 578 -> 776); two Word leftovers fixed (risk-trend rows and Site Logistics contact cards). (server.py: `systemContractRenewals` pages with `after` using `totalCount`; `sites` and `customers` page with `after` until a page is short. `_dfSwKey`, `_dfSwitchInventoryText` in app.js; `tryTiles` window rows and key/value tiles in `_domToMarkdown`.)
+
+### Harvest completeness (audit of every query)
+- LUN lists were read 50 per system (now one 100,000-item page, further pages only beyond that): systems with up to 32,252 LUNs were under-counted. Shelf `drives` default page of 50 truncated 60-drive shelves (73). `aggregates` 50/system, `successPlan` 200/page, `osVersions` 500/page, clusters scoped to at most 30 watchlists, talking points cut to 6, recommendations limited to 50, ASA r2 LUNs/namespaces limited to 1,000: all now complete or uncapped. `systems`, `cases` and `systemContractRenewals` default to productTypes [FILER, SWApp]: cases/renewals now use all six types (FILER, SWApp, NON_FILER, UNKNOWN, SWITCH, AIDE_DCN) and the extra systems are harvested separately into `otherProductSystems` (382 on the live fleet) so ONTAP statistics are unchanged. Verified: LUN/volume lists truncated 301 -> 0 systems, shelves short on drives 73 -> 0.
+
+### Notes
+- StorageGRID capacity growth cannot be derived: every grid returned null quarter/year-over-year change and no monthly capacity history, so grids keep 'no capacity history reported'. Confirmed live; not an open item.
+- Switches are still not in the TAM Success Plan.
+
+---
+
 ## [5.6.231] - 2026-10-03
 
 ### Added

@@ -420,8 +420,13 @@ def _init_db():
     acquisition on every request).
     """
     global _db_schema_ready
-    db = sqlite3.connect(str(DB_PATH), check_same_thread=False)
-    db.execute("PRAGMA journal_mode=WAL")  # Better concurrent read/write
+    # timeout / busy_timeout: a request that writes (history annotate, tracker, config) while a harvest is saving its cache
+    # waits for the write lock instead of failing after sqlite's default 5 s with "database is locked"
+    db = sqlite3.connect(str(DB_PATH), timeout=120, check_same_thread=False)
+    db.execute("PRAGMA busy_timeout=120000")
+    # WAL is persistent in the file: only switch when it is not already on (re-issuing the pragma on every request needs the lock)
+    if str(db.execute("PRAGMA journal_mode").fetchone()[0]).lower() != "wal":
+        db.execute("PRAGMA journal_mode=WAL")  # Better concurrent read/write
     db.execute("PRAGMA synchronous=NORMAL")
     if not _db_schema_ready:
         with _db_init_lock:
@@ -1119,11 +1124,7 @@ def _populate_reporting_tables(db, account_id, account_label, result):
         systems = result.get("systems") or []
         now_iso = datetime.now(timezone.utc).isoformat()
 
-        db.execute("DELETE FROM reporting_systems WHERE account_id = ?", (account_id,))
-        db.execute("DELETE FROM reporting_risks WHERE account_id = ?", (account_id,))
-        db.execute("DELETE FROM reporting_cases WHERE account_id = ?", (account_id,))
-
-        sys_rows, risk_rows, case_rows = [], [], []
+        sys_rows, risk_rows, case_rows = [], [], []   # built first; the write lock is only taken for delete + insert + commit below
         for s in systems:
             serial = s.get("serialNumber")
             if not serial:
@@ -1173,6 +1174,9 @@ def _populate_reporting_tables(db, account_id, account_label, result):
             ))
 
         if sys_rows:
+            db.execute("DELETE FROM reporting_systems WHERE account_id = ?", (account_id,))
+            db.execute("DELETE FROM reporting_risks WHERE account_id = ?", (account_id,))
+            db.execute("DELETE FROM reporting_cases WHERE account_id = ?", (account_id,))
             db.executemany("""
                 INSERT INTO reporting_systems (
                     serial_number, account_id, account_label, system_name, cluster_name, customer_name,

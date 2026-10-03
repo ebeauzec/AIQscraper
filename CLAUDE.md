@@ -22,7 +22,7 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-10-03 (Windows dev station, v5.6.231)
+## Session handoff -- 2026-10-03 (Windows dev station, v5.6.233)
 
 **State:** `main`, v5.6.221 (APP_VERSION + version.json + CHANGELOG.md + top APP_CHANGELOG entry all bumped together). `dist/` synced
 (app.js, `_internal/server.py`, rebuilt exe + base_library.zip from `%LOCALAPPDATA%\Temp\aiqbuild221`). See `git log` for pushed state.
@@ -59,6 +59,12 @@ Action Planner view; StorageGRID latest-version; MetroCluster card follows the s
 **v5.6.230:** Word downloads per Action Planner tab. Tabs 2/3/5 have dedicated generators (`compileRisksWordMd`, `compileAdvisoriesWordMd`, `compileUpgradesWordMd`); the rest go through `_domToMarkdown` (now: tile tables, stat cards, case/system/switch headers, label bolding, label/value runs -> tables). Audit recipe: generate the plan for a customer, call `downloadPlanSectionWord(i)` with `triggerFileDownload` stubbed, `_dxParse` the text and flag lone numbers / label-before-table / empty last column; also `_buildDocx` each. Known leftovers: Portfolio Dashboard trend rows, Site Logistics contact table.
 
 **v5.6.231:** switch inventory (Action Planner > Switch Validation) + SNMP version harvested (server.py `snmpConfiguration { version }`; verified live: 337/360 distinct switches SNMPv2c). Switches are not yet in the deliverables or the Word report audit; the Technical Audit per-node switch table still repeats shared switches per node.
+
+**v5.6.232:** switches in the MSP report, Handover, Security Brief and the Technical Audit (de-duplicated by `_dfSwKey`); renewals/sites/customers now paged; Word leftovers fixed. Switches are still not in the TAM plan. StorageGRID growth is a confirmed API limit (null QoQ/YoY, empty monthly history).
+
+**Harvest completeness (v5.6.232):** audited every query for caps/default filters (see CONTEXT.md 'Harvest completeness audit'): LUNs/volumes/namespaces 100,000-item pages, shelf drives 1,000, aggregates/success plans/OS catalog cursor-paged, no 30-watchlist cap, no talking-point slice, cases/renewals with all six product types, non-controller records in `otherProductSystems`. Verified live: truncated LUN/volume systems 301 -> 0, short shelves 73 -> 0. When adding a query, check for a cursor, a nested page default and a `productTypes` default.
+
+**v5.6.233:** sanity check after a two-account harvest found: (1) 'database is locked' while a harvest saves (shared sqlite file; fixed with busy_timeout + shorter lock); (2) cross-account duplicates in renewals/sites/other records (de-duplicated on load); (3) 26 cases on non-controller records not displayed (now shown with those records); (4) the v5.6.232 commit omitted version.json and all docs: ALWAYS check `git diff --cached --stat` before committing and `git show --stat HEAD` after.
 
 **Open / not done:**
 - Word layout was judged from generated Markdown/structure, never rendered in Word -- open one before sending to a customer.

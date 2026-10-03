@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.232";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.233";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.233",
+    date: "3 October 2026",
+    title: "Database Lock Fix and Cross-Account Duplicates",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Database Is Locked During a Harvest",
+        color: "#ef4444",
+        items: [
+          "While a harvest was saving its cache, any request that wrote to the database (for example saving a history annotation) failed with 'database is locked' after sqlite's default 5 seconds, and some history lookups returned errors. Requests now wait up to two minutes for the lock, and the save builds its reporting rows before taking the write lock so the lock is held for far less time.",
+        ],
+      },
+      {
+        icon: "🧹",
+        label: "Fixed -- Duplicates and Hidden Cases",
+        color: "#3b82f6",
+        items: [
+          "A system visible to two configured accounts produced two renewal, site and other-record entries (31 renewals, 7 sites), double-counting lifecycle events for those customers; each is now shown once. The 26 support cases that belong to non-controller records (SnapMirror licence entries and similar) were harvested but not displayed; they now appear with those records in the Switch Validation tab.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.232",
     date: "3 October 2026",
@@ -16649,6 +16672,10 @@ function _dfOtherProductRecords(systems) {
   const all = state.otherProductSystems || [];
   return all.filter(o => { const c = (o.customer && o.customer.name) || ''; return !custs.size || custs.has(c); });
 }
+function _dfOtherProductCases(list) {
+  const serials = new Set((list || []).map(o => o.serialNumber).filter(Boolean));
+  return (state.otherProductCases || []).filter(c => serials.has((c.system || {}).serialNumber));
+}
 function _otherProductHtml(list) {
   if (!list || !list.length) return '';
   const esc = x => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
@@ -16657,6 +16684,11 @@ function _otherProductHtml(list) {
   let h = `<h3 style="font-size:1rem;margin:16px 0 6px;">Other Active IQ records</h3><div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;">Active IQ also tracks ${list.length} record${list.length !== 1 ? 's' : ''} that ${list.length !== 1 ? 'are' : 'is'} not a storage controller (${Object.keys(groups).map(k => groups[k] + ' x ' + esc(k)).join('; ')}). They are not counted in the fleet statistics.</div>`;
   h += `<div style="overflow-x:auto;margin-bottom:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr>${['Name / serial', 'Type', 'Model', 'Customer', 'Site', 'Contract ends'].map(x => `<th style="${th}">${x}</th>`).join('')}</tr></thead><tbody>` +
     list.map(o => `<tr><td style="${td}font-weight:600;">${esc(o.hostName || o.serialNumber || '\u2014')}${o.hostName && o.serialNumber ? `<div style="font-size:0.66rem;color:var(--text-muted);">S/N ${esc(o.serialNumber)}</div>` : ''}</td><td style="${td}">${esc(o.platformType || o.type || '\u2014')}</td><td style="${td}">${esc((o.hardwareModel && o.hardwareModel.name) || '\u2014')}</td><td style="${td}">${esc((o.customer && o.customer.name) || '\u2014')}</td><td style="${td}">${esc((o.site && (o.site.name || o.site.city)) || '\u2014')}</td><td style="${td}">${esc(String((o.contract && (o.contract.overallContractEndDate || o.contract.expiryDate)) || '\u2014').slice(0, 10))}</td></tr>`).join('') + `</tbody></table></div>`;
+  const oc = _dfOtherProductCases(list);
+  if (oc.length) {
+    h += `<div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;font-weight:600;">Support cases on these records (${oc.length})</div><table style="width:100%;border-collapse:collapse;margin-bottom:12px;"><thead><tr>${['Case', 'Priority', 'Status', 'Record', 'Opened', 'Summary'].map(x => `<th style="${th}">${x}</th>`).join('')}</tr></thead><tbody>` +
+      oc.map(c => `<tr><td style="${td}">${esc(c.caseId)}</td><td style="${td}">${esc(c.priority || c.highestPriority || '\u2014')}</td><td style="${td}">${esc(c.status || '\u2014')}</td><td style="${td}">${esc((c.system || {}).hostName || (c.system || {}).serialNumber || '\u2014')}</td><td style="${td}">${esc(String(c.created || '').slice(0, 10) || '\u2014')}</td><td style="${td}">${esc(c.symptom || c.description || '\u2014')}</td></tr>`).join('') + `</tbody></table>`;
+  }
   return h;
 }
 function getSystemSwitches(sys) {
@@ -39186,15 +39218,20 @@ async function loadProductionData(forceRefresh = false) {
 
     // ── Store TAM root-level data ──
     state.tamRecommendations = result.tamRecommendations || [];
-    state.tamSites = result.tamSites || [];
+    state.tamSites = (() => { const seen = new Set(); return (result.tamSites || []).filter(x => { const k = x.id || (x.name + '|' + x.city); if (seen.has(k)) return false; seen.add(k); return true; }); })();
     state.tamSustainability = result.tamSustainability || [];
     state.tamOfficialHealthScore = result.tamOfficialHealthScore || [];
     state.tamCustomerHealthScores = result.tamCustomerHealthScores || [];
     state.tamCustomerRecommendations = result.tamCustomerRecommendations || [];
     state.tamSuccessPlans = result.tamSuccessPlans || [];
     state.tamOsVersions = result.tamOsVersions || [];
-    state.tamRenewals = result.tamRenewals || [];
-    state.otherProductSystems = result.otherProductSystems || [];   // non-controller Active IQ records (SnapMirror licence entries, storage switches ...)
+    // Two configured accounts can both see the same system, and the server keeps one copy per account; show each only once.
+    const _dedupeBy = (arr, keyFn) => { const seen = new Set(), out = []; (arr || []).forEach(x => { const k = keyFn(x); if (k == null || k === '' || !seen.has(k)) { if (k != null && k !== '') seen.add(k); out.push(x); } }); return out; };
+    state.tamRenewals = _dedupeBy(result.tamRenewals, r => r.serialNumber || r.hostName);
+    state.otherProductSystems = _dedupeBy(result.otherProductSystems, o => o.serialNumber || o.hostName);   // non-controller Active IQ records (SnapMirror licence entries, storage switches ...)
+    // cases on those records are not attached to any controller system, so keep them separately (shown with the records)
+    { const _ctrl = new Set((result.systems || []).map(s => s.serialNumber).filter(Boolean)), _oth = new Set(state.otherProductSystems.map(o => o.serialNumber).filter(Boolean));
+      state.otherProductCases = _dedupeBy((result.cases || []).filter(c => { const sn = (c.system || {}).serialNumber; return sn && !_ctrl.has(sn) && _oth.has(sn); }), c => c.caseId); }
     // Risks a TAM acknowledged (accepted/deferred) that have since appeared in
     // CISA's Known Exploited Vulnerabilities catalog — active real-world
     // exploitation, not just a theoretical CVE. Surfaced in the Security Brief.

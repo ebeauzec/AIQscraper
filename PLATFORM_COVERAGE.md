@@ -134,9 +134,11 @@ scope.
 | VMware StorageGRID node model/drive/version/health | not in schema | ❌ genuinely unavailable |
 | Per-model StorageGRID appliance EOS dates | not published via API | ❌ (EOA notice CPC-00602 flagged, no dates) |
 | SP/BMC, BIOS, DQP for StorageGRID / E-Series | not reported | ❌ genuinely unavailable |
+| Non-controller Active IQ records (SnapMirror licence entries, licence managers, storage switches, product types NON_FILER/SWITCH/UNKNOWN/AIDE_DCN) | `systems(productTypes: [...])` | ✅ harvested into `otherProductSystems` (382 on the live fleet); hidden by Active IQ's default filter, so earlier versions never saw them |
 | Parts-logistics hub/depot status | only RMA parts exposed | ❌ genuinely unavailable |
 | Cluster switches: serial, name, network, role, vendor, model, firmware, RCF, IP, SNMP version, discovered/monitored | `Cluster.switches` (`ClusterNetworkSwitch`), live-verified 2026-10-03 | ✅ harvested (SNMP version added v5.6.231); rich data only for CSHM-monitored switches |
 | Cluster switch support-contract dates | `ClusterNetworkSwitch.supportContract` | ⚠ field exists but returned empty for every switch sampled |
+| StorageGRID capacity growth / history | `gridCapacity` QoQ/YoY and per-site `monthlyCapacity` | ❌ returned null/empty for all 12 grids sampled (2026-10-03): no growth can be derived |
 | Cluster switch ports / ISL / health | not in schema | ❌ genuinely unavailable (port connectivity comes from the ONTAP side) |
 
 Accounts without `unfiltered_system_access` need watchlist-scoped queries; ARIA falls back to auto-discovered watchlists

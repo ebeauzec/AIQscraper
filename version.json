@@ -1,8 +1,8 @@
 {
-  "version": "5.6.231",
+  "version": "5.6.233",
   "major": 5,
   "minor": 6,
-  "patch": 231,
+  "patch": 233,
   "date": "2026-10-03",
-  "notes": "New cluster-switch inventory at the top of Action Planner > Switch Validation: distinct switches (a switch shared by several nodes is listed once) with vendor/model, network, firmware, RCF, monitoring status, SNMP version, support-contract end and clusters served, plus a models/firmware table and notes on gaps. The harvest now also collects each switch's SNMP version (on the live fleet 337 of 360 switches use SNMPv2c, 4 SNMPv3)."
+  "notes": "Fixes from a post-harvest sanity check: 'database is locked' errors while a harvest is saving (requests now wait for the lock; the reporting mirror is built before the write lock is taken), duplicate renewals/sites/other records when two accounts see the same system are shown once, and the 26 support cases on non-controller records are now visible with those records."
 }

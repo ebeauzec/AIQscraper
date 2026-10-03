@@ -1,7 +1,7 @@
 # CONTEXT.md — Active IQ Reporting Tool (ARIA)
 
 > **Reconstructed**: 2026-07-28 from full codebase analysis + previous conversation artifacts.
-> **Current Version**: 5.6.221 (per `version.json`, dated 2026-10-03)
+> **Current Version**: 5.6.233 (per `version.json`, dated 2026-10-03)
 > **Note**: Sections 1-4 were refreshed 2026-09-27. Sections 5-12 still describe the app as of v4.0.7
 > (2026-08-04) and predate the dated addenda below plus everything through v5.6.221 -- treat them
 > as a historical snapshot, not current state (items known to be out of date are struck through). For what's actually shipped since, read the addenda
@@ -862,3 +862,9 @@ limit by using separate merged queries; client dedupe must merge not first-wins;
 shape changes; write JS edit scripts with the Write tool, not heredocs (escape mangling); judge exports visually, not by word counts.
 
 **Cluster switches (v5.6.231).** The `ClusterNetworkSwitch` type is small (see PLATFORM_COVERAGE.md). Active IQ reports a switch per cluster, so raw data repeats a shared switch per node; `_dfSwitchInventory` de-duplicates by serial (else normalised name). Only CSHM-monitored switches have model/firmware/RCF/contract; discovered-only switches carry a name and a firmware-description string; connectivity-only switches (from the ONTAP port side) have just a name. SNMP version is now harvested (`snmpVersion`; most switches are SNMPv2c). Do not re-investigate: no switch ports/ISL/health fields exist, and switch support-contract dates came back empty. Switches are not yet in the deliverables.
+
+**Paging and Word leftovers (v5.6.232).** `systemContractRenewals` pages with `after` (it returns `cursor` and `totalCount`); `sites` and `customers` return a `cursor` but no total, so they page until a page is shorter than the page size. Any new list query should be checked for a cursor before assuming one page is enough. StorageGRID capacity growth is not derivable (null QoQ/YoY, empty monthly series for every grid): do not re-investigate.
+
+**Harvest completeness audit (v5.6.232).** Rules learned the hard way: (1) never assume one page is the whole list: check for a cursor / `totalCount`; (2) a nested connection's `pageSize` default is small and sometimes honoured (LUNs: 50 -> up to 32,252 per system) and sometimes ignored (volumes): compare `totalCount` with the length read; (3) `systems`, `cases`, `systemContractRenewals` and several others default to `productTypes: [FILER, SWApp]`: pass all six (FILER, SWApp, NON_FILER, UNKNOWN, SWITCH, AIDE_DCN) to see everything; the non-controller records go to `otherProductSystems`; (4) no slices (`[:N]`) on harvested lists. A 100,000-item nested page is fast; many small follow-up passes are not (a first attempt with 1,000-item pages took 45 minutes instead of 12).
+
+**Concurrency and duplicates (v5.6.233).** The SQLite cache is shared by every process that runs from this folder (a dev server, the packaged exe, a second window): a harvest save holds the write lock for a while, so writers must wait (`busy_timeout`) and the save must build its rows before locking. Two configured accounts can both see a system; the server keeps one copy per account (keyed by account + serial), so list fields such as renewals, sites and other-record systems must be de-duplicated when loaded (`_dedupeBy`). After committing, verify the staged file list (`git diff --cached --stat`) and `git status`: the v5.6.232 commit once left out `version.json` and every doc.

@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.221-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.233-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -626,7 +626,7 @@ StorageGRID and Platform Insights findings are also imported into the Remediatio
 
 Section titles are real Word headings everywhere (navigation pane, table of contents): in the deliverables a short title that introduces a table, list, underline or labelled lines becomes a heading, and in the tab exports a bold or small-caps label above a table or list does. A heading with nothing under it is not printed.
 
-Besides the deliverables, **every Action Planner tab** has a **Download Word** button that exports what is on screen as a formatted A4 document, built in the app with no library (offline). The converter keeps every word, separates paragraphs, turns tile rows into Metric / Value / Detail tables, turns `SYSTEM:` lines and card headers into headings, removes sort arrows and UI-only labels, and never truncates text the screen truncated for space. Tabs with a dedicated export (StorageGRID, Firmware Currency, Technical Risks, Security Advisories, Recommendations) use it instead. Layout was verified from the generated Markdown/structure for every view and several customers; open one in Word before sending it to a customer if layout matters.
+Besides the deliverables, **every Action Planner tab** has a **Download Word** button that exports what is on screen as a formatted A4 document, built in the app with no library (offline). The converter keeps every word, separates paragraphs, turns tile rows into Metric / Value / Detail tables, turns `SYSTEM:` lines and card headers into headings, removes sort arrows and UI-only labels, and never truncates text the screen truncated for space. Tabs with a dedicated export (StorageGRID, Firmware Currency, Technical Risks, Security Advisories, OS Upgrades, Recommendations) use it instead. **Technical Risks**, **Security Advisories** and **OS Upgrades** are purpose-built reports: a summary, a compact per-system table, and then each distinct issue, advisory or upgrade path written once with every affected system listed (hop-by-hop upgrade steps as bullets), instead of repeating the full remediation under every system. Stat tiles become Metric / Value tables, case, system and switch headers become headings, and 30/60/90-day trend rows become a table. Layout was verified from the generated Markdown/structure for every view and several customers; open one in Word before sending it to a customer if layout matters.
 
 ### What every narrative deliverable opens with
 
@@ -967,6 +967,7 @@ ARIA/
 - **Client (`app.js`)**: new fields must be listed in `enrichSystemTelemetry`'s explicit return object; systems are deduped by serial with fields merged; `_dfStorageGridView` resolves node systems to grids (nodes counted from the grid, not from Active IQ records), `applyStorageGridRisks` injects findings (ids `sg-<serial>-<slug>`, `ariaGenerated`) with recommendations from `_SG_RECS`; `_dfPlatformInsights` builds Platform Insights; `_dfNodeStrip` lists each real node once, classified by its true platform (an E-Series controller that belongs to a StorageGRID node is listed as StorageGRID).
 - **Word**: `downloadPlanSectionWord`, `_domToMarkdown`, `compileStorageGridReport`, `compileFirmwareWordMd`, then `triggerFileDownload(..., {format:'docx'})`.
 - **Success Plans**: `_buildSuccessPlanPayload` (full system list, notes fallback), `_cspProgress` (milestones/actions); mutation inputs use `notes: [{message}]`.
+- **Harvest completeness**: every list query pages to the end (cursor/`after`), nested lists use a page size large enough to return everything (LUNs, volumes and namespaces 100,000; shelf drives 1,000), cases/renewals request every product type, and records of non-controller product types (SnapMirror licence entries, licence managers, storage switches) are harvested into their own `otherProductSystems` list instead of being hidden by Active IQ's default `productTypes` filter. A query that returns a `totalCount` is checked against what was read.
 - **Release rule**: bump `APP_VERSION`, `version.json`, `CHANGELOG.md` and the top `APP_CHANGELOG` entry together; sync `dist/` and rebuild the exe when `server.py` changes.
 
 ### Component Reference
