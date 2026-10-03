@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.217] - 2026-10-03
+
+### Fixed
+- Success Plans written to Active IQ now always carry the complete affected-system list (no 25/12-item cap, no 'see the tool for the full list'); if Active IQ rejects a very large single field, the same complete list is resent split across the plan's notes.
+
+---
+
 ## [5.6.216] - 2026-10-02
 
 ### Fixed

@@ -1,8 +1,8 @@
 {
-  "version": "5.6.216",
+  "version": "5.6.217",
   "major": 5,
   "minor": 6,
-  "patch": 216,
-  "date": "2026-10-02",
-  "notes": "Technical Audit node strip is built from classified nodes: E-Series controllers that belong to a StorageGRID node are listed as that StorageGRID node under its grid name, duplicate records for one node collapse, and StorageGRID records the grid does not list are hidden behind a Show toggle."
+  "patch": 217,
+  "date": "2026-10-03",
+  "notes": "Success Plans written to Active IQ now always carry the complete affected-system list (no 25/12-item cap, no 'see the tool for the full list'); if Active IQ rejects a very large single field, the same complete list is resent split across the plan's notes."
 }

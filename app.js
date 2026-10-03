@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.216";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.217";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.217",
+    date: "3 October 2026",
+    title: "Success Plans Submitted to Active IQ Always Carry the Full System List",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Truncated Affected-Systems Lists in Success Plans",
+        color: "#ef4444",
+        items: [
+          "Suggested Success Plans cut the affected-systems list to 12 entries and ended with '...and 80 more (see the tool for the full list)', which is useless once the plan lives in Active IQ. Every plan now lists every affected system, with serial number and the specific finding, in Customer Challenges & Goals. The notes point to that list instead of repeating it. Templates that were silently limiting their own lists (feature gaps to 12, SLA breaches to 20, co-term to the largest group only) now include everything.",
+          "Safety net for very large accounts: if Active IQ rejects the single large field, the plan is sent again with the identical complete list split across the plan's notes (about 15,000 characters each) and a pointer in Customer Challenges & Goals, so nothing is dropped and no plan fails to submit because of its size.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.216",
     date: "2 October 2026",
@@ -38567,11 +38583,12 @@ const SUCCESS_PLAN_HEALTH_COLORS = { 'GREEN': '#22c55e', 'YELLOW': '#f59e0b', 'R
 // tamNotes/customerChallengesAndGoals -- every value in `detail` must come
 // from a real harvested field on that specific system, never a generic
 // restatement, so an adopted plan is traceable back to the actual finding.
-function _fmtAffectedSystemsBlock(items, cap = 12) {
+// Complete list by default: a plan written to Active IQ must be self-contained, never 'see the tool for the rest'.
+function _fmtAffectedSystemsBlock(items, cap = Infinity) {
   if (!items || items.length === 0) return '';
   const shown = items.slice(0, cap);
   const lines = shown.map(it => `  - ${it.name || it.serial || 'Unknown system'}${it.serial ? ` (S/N ${it.serial})` : ''}: ${it.detail}`);
-  const more = items.length > cap ? `\n  ...and ${items.length - cap} more (see the tool for the full list)` : '';
+  const more = items.length > cap ? `\n  ...and ${items.length - cap} more` : '';
   return lines.join('\n') + more;
 }
 
@@ -38724,7 +38741,7 @@ const SUCCESS_PLAN_TEMPLATES = [
           `Raise the account health score from ${score} toward 80+`,
           'Close the top feature-adoption gaps (ARP/SnapMirror/HA/AutoSupport)',
         ],
-        affectedSystems: featureGaps.slice(0, 12).map(x => ({ name: x.name, serial: x.serial, detail: `Missing: ${x.missing.join(', ')}` })),
+        affectedSystems: featureGaps.map(x => ({ name: x.name, serial: x.serial, detail: `Missing: ${x.missing.join(', ')}` })),
         remediationSteps: _uniqueSteps(featureGaps.slice(0, 20).flatMap(x => x.missing.map(m => `Enable ${m} on systems currently missing it`))),
       };
     },
@@ -39015,7 +39032,7 @@ const SUCCESS_PLAN_TEMPLATES = [
           `Propose a single co-termed renewal covering ${biggest.length} system(s) in the largest group`,
           'Quote all co-term groups together for procurement efficiency',
         ],
-        affectedSystems: biggest.map(g => ({ name: g.name, serial: g.serial, detail: `Contract ends ${g.end.toISOString().slice(0, 10)}` })),
+        affectedSystems: groups.flatMap((grp, gi) => grp.map(g => ({ name: g.name, serial: g.serial, detail: `Contract ends ${g.end.toISOString().slice(0, 10)} (co-term group ${gi + 1} of ${groups.length})` }))),
         remediationSteps: [
           'Confirm renewal term length that aligns the group to a single future co-term date',
           'Issue one consolidated renewal quote instead of per-system quotes',
@@ -39081,7 +39098,7 @@ const SUCCESS_PLAN_TEMPLATES = [
           `Bring SLA compliance from ${compliancePct}% back above 80%`,
           `Triage and assign owners to the ${breached.length} currently-breached item(s)`,
         ],
-        affectedSystems: breached.slice(0, 20).map(i => ({ name: i.systemName || i.customerName, serial: i.systemSerial || '', detail: `${i.title || 'Tracked item'} -- overdue (${i.severity || 'unspecified'} severity)` })),
+        affectedSystems: breached.map(i => ({ name: i.systemName || i.customerName, serial: i.systemSerial || '', detail: `${i.title || 'Tracked item'} -- overdue (${i.severity || 'unspecified'} severity)` })),
         remediationSteps: [
           'Assign an owner and realistic due date to each breached item',
           'Review whether the default SLA policy (Settings) still matches this account\'s real remediation capacity',
@@ -39142,16 +39159,25 @@ function computeSuggestedSuccessPlans() {
 // notes) -- shared by the expandable preview and the actual adopt call, so
 // what a TAM reviews before adopting is guaranteed to match what gets
 // posted, not a separate approximation of it.
-function _buildSuccessPlanPayload(s) {
-  const affectedBlock = _fmtAffectedSystemsBlock(s.affectedSystems, 12);
+function _buildSuccessPlanPayload(s, opts) {
+  opts = opts || {};
+  const affectedBlock = _fmtAffectedSystemsBlock(s.affectedSystems);
   const challengesFull = affectedBlock
     ? `${s.challenges}\n\nAffected systems:\n${affectedBlock}`
     : s.challenges;
   const objectives = (s.remediationSteps && s.remediationSteps.length > 0) ? s.remediationSteps : s.objectives;
-  const tamNotesBlock = _fmtAffectedSystemsBlock(s.affectedSystems, 25);
+  const _nAff = (s.affectedSystems || []).length;
   const tamNotes = `Auto-suggested from real fleet data at adoption time (${s.metricLabel}: ${s.metricValue}). [template:${s.templateKey}]`
-    + (tamNotesBlock ? `\n\nFull affected-system list at adoption time:\n${tamNotesBlock}` : '');
-  return { challengesFull, objectives, tamNotes };
+    + (_nAff ? `\n\nThe complete list of ${_nAff} affected system${_nAff !== 1 ? 's' : ''} at adoption time is in Customer Challenges & Goals.` : '');
+  if (opts.chunked && affectedBlock) {
+    // Fallback if Active IQ rejects a very large customerChallengesAndGoals: the SAME complete list, split across plan notes.
+    const lines = affectedBlock.split('\n'), parts = []; let cur = [], len = 0;
+    lines.forEach(l => { if (len + l.length > 15000 && cur.length) { parts.push(cur.join('\n')); cur = []; len = 0; } cur.push(l); len += l.length + 1; });
+    if (cur.length) parts.push(cur.join('\n'));
+    const notesList = [tamNotes].concat(parts.map((p, i) => `Affected systems (part ${i + 1} of ${parts.length}):\n${p}`));
+    return { challengesFull: `${s.challenges}\n\nAffected systems: ${(s.affectedSystems || []).length} -- the complete list is in this plan's notes (${parts.length} part${parts.length !== 1 ? 's' : ''}).`, objectives, tamNotes, notesList };
+  }
+  return { challengesFull, objectives, tamNotes, notesList: [tamNotes] };
 }
 
 function toggleSuggestedPlanPreview(idx) {
@@ -39242,22 +39268,35 @@ async function adoptSelectedSuggestedPlans() {
       // plan is trackable in Active IQ itself without needing this tool open.
       // Same builder the expandable preview uses, so what a TAM reviewed
       // before adopting is guaranteed to match what's actually posted.
-      const { challengesFull, objectives, tamNotes } = _buildSuccessPlanPayload(s);
+      let { challengesFull, objectives, tamNotes, notesList } = _buildSuccessPlanPayload(s);
       const mutation = `mutation CreateCSP($accountPlan: AccountPlanCreateInput!) {
         createSuccessPlan(accountPlan: $accountPlan) { success id accountId errors }
       }`;
-      const variables = {
+      const _vars = (ch, nl) => ({
         accountPlan: {
           nagpId: s.nagpId, name: s.title, source: 'MANUAL', title: s.title,
           templateUsed: 'ESSENTIAL', planStatus: 'ACTIVE', lifecycleStage: s.stage,
-          health: 'YELLOW', customerChallengesAndGoals: challengesFull,
-          objectives, successMetrics: s.metrics, notes: tamNotes ? [{ message: tamNotes }] : undefined,
+          health: 'YELLOW', customerChallengesAndGoals: ch,
+          objectives, successMetrics: s.metrics, notes: nl.filter(Boolean).map(message => ({ message })),
           scope: { id: s.nagpId, name: s.nagpName },
         },
-      };
-      const data = await _callAIQMutation(mutation, variables);
-      const result = data.createSuccessPlan;
-      if (!result || !result.success) throw new Error((result && result.errors && result.errors.join('; ')) || 'Active IQ reported the create did not succeed.');
+      });
+      let result;
+      try {
+        const data = await _callAIQMutation(mutation, _vars(challengesFull, notesList));
+        result = data.createSuccessPlan;
+        if (!result || !result.success) throw new Error((result && result.errors && result.errors.join('; ')) || 'Active IQ reported the create did not succeed.');
+      } catch (_fullErr) {
+        // The complete affected-system list must always reach Active IQ. If the single large field is rejected, resend the same
+        // complete list split across the plan's notes (one attempt); anything else is a real failure.
+        if ((s.affectedSystems || []).length < 1) throw _fullErr;
+        console.warn('[CSP] full-text create rejected, retrying with the list split across notes:', _fullErr && _fullErr.message);
+        const ch = _buildSuccessPlanPayload(s, { chunked: true });
+        const data2 = await _callAIQMutation(mutation, _vars(ch.challengesFull, ch.notesList));
+        result = data2.createSuccessPlan;
+        if (!result || !result.success) throw new Error((result && result.errors && result.errors.join('; ')) || (_fullErr && _fullErr.message) || 'Active IQ reported the create did not succeed.');
+        challengesFull = ch.challengesFull; tamNotes = ch.notesList.join('\n\n');
+      }
       state.tamSuccessPlans = state.tamSuccessPlans || [];
       state.tamSuccessPlans.push({
         id: result.id, name: s.title, title: s.title, status: 'ACTIVE', lifecycleStage: s.stage, health: 'YELLOW',
