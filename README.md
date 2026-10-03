@@ -1,6 +1,6 @@
 # ARIA — Active IQ Risk Intelligence Advisor
 
-[![Version](https://img.shields.io/badge/version-5.6.237-0066cc)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-5.6.238-0066cc)](CHANGELOG.md)
 [![License](https://img.shields.io/badge/license-Proprietary-red)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.8+-3776AB?logo=python&logoColor=white)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)]()
@@ -646,6 +646,17 @@ Each narrative deliverable starts with a **Decisions needed** block: the top fiv
 ---
 
 ## 8. Scores, KPIs & Metrics Reference
+
+### Findings vs general guidance
+
+Everything ARIA produces is one of two kinds, and the tool and every deliverable now say which:
+
+| Kind | What it is | How it is marked |
+|---|---|---|
+| **Finding** | A condition detected on this customer's actual systems (from Active IQ telemetry or ARIA's analysis of it). It names the system, the risk ID or the measured figure. | `FINDING` tag in the app; "Finding" label in Word/Markdown/text |
+| **General guidance** | Remediation steps, options and trade-offs, best practices, recommendations and "NetApp advises..." statements. They apply to any system with the same condition and say nothing about a particular system. Verify them before acting. | `GENERAL GUIDANCE` tag in the app; "General guidance" label in documents |
+
+Every downloaded deliverable opens with a short "How to read this document" note stating this.
 
 ### Capacity terms (read this before comparing numbers)
 

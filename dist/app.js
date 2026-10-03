@@ -27,9 +27,33 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.237";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.238";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.238",
+    date: "3 October 2026",
+    title: "Correct Advice for FabricPool Latency and Certificate Findings",
+    sections: [
+      {
+        icon: "🛠️",
+        label: "Fixed -- Wrong Remediation on FabricPool Risks",
+        color: "#22c55e",
+        items: [
+          "Any risk mentioning FabricPool used to receive the advice for a tiering policy that is not moving cold data, including 'Elevated Cloud Latency' and 'Certificate validation is set to false'. Both now have their own causes, steps and options (object store profiler and network checks for latency; installing the CA certificate and enabling validation for the certificate finding). The tiering advice stays for genuine tiering problems.",
+        ],
+      },
+      {
+        icon: "🏷️",
+        label: "New -- Findings and General Guidance Are Now Distinguished Everywhere",
+        color: "#3b82f6",
+        items: [
+          "Every downloaded deliverable (Word, Markdown and text) opens with a 'How to read this document' note: findings are conditions detected on this customer's systems (they name the system, risk ID or figure); guidance (remediation steps, options, best practices, recommendations) is general NetApp advice, not a statement about a particular system.",
+          "The remediation window and risk cards tag the issue, cause and impact as FINDING and the steps, options and 3rd-party notes as GENERAL GUIDANCE. The Technical Risks and Security Advisories Word reports and the plain-text risk export label each block the same way.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.237",
     date: "3 October 2026",
@@ -15685,7 +15709,7 @@ function openRemediationModal(riskId) {
   document.getElementById("modalRiskTitle").innerText = `Remediation Plan: ${risk.category} Risk`;
   
   // Display safety tier in description
-  document.getElementById("modalRiskDesc").innerHTML = `${risk.description}
+  document.getElementById("modalRiskDesc").innerHTML = `<span class="rk-tag rk-tag-finding">FINDING ON THIS SYSTEM</span> ${risk.description}
     <div style="margin-top: 10px; background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); padding: 8px 12px; border-radius: var(--radius-sm); font-size: 0.8rem; display: flex; align-items: center; gap: 8px;">
       <span style="color: var(--text-muted); font-weight: 600;">Safety Tier:</span>
       <span style="background: ${safetyColor}; color: #fff; font-size: 0.68rem; padding: 2px 6px; border-radius: var(--radius-sm); font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">${safetyTier}</span>
@@ -23322,6 +23346,44 @@ function generateDynamicRemediationPlan(risk, sys) {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
+  // FABRICPOOL cloud latency and certificate validation. These mention FabricPool but are not tiering-policy problems, so they must not get
+  // the tiering-policy advice below.
+  // ════════════════════════════════════════════════════════════════════════════
+  if ((desc.includes("fabricpool") && (desc.includes("latency") || desc.includes("certificate"))) || desc.includes("cloud latency")) {
+    if (desc.includes("certificate")) {
+      cause  = "Certificate validation is turned off for a FabricPool object store configuration, so ONTAP does not verify the identity of the S3 server it talks to.";
+      impact = "Tiered data could be sent to, or read from, an untrusted S3 endpoint (man-in-the-middle or a misdirected endpoint).";
+      steps  = [
+        "1. Identify the object store configuration: 'storage aggregate object-store config show -fields server,ssl-enabled,is-certificate-validation-enabled'",
+        "2. Install the CA certificate that signed the object store's certificate: 'security certificate install -type server-ca -vserver <admin-vserver>'",
+        "3. Enable validation: 'storage aggregate object-store config modify -object-store-name <name> -is-certificate-validation-enabled true'",
+        "4. Confirm connectivity: 'storage aggregate object-store profiler start -object-store-name <name> -node <node>' then 'profiler show'",
+        "5. Ref: https://www.netapp.com/media/17239-tr-4598.pdf"
+      ];
+      options = [
+        "Option A: Install the object store's CA certificate, then enable certificate validation (recommended).",
+        "Option B: If the object store uses a private CA, distribute that CA to the cluster first, then enable validation; do not leave validation off in production."
+      ];
+      thirdParty = "Enabling validation fails if the object store's certificate is self-signed or expired: renew or replace it on the object store side first.";
+    } else {
+      cause  = "Round-trip latency from the cluster to the FabricPool object store is elevated (5 to 10 seconds is medium, 10 seconds or more is serious and can end in an outage).";
+      impact = "Reads of tiered (cold) data are slow for users of the affected aggregates, and sustained high latency can stall tiering and client I/O.";
+      steps  = [
+        "1. Measure the object store latency: 'storage aggregate object-store profiler start -object-store-name <name> -node <node>' then 'storage aggregate object-store profiler show'",
+        "2. Check the network path to the object store (intercluster LIFs, MTU, firewall, proxy, bandwidth contention with SnapMirror) and the object store's own health or throttling.",
+        "3. Check which volumes read from the cloud tier: 'volume show -fields tiering-policy,cloud-retrieval-policy' and 'storage aggregate show-space -fields object-store-referenced-capacity'",
+        "4. Where cold data is read often, set 'cloud-retrieval-policy' to promote so hot blocks return to the performance tier.",
+        "5. Ref: https://kb.netapp.com/Advice_and_Troubleshooting/Data_Storage_Software/ONTAP_OS/How_to_troubleshoot_and_resolve_FabricPool_Performance_issues_or_%22measured_latency_from_cloud%22_alerts"
+      ];
+      options = [
+        "Option A: Fix the network or object store bottleneck (preferred; the latency is the symptom).",
+        "Option B: Temporarily stop tiering for the affected volumes ('-tiering-policy none') while the path is repaired."
+      ];
+      thirdParty = "For a public cloud or third-party object store, check the provider's status and request throttling; for StorageGRID, check node and grid health.";
+    }
+    return { cause, impact, steps, options, thirdParty };
+  }
+
   // CAPACITY / VOLUME / FABRICPOOL
   // ════════════════════════════════════════════════════════════════════════════
   if (catLower.includes("capacity") || desc.includes("full") || desc.includes("nearly full") || desc.includes("auto-grow") ||
@@ -34070,7 +34132,7 @@ function generateActionPlan() {
             <span style="background: ${getRiskSafetyTier(r) === 'Destructive or Irreversible' ? 'var(--status-critical)' : (getRiskSafetyTier(r) === 'Disruptive but Data-Safe' ? 'var(--status-warning)' : 'var(--status-normal)')}; color: #fff; font-size: 0.68rem; padding: 2px 6px; border-radius: var(--radius-sm); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px;">${getRiskSafetyTier(r)}</span>
           </div>
 
-          <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px;"><strong>Issue</strong>: ${r.description}</div>
+          <div style="font-size: 0.85rem; color: var(--text-primary); margin-bottom: 8px;"><span class="rk-tag rk-tag-finding" title="Detected on this system">FINDING</span> <strong>Issue</strong>: ${r.description}</div>
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; background: rgba(0,0,0,0.15); padding: 10px; border-radius: var(--radius-sm);">
             <strong>Root Cause Analysis:</strong><br>${r.remediationPlan ? r.remediationPlan.cause : "Undetermined"}
           </div>
@@ -34078,13 +34140,13 @@ function generateActionPlan() {
             <strong>Operations Impact:</strong><br>${r.remediationPlan ? r.remediationPlan.impact : "Undetermined"}
           </div>
           <div style="font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px;">
-            <strong>Step-by-Step Remediation Plan:</strong>
+            <span class="rk-tag rk-tag-guide" title="General NetApp advice for this kind of issue, not a statement about this system">GENERAL GUIDANCE</span> <strong>Step-by-Step Remediation Plan:</strong>
             <ol style="margin-left: 20px; margin-top: 6px; font-family: monospace; line-height: 1.4;">
               ${r.remediationPlan ? r.remediationPlan.steps.map(s => `<li>${s}</li>`).join("") : "<li>Review standard operating guidelines.</li>"}
             </ol>
           </div>
           <div style="font-size: 0.85rem; color: var(--text-muted);">
-            <strong>Options & Trade-offs:</strong>
+            <span class="rk-tag rk-tag-guide" title="General NetApp advice for this kind of issue, not a statement about this system">GENERAL GUIDANCE</span> <strong>Options & Trade-offs:</strong>
             <ul style="margin-left: 20px; margin-top: 4px; line-height: 1.4;">
               ${r.remediationPlan ? r.remediationPlan.options.map(o => `<li>${o}</li>`).join("") : "<li>Contact NetApp Support.</li>"}
             </ul>
@@ -35323,14 +35385,14 @@ function compileRisksWordMd(systems, scopeTitle) {
     o += `### ${name}\n\n` + _wdTable(['Severity', 'Category', 'Issue', 'Safety classification'], rs.slice().sort((x, y) => (rank[sev(x)] ?? 4) - (rank[sev(y)] ?? 4)).map(r => [cap(sev(r)), r.category, r.description, String(getRiskSafetyTier(r) || '').toUpperCase()]));
   });
   // remediation, once per distinct issue
-  o += `## 3. Remediation plans by issue\n\nEach distinct issue is described once, with every system it affects.\n\n`;
+  o += `## 3. Remediation plans by issue\n\nEach distinct issue is described once, with every system it affects. The affected systems and the issue are findings; the remediation steps and options are general NetApp guidance.\n\n`;
   list.forEach((g, i) => {
     const r = g.r, p = r.remediationPlan, names = [...g.sys].sort((x, y) => String(x).localeCompare(String(y), undefined, { numeric: true }));
     o += `### ${i + 1}. ${String(r.description).length > 110 ? String(r.description).slice(0, 107) + '...' : r.description}\n\n`;
     o += `**Severity:** ${cap(sev(r))}  |  **Category:** ${r.category}  |  **Safety classification:** ${String(getRiskSafetyTier(r) || '').toUpperCase()}\n\n`;
     if (String(r.description).length > 110) o += `**Issue:** ${r.description}\n\n`;
     o += `**Affected systems (${names.length}):** ${names.join(', ')}\n\n`;
-    o += `**Root cause:** ${p && p.cause ? p.cause : 'Undetermined'}\n\n**Operations impact:** ${p && p.impact ? p.impact : 'Undetermined'}\n\n`;
+    o += `**Finding (detected on the systems above)**\n\n**Root cause:** ${p && p.cause ? p.cause : 'Undetermined'}\n\n**Operations impact:** ${p && p.impact ? p.impact : 'Undetermined'}\n\n**General guidance (not specific to these systems; verify before applying)**\n\n`;
     const steps = p && p.steps && p.steps.length ? p.steps : ['Review standard operating guidelines.'];
     o += `**Remediation steps**\n\n` + steps.map((s, k) => `${k + 1}. ${String(s).replace(/^\d+\.\s*/, '')}`).join('\n') + '\n\n';
     const opts = p && p.options && p.options.length ? p.options : ['Contact NetApp Support.'];
@@ -35357,7 +35419,7 @@ function compileAdvisoriesWordMd(systems, scopeTitle) {
     const names = [...g.sys].sort((x, y) => String(x).localeCompare(String(y), undefined, { numeric: true })), st = [...new Set(all.filter(x => (x.b.cve || x.b.id || x.b.title) === (g.b.cve || g.b.id || g.b.title)).map(x => x.b.status).filter(Boolean))];
     o += `### ${g.b.cve || g.b.id}\n\n**Severity:** ${cap(sev(g.b))}${st.length ? `  |  **Status:** ${st.join(', ')}` : ''}\n\n`;
     if (g.b.title) o += `**Title:** ${g.b.title}\n\n`;
-    o += `**Mitigation:** ${g.b.mitigation || 'Upgrade to a fixed release; see the NetApp advisory.'}\n\n**Affected systems (${names.length}):** ${names.join(', ')}\n\n`;
+    o += `**Affected systems (finding):** these systems run a software version the advisory applies to.\n\n**General guidance, mitigation (applies to any affected system):** ${g.b.mitigation || 'Upgrade to a fixed release; see the NetApp advisory.'}\n\n**Affected systems (${names.length}):** ${names.join(', ')}\n\n`;
   });
   return o;
 }
@@ -35536,12 +35598,12 @@ SYSTEM: ${systemName}
 ================================================================================
 ${risks.slice().sort(_rkBySev).map((r, idx) => `${r.category} Risk [Severity: ${r.severity.toUpperCase()}]
 - Safety Classification: ${getRiskSafetyTier(r).toUpperCase()}
-- Issue: ${r.description}
+- FINDING (detected on this system): ${r.description}
 - Root Cause: ${r.remediationPlan ? r.remediationPlan.cause : "Undetermined"}
 - Operations Impact: ${r.remediationPlan ? r.remediationPlan.impact : "Undetermined"}
-- Remediation steps:
+- GENERAL GUIDANCE (not specific to this system) -- remediation steps:
 ${r.remediationPlan ? r.remediationPlan.steps.map((s, i) => `   ${i+1}. ${s}`).join("\n") : "   1. Review standard operating guidelines."}
-- Trade-offs:
+- GENERAL GUIDANCE -- trade-offs:
 ${r.remediationPlan ? r.remediationPlan.options.map(o => `   * ${o}`).join("\n") : "   * Contact NetApp Support."}`).join("\n\n")}`).join("\n\n")}`;
   } else if (index === 3) {
     filename = `security_advisories_${cleanScope}.txt`;
@@ -36962,10 +37024,27 @@ function _dlFilename(title, scope, ext) {
   const clean = s => String(s || '').replace(/[\\/:*?"<>|]/g, '').replace(/\s+/g, ' ').trim();
   return [clean(title), clean(scope), dateStr].filter(Boolean).join(' - ') + '.' + ext;
 }
+// Findings vs general guidance. Every deliverable says which statements describe THIS customer's systems and which are general NetApp advice.
+const _DF_GUIDE_TITLE = 'How to read this document';
+const _DF_GUIDE_TEXT = 'Findings are conditions detected on this customer\'s actual systems, taken from Active IQ telemetry or ARIA\'s analysis of it, and they name the system, risk ID or measured figure. Guidance (remediation steps, options and trade-offs, best practices, recommendations and anything phrased as what NetApp advises) is general advice that applies to any system with the same condition. It is not a statement about a particular system, so verify it against the system and NetApp\'s documentation before acting.';
+function _dfWithReadingGuide(text) {
+  const t = String(text == null ? '' : text);
+  if (!t.trim() || t.includes(_DF_GUIDE_TITLE)) return t;
+  if (/^#\s/.test(t.trimStart())) {   // Markdown: after the title line and its intro paragraph
+    const lead = t.length - t.trimStart().length, nl = t.indexOf('\n', lead);
+    if (nl < 0) return t;
+    return t.slice(0, nl + 1) + '\n**' + _DF_GUIDE_TITLE + '.** ' + _DF_GUIDE_TEXT + '\n' + t.slice(nl + 1);
+  }
+  const lines = t.split('\n'); let i = 0; while (i < lines.length && !lines[i].trim()) i++;
+  let j = i + 1; while (j < lines.length && lines[j].trim()) j++;   // end of the title block (up to the first blank line)
+  lines.splice(j, 0, '', _DF_GUIDE_TITLE + ': ' + _DF_GUIDE_TEXT);
+  return lines.join('\n');
+}
 function triggerFileDownload(filename, text, opts) {
   const _scope = window.__dlScope || ''; window.__dlScope = '';   // one-shot: set by downloadDeliverable(), never leaks into a later download from another scope
   const m = String(filename).match(/^(.*)\.(txt|md)$/i);
   if (!m || (opts && opts.single)) return _dlBlob(filename, new Blob([text], { type: 'text/plain;charset=utf-8' }));
+  text = _dfWithReadingGuide(text);
   const base = m[1], isMd = /^#\s/.test(String(text).trimStart()), fmt = (opts && opts.format) || window.__dlFmtOverride || _getDownloadFormat();
   if (fmt === 'docx') { try { return _dlBlob(base + '.docx', _buildDocx(base, text, { customer: _scope })); } catch (e) { console.warn('[docx] build failed, falling back to text:', e); } }
   if (fmt === 'md') return _dlBlob(base + '.md', new Blob([isMd ? text : '```text\n' + text + '\n```\n'], { type: 'text/markdown;charset=utf-8' }));

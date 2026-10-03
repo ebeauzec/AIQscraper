@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.238] - 2026-10-03
+
+### Fixed
+- FabricPool cloud-latency and certificate-validation risks got the generic tiering-policy remediation; they now have specific steps and options (`app.js` remediation builder, before the capacity/FabricPool branch).
+
+### Added
+- Findings vs general guidance: every downloaded deliverable opens with a 'How to read this document' note (`_dfWithReadingGuide`, applied in `triggerFileDownload`); the remediation modal, risk cards, plain-text risk export and the Technical Risks / Security Advisories Word reports tag FINDING (detected on this system) vs GENERAL GUIDANCE (steps, options, mitigation). Styles `.rk-tag` in styles.css.
+
+---
+
 ## [5.6.237] - 2026-10-03
 
 ### Added
