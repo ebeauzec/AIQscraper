@@ -647,6 +647,17 @@ Each narrative deliverable starts with a **Decisions needed** block: the top fiv
 
 ## 8. Scores, KPIs & Metrics Reference
 
+### Capacity terms (read this before comparing numbers)
+
+| Term | Meaning | Where it appears |
+|---|---|---|
+| **Usable capacity** | Physical space available to a system for data | Capacity charts, runway, SAN & NAS "LUN size / usable" |
+| **Physical used** | Space actually consumed on the disks after dedupe and compression | Capacity charts and totals, Value & ROI |
+| **Provisioned (configured) size** | The size a LUN or volume is *set to*, which is what hosts see. With thin provisioning it is a promise, **not space used**, and it can be larger than the system's usable capacity | SAN & NAS tab, system cards, deliverables |
+| **Overcommit (LUN size / usable)** | Provisioned LUN size divided by the system's usable capacity. Above 1x is normal for thin provisioning | SAN & NAS tab |
+
+Rules ARIA follows: LUNs are stored inside volumes, so **LUN size and volume size overlap and are never added together**; provisioned sizes are **never part of the capacity totals** (those use physical used and usable only); and overcommitment is flagged as a finding **only when the system is also 80% or more full**, because that is when thin provisioning can cause failed writes. Every screen and deliverable that shows a provisioned size explains this in a sentence.
+
 ### Account Health Score (0-100)
 Composite index measuring overall customer account posture. Used in: TAM tab gauge, deliverables, MEDDPICC brief.
 

@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.234] - 2026-10-03
+
+### Fixed
+- Thin provisioning no longer causes confusion: LUN and volume sizes are labelled 'provisioned/configured size' everywhere (not space used, never added together, kept out of capacity totals), each system shows its provisioned LUN size against its usable capacity and physical use, and overcommitment is only flagged as a risk when the system is also 80% or more full. Also fixed: volume sizes were reported 1,024 times too small (a unit error), so every 'Volume Provisioned' figure was wrong; they are now correct, including for data already cached. (app.js: `_dfSanNasNote`, `_dfSanNasSentence`, `_lvVolumeKiB`, per-system `overcommit`/`usedPct` and an overcommit-with-high-utilisation finding in `_sanNasStorageSummary`, rewritten SAN/NAS wording in the QBR, MSP, Handover, Risk & Remediation, Security, Success Plan, Sustainability and Customer Health deliverables; server.py: volume `sizeKB`/`availableKB`/`usedSnapshotsKiB` no longer divided by 1,024, `volumeSizeUnitsFixed` marker.)
+
+### Notes
+- Evidence for the unit fix, on the live fleet (699 systems): logical used / total volume size had a median 458 with the old conversion and a median 0.45 (90th percentile 0.86) with the corrected one; LUN size / volume size a median 0.89. LUN `usableKiB` really is bytes (round values such as exactly 4.000 TB and 32.000 TB) and keeps its conversion.
+- Still open: LUN size is per node as Active IQ reports it; usable capacity per system is as Active IQ reports it for that system, and for some systems it is smaller than physical used, so the 'physical used' percentage can look odd there.
+
+---
+
 ## [5.6.233] - 2026-10-03
 
 ### Fixed

@@ -2540,9 +2540,13 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                         # a plausible ~420 GiB, and the system's total volume footprint drops from
                         # 72x its raw cluster capacity to a sane ~7%). Divide by 1024 to store as
                         # real KiB, matching every other *KiB field in this codebase.
-                        _size = (_cap.get("sizeKB") or 0) / 1024
-                        _avail = (_cap.get("availableKB") or 0) / 1024
-                        _snap = ((_cap.get("logical") or {}).get("usedSnapshotsKiB") or 0) / 1024
+                        # Volume sizes ARE in KiB, as the field names say. (An earlier version treated them as bytes and divided by 1024, which
+                        # made every volume size 1,024x too small: a system's logical used data came out at a median 458x its total volume size.
+                        # Verified on the live fleet: with the values as-is, logical used / volume size has a median 0.45 and LUN size / volume size
+                        # a median 0.89. LUN usableKiB is different: it really is bytes, and keeps its conversion above.)
+                        _size = (_cap.get("sizeKB") or 0)
+                        _avail = (_cap.get("availableKB") or 0)
+                        _snap = ((_cap.get("logical") or {}).get("usedSnapshotsKiB") or 0)
                         _vol_size_kib += _size
                         if (_v.get("provisioning") or {}).get("isThinProvisioned"):
                             _vol_thin += 1
@@ -2560,7 +2564,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                             _protocols.add(_p)
                     _lv_by_serial[_r.get("serialNumber")] = {
                         "lunCount": _lun_total, "lunUsableKiB": _lun_kib, "lunFetchTruncated": _lun_total > len(_luns),
-                        "volumeCount": _vol_total, "volumeSizeKiB": round(_vol_size_kib),
+                        "volumeCount": _vol_total, "volumeSizeKiB": round(_vol_size_kib), "volumeSizeUnitsFixed": True,   # marks data written with the corrected unit
                         "volumeThinProvisionedCount": _vol_thin, "volumeNoEfficiencyCount": _vol_no_efficiency,
                         "volumeHighSnapshotCount": _vol_high_snap,
                         "volumeSnapshotReserveOverflowCount": _vol_snap_overflow,

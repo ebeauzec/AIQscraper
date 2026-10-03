@@ -1,8 +1,8 @@
 {
-  "version": "5.6.233",
+  "version": "5.6.234",
   "major": 5,
   "minor": 6,
-  "patch": 233,
+  "patch": 234,
   "date": "2026-10-03",
-  "notes": "Fixes from a post-harvest sanity check: 'database is locked' errors while a harvest is saving (requests now wait for the lock; the reporting mirror is built before the write lock is taken), duplicate renewals/sites/other records when two accounts see the same system are shown once, and the 26 support cases on non-controller records are now visible with those records."
+  "notes": "Thin provisioning no longer causes confusion: LUN and volume sizes are labelled 'provisioned/configured size' everywhere (not space used, never added together, kept out of capacity totals), each system shows its provisioned LUN size against its usable capacity and physical use, and overcommitment is only flagged as a risk when the system is also 80% or more full. Also fixed: volume sizes were reported 1,024 times too small (a unit error), so every 'Volume Provisioned' figure was wrong; they are now correct, including for data already cached."
 }

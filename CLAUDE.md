@@ -22,7 +22,7 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-10-03 (Windows dev station, v5.6.233)
+## Session handoff -- 2026-10-03 (Windows dev station, v5.6.234)
 
 **State:** `main`, v5.6.221 (APP_VERSION + version.json + CHANGELOG.md + top APP_CHANGELOG entry all bumped together). `dist/` synced
 (app.js, `_internal/server.py`, rebuilt exe + base_library.zip from `%LOCALAPPDATA%\Temp\aiqbuild221`). See `git log` for pushed state.
@@ -65,6 +65,8 @@ Action Planner view; StorageGRID latest-version; MetroCluster card follows the s
 **Harvest completeness (v5.6.232):** audited every query for caps/default filters (see CONTEXT.md 'Harvest completeness audit'): LUNs/volumes/namespaces 100,000-item pages, shelf drives 1,000, aggregates/success plans/OS catalog cursor-paged, no 30-watchlist cap, no talking-point slice, cases/renewals with all six product types, non-controller records in `otherProductSystems`. Verified live: truncated LUN/volume systems 301 -> 0, short shelves 73 -> 0. When adding a query, check for a cursor, a nested page default and a `productTypes` default.
 
 **v5.6.233:** sanity check after a two-account harvest found: (1) 'database is locked' while a harvest saves (shared sqlite file; fixed with busy_timeout + shorter lock); (2) cross-account duplicates in renewals/sites/other records (de-duplicated on load); (3) 26 cases on non-controller records not displayed (now shown with those records); (4) the v5.6.232 commit omitted version.json and all docs: ALWAYS check `git diff --cached --stat` before committing and `git show --stat HEAD` after.
+
+**v5.6.234:** thin-provisioning clarity (shared wording helpers `_dfSanNasNote`/`_dfSanNasSentence`, per-system overcommit, finding only with 80%+ use) and a REAL BUG: volume sizes were stored 1,024x too small (server.py divided KiB values by 1,024); fixed in server.py and corrected on read for cached data (`_lvVolumeKiB`). Verified by logical-used / volume-size (median 458 -> 0.45). Usable capacity per system can be smaller than physical used for some systems (Active IQ field semantics unclear): not resolved.
 
 **Open / not done:**
 - Word layout was judged from generated Markdown/structure, never rendered in Word -- open one before sending to a customer.
