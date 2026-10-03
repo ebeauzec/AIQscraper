@@ -22,6 +22,8 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
+**v5.6.235 (2026-10-03):** switch firmware 'Version check' + RCF-applied wording (app.js `_dfSwBaseline`/`_dfSwitchVersionCheck`), SAN & NAS used% from Active IQ's utilisationPercentage. Still open: thick/thin volume flag semantics, exe launch test, Success Plan writes unverified.
+
 ## Session handoff -- 2026-10-03 (Windows dev station, v5.6.234)
 
 **State:** `main`, v5.6.221 (APP_VERSION + version.json + CHANGELOG.md + top APP_CHANGELOG entry all bumped together). `dist/` synced
