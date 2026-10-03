@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.228] - 2026-10-03
+
+### Changed
+- Node strip cluster boxes have a more visible outline (2 px cyan at 40% opacity) and a faint tinted background.
+
+---
+
 ## [5.6.227] - 2026-10-03
 
 ### Changed

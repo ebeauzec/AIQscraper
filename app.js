@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.227";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.228";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.228",
+    date: "3 October 2026",
+    title: "Clearer Cluster Boxes in the Node Strip",
+    sections: [
+      {
+        icon: "✨",
+        label: "Improved -- Cluster Outline",
+        color: "#22c55e",
+        items: [
+          "The boxes that group each cluster's nodes in the Technical Audit node strip now have a clearly visible outline and a faint tint, so the grouping reads at a glance.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.227",
     date: "3 October 2026",
@@ -42060,7 +42075,7 @@ function renderNodeVisualLayout(selectedSystems, sys) {
     _shown.slice().sort((x, y) => (x.order < y.order ? -1 : x.order > y.order ? 1 : 0) || String(x.label).localeCompare(String(y.label), undefined, { numeric: true }))
       .forEach(e => { if (!_groups.has(e.group)) _groups.set(e.group, []); _groups.get(e.group).push(e); });
     [..._groups.entries()].forEach(([gName, gNodes]) => {
-    tabsHtml += `<div style="border:1px solid var(--border-color);border-radius:var(--radius-sm);padding:6px 8px;background:rgba(255,255,255,0.02);"><div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:5px;">${gName} <span style="font-weight:500;">(${gNodes.length} node${gNodes.length !== 1 ? 's' : ''})</span></div><div style="display:flex;gap:6px;flex-wrap:wrap;">`;
+    tabsHtml += `<div style="border:2px solid rgba(0,229,255,0.4);border-radius:var(--radius-sm);padding:6px 8px;background:rgba(0,229,255,0.04);"><div style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.06em;color:var(--text-muted);margin-bottom:5px;">${gName} <span style="font-weight:500;">(${gNodes.length} node${gNodes.length !== 1 ? 's' : ''})</span></div><div style="display:flex;gap:6px;flex-wrap:wrap;">`;
     gNodes.forEach(e => {
       const s = e.s;
       const isActive = s.serialNumber === sys.serialNumber;

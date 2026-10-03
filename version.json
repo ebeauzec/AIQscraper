@@ -1,8 +1,8 @@
 {
-  "version": "5.6.227",
+  "version": "5.6.228",
   "major": 5,
   "minor": 6,
-  "patch": 227,
+  "patch": 228,
   "date": "2026-10-03",
-  "notes": "Technical Audit's Selected Systems header is collapsed by default (count plus 'Show list'); expanding it shows the names in a short scrolling box."
+  "notes": "Node strip cluster boxes have a more visible outline (2 px cyan at 40% opacity) and a faint tinted background."
 }
