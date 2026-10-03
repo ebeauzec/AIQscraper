@@ -1,8 +1,8 @@
 {
-  "version": "5.6.217",
+  "version": "5.6.218",
   "major": 5,
   "minor": 6,
-  "patch": 217,
+  "patch": 218,
   "date": "2026-10-03",
-  "notes": "Success Plans written to Active IQ now always carry the complete affected-system list (no 25/12-item cap, no 'see the tool for the full list'); if Active IQ rejects a very large single field, the same complete list is resent split across the plan's notes."
+  "notes": "Every Action Planner view can now be downloaded as a formatted Word document (new 'Download Word' button on each tab), and the StorageGRID tab has a full StorageGRID Assessment Report with executive summary, prioritised findings and recommended actions, and per-grid node roster, ILM rules, tenants and buckets."
 }

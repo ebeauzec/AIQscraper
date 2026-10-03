@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.218] - 2026-10-03
+
+### Added
+- Every Action Planner view can now be downloaded as a formatted Word document (new 'Download Word' button on each tab), and the StorageGRID tab has a full StorageGRID Assessment Report with executive summary, prioritised findings and recommended actions, and per-grid node roster, ILM rules, tenants and buckets.
+- `downloadPlanSectionWord()`, `_ensurePlanWordButton()`, `compileStorageGridReport()`, `downloadStorageGridReport()`, `_planScopeSystems()` (app.js).
+
+---
+
 ## [5.6.217] - 2026-10-03
 
 ### Fixed

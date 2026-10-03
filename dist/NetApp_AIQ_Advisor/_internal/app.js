@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.217";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.218";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.218",
+    date: "3 October 2026",
+    title: "Word Download for Every Action Planner View; Full StorageGRID Report",
+    sections: [
+      {
+        icon: "📄",
+        label: "New -- Download Any View as a Formatted Word Document",
+        color: "#22c55e",
+        items: [
+          "Every Action Planner tab (Summary, Risks, Security Advisories, OS Upgrades, Switch Validation, Support Cases, Operational Health, DR & Replication, Feature Adoption, Firmware Currency, SAN & NAS, Platform Insights, Performance, VMware, Contracts, Compliance, Sustainability, Recommendations, Account Intelligence, Logistics, Guidelines, Portfolio) now has a 'Download Word' button. The tab's content is converted into real Word headings, tables and lists with the standard ARIA title block, header and footer.",
+          "The StorageGRID tab has a fuller dedicated report: executive summary, every finding in one table with prioritised recommended actions and remediation steps, then per-grid sections with the node roster (role, form factor, reports to Active IQ, risks, last AutoSupport, drives, version), site capacity, ILM rules, tenants and buckets. Nothing is truncated.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.217",
     date: "3 October 2026",
@@ -34294,6 +34310,7 @@ function generateActionPlan() {
   sec26.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid var(--accent-cyan); padding-bottom: 8px; margin-bottom: 16px;">
       <h2 style="font-size: 1.15rem; margin: 0; border: none; padding: 0;">StorageGRID</h2>
+      ${_dfStorageGridView(targetSystems).grids.length ? `<button class="action-btn secondary" style="font-size: 0.72rem; padding: 4px 10px;" onclick="downloadStorageGridReport()" data-tooltip="Download the full StorageGRID assessment (grids, nodes, ILM rules, tenants, findings and recommendations) as a formatted Word document.">&#11015; Download Word report</button>` : ''}
     </div>
     ${_renderStorageGridSection(targetSystems)}`;
   planBody.appendChild(sec26);
@@ -34431,6 +34448,7 @@ function generateActionPlan() {
   }
 
   document.getElementById("planControlsPanel").style.display = "flex";
+    try { document.querySelectorAll('#generatedPlanBody .plan-section').forEach(_ensurePlanWordButton); } catch (_e) { /* non-fatal */ }
   } catch (err) {
     console.error('[ActionPlan] generateActionPlan crashed:', err);
     planBody.innerHTML = `<div style="padding:40px;text-align:center;">
@@ -34443,6 +34461,43 @@ function generateActionPlan() {
 }
 
 // Global section switcher inside generated plan
+
+// ── Word download for every Action Planner view ─────────────────────────────
+// Each tab gets a 'Download Word' button (added when the tab is opened). The tab's rendered content is converted to the
+// Markdown conventions _buildDocx understands, so tables, headings, lists and findings arrive as real Word structure.
+// Deliverable-suite tabs and the As-Built document have their own downloads and are skipped; StorageGRID uses the fuller
+// dedicated report (compileStorageGridReport).
+const _PLAN_WORD_SKIP = new Set(['9', '19', '23', '24']);
+function _ensurePlanWordButton(sec) {
+  if (!sec || sec.querySelector('.plan-word-btn')) return;
+  const idx = sec.getAttribute('data-section-index');
+  if (_PLAN_WORD_SKIP.has(idx)) return;
+  if (sec.querySelector('[onclick*="downloadStorageGridReport"]')) return;
+  const h = sec.querySelector('h2, h3'); if (!h) return;
+  const btn = document.createElement('button');
+  btn.className = 'action-btn secondary plan-word-btn'; btn.style.cssText = 'font-size:0.72rem;padding:4px 10px;margin-left:8px;';
+  btn.setAttribute('data-tooltip', 'Download this view as a formatted Word document.');
+  btn.innerHTML = '&#11015; Download Word';
+  btn.onclick = () => downloadPlanSectionWord(idx);
+  const parent = h.parentElement;
+  if (parent && getComputedStyle(parent).display === 'flex') parent.appendChild(btn);
+  else { const bar = document.createElement('div'); bar.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:8px;'; bar.appendChild(btn); h.insertAdjacentElement('beforebegin', bar); }
+}
+function downloadPlanSectionWord(index) {
+  const body = document.getElementById('generatedPlanBody');
+  const sec = body && body.querySelector(`.plan-section[data-section-index="${index}"]`);
+  if (!sec) { alert('Generate an action plan first.'); return; }
+  const { title: scopeTitle } = _planScopeSystems();
+  const clone = sec.cloneNode(true);
+  clone.querySelectorAll('button, .action-btn, select, .plan-word-btn').forEach(el => el.remove());
+  const h = clone.querySelector('h2, h3'); const title = (h ? h.innerText.trim() : 'Action Planner View') || 'Action Planner View';
+  if (h) h.remove();
+  const md = _domToMarkdown(clone, 2).trim();
+  if (!md) { alert('This view has no content to export.'); return; }
+  const text = `# ${title}\n\nScope: ${scopeTitle}\nDate Generated: ${new Date().toISOString().split('T')[0]}\n\n${md}\n`;
+  window.__dlScope = scopeTitle.replace(/_/g, ' ');
+  triggerFileDownload(_dlFilename(title, scopeTitle.replace(/_/g, ' '), 'md'), text, { format: 'docx' });
+}
 function switchPlanTab(index) {
 
   const sections = document.querySelectorAll(".plan-section");
@@ -34453,6 +34508,7 @@ function switchPlanTab(index) {
     if (secIdx === index) {
       sec.style.display = "block";
       sec.classList.add("active");
+      try { _ensurePlanWordButton(sec); } catch (_e) { /* non-fatal */ }
     } else {
       sec.style.display = "none";
       sec.classList.remove("active");
@@ -41995,6 +42051,80 @@ function bpLifPin(row) {
 // widget (category/description matching for "metrocluster"/"mediator"/
 // "mauso"), but always shows a status card instead of only appearing when
 // mcRisks.length > 0.
+
+// ── StorageGRID Word report ─────────────────────────────────────────────────
+// Full StorageGRID assessment for the Action Planner's current scope, built as Markdown so the Word export gets real
+// headings, tables and lists (same path as the Customer Health Report). Nothing is capped: every node, tenant and rule.
+function compileStorageGridReport(targetSystems, scopeTitle) {
+  const v = _dfStorageGridView(targetSystems);
+  const cust = String(scopeTitle || '').replace(/_/g, ' ').replace(/^(Customer|Watchlist|Group|Custom Group|System):\s*/, '') || 'Portfolio';
+  const today = new Date().toISOString().split('T')[0];
+  const cell = c => String(c == null || c === '' ? '—' : c).replace(/\|/g, '/').replace(/\r?\n/g, ' ');
+  const md = (h, rows) => rows.length ? `| ${h.join(' | ')} |\n|${h.map(() => '---').join('|')}|\n` + rows.map(r => `| ${r.map(cell).join(' | ')} |`).join('\n') + '\n\n' : '';
+  const sevName = x => x.charAt(0).toUpperCase() + x.slice(1);
+  if (!v.grids.length) return `# ${cust} -- StorageGRID Assessment\n\nPrepared ${today} from NetApp Active IQ telemetry.\n\nNo StorageGRID grid topology was returned by Active IQ for this scope${v.sgSystems ? ` (${_dfPlural(v.sgSystems, 'StorageGRID system')} found, but none carry grid topology; topology is reported by each grid's admin node)` : ''}.\n`;
+  const T = v.totals, hi = v.findings.filter(f => f.severity === 'high').length, md2 = v.findings.filter(f => f.severity === 'medium').length;
+  const phys = v.grids.reduce((a, g) => a + g.forms.Physical, 0), virt = v.grids.reduce((a, g) => a + g.forms.Virtual, 0), unk = v.grids.reduce((a, g) => a + g.forms.Unknown, 0);
+  let o = `# ${cust} -- StorageGRID Assessment\n\nPrepared ${today} from NetApp Active IQ telemetry (AutoSupport data as last received from each grid's admin node).\n\n`;
+  o += `## 1. Executive summary\n\n`;
+  o += `- **Estate:** ${_dfPlural(v.grids.length, 'grid')} across ${_dfPlural(T.sites, 'site')} with ${_dfPlural(T.nodes, 'node')} (${phys} physical, ${virt} virtual${unk ? `, ${unk} form factor not reported` : ''}).\n`;
+  o += `- **Object storage:** ${_dfPlural(T.tenants, 'tenant')} with ${_dfPlural(T.buckets, 'bucket')}, protected by ${_dfPlural(T.rules, 'ILM rule')}.\n`;
+  o += `- **Findings:** ${hi} high and ${md2} medium. ${hi ? 'The high-severity items are listed first in section 2.' : 'No high-severity findings.'}\n`;
+  const notRep = v.grids.reduce((a, g) => a + (g.nodesNotReporting ? g.nodesNotReporting.length : 0), 0);
+  if (notRep) o += `- **Monitoring gap:** ${_dfPlural(notRep, 'node')} are not reporting to Active IQ as their own systems, so their individual health is not monitored.\n`;
+  o += `\n` + md(['Grid', 'Customer', 'Version', 'Sites', 'Nodes', 'Tenants', 'Buckets', 'ILM rules', 'Capacity used %', 'Support term ends'],
+    v.grids.map(g => [g.gridName, g.customerName, g.version, g.sites.length || '', g.nodeTotal + (g.nodesNoDetail ? ` (${g.nodes.length} with detail)` : ''), g.tenants.length, g.buckets.length, g.rules.length, g.cap && g.cap.usedPct != null ? g.cap.usedPct : '', g.supportEnd]));
+  // findings
+  const fs = v.findings.filter(f => f.severity !== 'info');
+  o += `## 2. Findings and recommendations\n\n`;
+  if (fs.length) {
+    o += md(['Severity', 'Grid', 'Finding', 'Detail'], fs.map(f => [sevName(f.severity), f.grid, f.title, f.detail]));
+    o += `### Recommended actions\n\n`;
+    const groups = {}; fs.forEach(f => { const k = f.title.replace(/^Site .+? capacity above/, 'Site capacity above'); const g = groups[k] = groups[k] || { sev: f.severity, rec: f.recommendation, steps: f.steps || [], grids: new Set() }; g.grids.add(f.grid); if (f.severity === 'high') g.sev = 'high'; });
+    Object.keys(groups).sort((a, b) => (groups[a].sev === 'high' ? 0 : 1) - (groups[b].sev === 'high' ? 0 : 1)).forEach((k, i) => {
+      const g = groups[k];
+      o += `${i + 1}. **${k}** (${sevName(g.sev)}; ${_dfPlural(g.grids.size, 'grid')}: ${[...g.grids].slice(0, 6).join(', ')}${g.grids.size > 6 ? ', ...' : ''}) -- ${g.rec || 'Review the grid in Grid Manager.'}\n`;
+      (g.steps || []).forEach(st => { o += `    - ${st}\n`; });
+    });
+    o += `\n`;
+  } else o += `No high or medium findings were identified.\n\n`;
+  // per grid
+  o += `## 3. Grid detail\n\n`;
+  v.grids.forEach((g, gi) => {
+    o += `### 3.${gi + 1} ${g.gridName}${g.customerName ? ' (' + g.customerName + ')' : ''}\n\n`;
+    o += `${_dfPlural(g.nodeTotal, 'node')}${g.rolesText ? ' (' + g.rolesText + ')' : ''}; ${g.formsText || 'form factor not reported'}. Version ${g.version || 'not reported'}${g.licenseCapacity ? `; licence ${g.licenseCapacity} TB (${g.licenseType || 'type not reported'})` : ''}${g.supportEnd ? `; software support term ends ${g.supportEnd}` : ''}. Primary admin: ${g.primaryAdmin || 'not reported'}${g.primaryAdminSite ? ' (' + g.primaryAdminSite + ')' : ''}.\n\n`;
+    const grp = {}; g.nodes.forEach(n => { const k = (n.storageNodeType || 'Unknown role') + '|' + _dfSgForm(n).label; grp[k] = (grp[k] || 0) + 1; });
+    const roleRows = Object.keys(grp).map(k => { const [r, f] = k.split('|'); return [r, f, grp[k]]; }); if (g.nodesNoDetail) roleRows.push(['Role not reported', 'Form factor not reported', g.nodesNoDetail]);
+    if (roleRows.length) o += `**Nodes by role and form factor**\n\n` + md(['Role', 'Form factor', 'Nodes'], roleRows);
+    if (g.nodes.length) o += `**Node roster**\n\n` + md(['Site', 'Node', 'Role', 'Appliance', 'Reports to Active IQ', 'Crit/High risks', 'Last AutoSupport', 'RAID', 'Drives', 'Version'],
+      g.nodes.map(n => [n.site, n.hostName, n.storageNodeType, _dfSgForm(n).label, n.reporting ? 'Yes' : 'No', n.health ? n.health.crit + '/' + n.health.high : '', n.health && n.health.asupDays != null ? n.health.asupDays + ' d' : '', n.raidMode, n.driveType ? n.driveType + (n.driveSizeGB ? ' ' + n.driveSizeGB + ' GB' : '') : '', n.osVersion]));
+    if (g.unlisted && g.unlisted.length) o += `_Active IQ systems attributed to this grid but not in its node roster (not counted as nodes): ${g.unlisted.map(x => x.systemName || x.serialNumber).join(', ')}._\n\n`;
+    if (g.siteCap.length) o += `**Site capacity (TB)**\n\n` + md(['Site', 'Total', 'Used', 'Usable left', 'Used %', 'Reported'], g.siteCap.map(sc => [sc.site, sc.totalTB, sc.usedTB, sc.usableLeftTB, sc.usedPct, sc.reportedOn]));
+    if (g.rules.length) o += `**ILM rules as reported by Active IQ**\n\n_Active IQ returns one ILM rule set per grid and does not say which rules belong to the active policy. Confirm in Grid Manager > ILM > Policies._\n\n` + md(['Rule', 'Default', 'Placement', 'Reference time', 'Ingest', 'Applies to'], g.rules.map(r => [r.ruleName, r.isDefaultRule ? 'Yes' : 'No', r._p.text, r.referenceTime, r.ingestBehavior, r.filter || 'All objects']));
+    if (g.tenants.length) o += `**Tenants and buckets**\n\n` + md(['Tenant ID', 'Buckets', 'Versioned', 'Immutable', 'CloudMirror'], g.tenants.map(tn => { const b = tn.buckets || []; return [tn.tenantId, b.length, b.filter(x => String(x.versioning || '').toUpperCase() === 'ENABLED').length, b.filter(x => x.isS3ObjectLockingEnabled || x.isLegacyComplianceEnabled).length, b.filter(x => x.isCloudMirror).length]; }));
+    const gf = g.findings.filter(f => f.severity !== 'info');
+    o += gf.length ? `**Findings for this grid**\n\n` + md(['Severity', 'Finding', 'Detail', 'Recommendation'], gf.map(f => [sevName(f.severity), f.title, f.detail, f.recommendation])) : `No high or medium findings for this grid.\n\n`;
+  });
+  o += `## 4. About this report\n\nData comes from NetApp Active IQ: each grid's admin node reports the grid topology, tenants, buckets, ILM rules and capacity through AutoSupport. Node counts use the grid's own figures. VMware nodes expose no model, drive or version detail through Active IQ, and Active IQ does not publish an active-policy flag for ILM rules. Verify live state in Grid Manager before acting on any finding.\n`;
+  return o;
+}
+function _planScopeSystems() {
+  const selectEl = document.getElementById("planTargetSelect"); const v = selectEl ? selectEl.value : 'ALL';
+  let systems = [], title = 'Total Portfolio';
+  if (v === 'ALL') { systems = getFilteredSystems(); }
+  else if (v.startsWith('CUST:')) { const c = v.substring(5); systems = state.systems.filter(s => s.customerName === c); title = `Customer: ${c}`; }
+  else if (v.startsWith('GRP:')) { const g = state.groups.find(x => x.id === v.substring(4)); if (g) { systems = state.systems.filter(s => g.systemSerials.includes(s.serialNumber)); title = `Group: ${g.name}`; } }
+  else if (v.startsWith('WL:')) { const w = state.watchlists.find(x => x.id === v.substring(3)); if (w) { systems = state.systems.filter(s => w.systemSerials.includes(s.serialNumber)); title = `Watchlist: ${w.name}`; } }
+  else if (v.startsWith('SYS:')) { const f = state.systems.find(s => s.serialNumber === v.substring(4)); if (f) systems = [f]; title = `System: ${f ? f.systemName : v.substring(4)}`; }
+  return { systems, title };
+}
+function downloadStorageGridReport() {
+  const { systems, title } = _planScopeSystems();
+  if (!systems.length) { alert('No systems in the current scope.'); return; }
+  const text = compileStorageGridReport(systems, title);
+  window.__dlScope = title.replace(/_/g, ' ');
+  triggerFileDownload(_dlFilename('StorageGRID Assessment Report', title.replace(/_/g, ' '), 'md'), text, { format: 'docx' });
+}
 function renderStorageGridStatus(view) {
   const container = document.getElementById("tamStorageGridContainer");
   if (!container || !view) return;
