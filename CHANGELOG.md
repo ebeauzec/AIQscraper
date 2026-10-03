@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.237] - 2026-10-03
+
+### Added
+- TAM Success Plan: cluster switch inventory section (the last deliverable without one).
+
+---
+
 ## [5.6.236] - 2026-10-03
 
 ### Fixed

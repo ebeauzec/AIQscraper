@@ -26,6 +26,8 @@ wrapping up the session, the same way you'd commit code.
 
 **v5.6.236 (2026-10-03):** thick/thin flag follows NetApp guidance (not scored, data volumes only, thick flagged only on 80%+ full systems; `_lvThinStats`; server.py `volumeDataCount`/`volumeDataThinCount`). Needs a harvest for the non-root split.
 
+**v5.6.237 (2026-10-03):** TAM plan now has the switch section. Rebuilt exe verified: launches and serves/proxies when run from a local path (from the Google Drive path it fails loading pythonnet's DLL: run it from a local copy). Remaining genuinely open: Word layout never viewed in Word, Success Plan writes never exercised against a live customer account, very large exports (22 MB Technical Risks docx, ~251 MB plan HTML for the largest customer), CONTEXT.md sections 5-12 stale.
+
 ## Session handoff -- 2026-10-03 (Windows dev station, v5.6.234)
 
 **State:** `main`, v5.6.221 (APP_VERSION + version.json + CHANGELOG.md + top APP_CHANGELOG entry all bumped together). `dist/` synced

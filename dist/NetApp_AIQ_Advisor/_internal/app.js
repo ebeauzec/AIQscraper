@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.236";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.237";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.237",
+    date: "3 October 2026",
+    title: "Switches in the TAM Success Plan",
+    sections: [
+      {
+        icon: "🔀",
+        label: "Added -- Cluster Switch Section",
+        color: "#22c55e",
+        items: [
+          "The TAM Success Plan now includes the cluster switch inventory (each distinct switch once, with firmware version check, applied RCF, monitoring and SNMP version), as the MSP, Handover and Security deliverables already did.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.236",
     date: "3 October 2026",
@@ -25731,6 +25746,9 @@ ${(() => { const hs = _dfSystemHealthScores(targetSystems); if (!hs) return ''; 
 
 * SYSTEMS RANKED BY ISSUE SEVERITY (Worst First):
 ${(() => { const t = _dfSystemIssueRankingText(targetSystems); return t || '  No system in scope currently has an open critical/high risk, critical/high CVE, or open support case.'; })()}
+${(() => { const t = _dfSwitchInventoryText(targetSystems, { limit: 30 }); if (!t) return ''; return `
+* CLUSTER SWITCHES (Inventory, Firmware Version Check, SNMP):
+${t}`; })()}
 ${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `
 * STORAGEGRID GRID TOPOLOGY, TENANTS & ILM:
 ${_dfStorageGridText(v)}`; })()}
