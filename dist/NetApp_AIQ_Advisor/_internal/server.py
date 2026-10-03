@@ -2525,7 +2525,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     _vols = (_r.get("storageVolumes") or {}).get("volumes") or []
                     _vol_total = (_r.get("storageVolumes") or {}).get("totalCount") or 0
                     _vol_size_kib = 0
-                    _vol_thin = 0
+                    _vol_thin = 0; _vol_data = 0; _vol_data_thin = 0
                     _vol_no_efficiency = 0
                     _vol_high_snap = 0
                     _vol_snap_overflow = 0
@@ -2550,6 +2550,10 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                         _vol_size_kib += _size
                         if (_v.get("provisioning") or {}).get("isThinProvisioned"):
                             _vol_thin += 1
+                        if not _v.get("isRoot"):
+                            _vol_data += 1
+                            if (_v.get("provisioning") or {}).get("isThinProvisioned"):
+                                _vol_data_thin += 1
                         _saved_pct = ((_cap.get("efficiency") or {}).get("saved") or {}).get("totalSavedPercentage")
                         if not _v.get("isRoot") and (_saved_pct or 0) == 0:
                             _vol_no_efficiency += 1
@@ -2565,7 +2569,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     _lv_by_serial[_r.get("serialNumber")] = {
                         "lunCount": _lun_total, "lunUsableKiB": _lun_kib, "lunFetchTruncated": _lun_total > len(_luns),
                         "volumeCount": _vol_total, "volumeSizeKiB": round(_vol_size_kib), "volumeSizeUnitsFixed": True,   # marks data written with the corrected unit
-                        "volumeThinProvisionedCount": _vol_thin, "volumeNoEfficiencyCount": _vol_no_efficiency,
+                        "volumeThinProvisionedCount": _vol_thin, "volumeDataCount": _vol_data, "volumeDataThinCount": _vol_data_thin, "volumeNoEfficiencyCount": _vol_no_efficiency,
                         "volumeHighSnapshotCount": _vol_high_snap,
                         "volumeSnapshotReserveOverflowCount": _vol_snap_overflow,
                         "volumeSnapshotCountTotal": _vol_snapshot_count_total,

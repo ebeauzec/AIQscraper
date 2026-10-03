@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.235";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.236";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.236",
+    date: "3 October 2026",
+    title: "Thick vs Thin Volumes Follow NetApp Guidance",
+    sections: [
+      {
+        icon: "💾",
+        label: "Fixed -- Thick Volumes Are Not a Defect",
+        color: "#22c55e",
+        items: [
+          "ARIA used to flag any customer with under 50% thin volumes and scored it in the Feature Adoption Score. NetApp supports both: thin (space guarantee none, the default on AFF) and thick (space guarantee volume, which reserves the full size in the aggregate so writes can never fail for lack of space). Root volumes are thick by design. The thin share is now shown for information only, counts data volumes only, and is not scored.",
+          "Thick volumes become a finding only on a system that is also 80% or more full, where their reserved space is worth reviewing; the remediation says to set the space guarantee to none only where the workload does not need a write guarantee. The harvest now records data volumes and their thin count separately (older cached data counts all volumes until the next harvest).",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.235",
     date: "3 October 2026",
@@ -8727,7 +8743,7 @@ const MOCK_SYSTEMS = [
           remediationPlan: {
             cause: "Unplanned storage growth in local snapshot copies.",
             impact: "Potential read-only fail-safes if aggregates fill to 100%.",
-            steps: ["1. Identify thick-provisioned volumes.", "2. Convert to thin-provisioned or move volumes to node 2 aggregates."],
+            steps: ["1. Identify volumes with a space guarantee (thick) whose reserved space is not needed.", "2. Set the guarantee to none (thin) where the workload allows, or move volumes to node 2 aggregates."],
             options: ["Option A: Relocate volumes non-disruptively.", "Option B: Reclaim space by deleting snapshots."],
             thirdParty: "Virtual machine provisionings will fail."
           }
@@ -20034,7 +20050,8 @@ function computeFeatureAdoptionScore(sys) {
   // "LUN / NAS volume inventory summary merge" in server.py).
   const lv = sys.lunVolumeSummary;
   if (lv && lv.volumeCount > 0) {
-    total++; if ((lv.volumeThinProvisionedCount || 0) / lv.volumeCount >= 0.5) passed++;
+    // Thin vs thick is not scored (both are valid ONTAP configurations); thick volumes count against a system only when it is also 80%+ full.
+    { const _ts = _lvThinStats(lv), _u = sys.clusterCapacityUtilPct; if (_ts.n > 0 && _u >= 80) { total++; if (_ts.thick === 0) passed++; } }
     total++; if ((lv.volumeNoEfficiencyCount || 0) / lv.volumeCount < 0.5) passed++;
   }
 
@@ -25737,9 +25754,9 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
   - Est. 12-Month Growth:   ${cap.totalGrowthTBMo > 0 ? (cap.totalGrowthTBMo * 12).toFixed(1) + ' TB' : 'N/A'}`; })()}
 
 * SAN/NAS STORAGE & SNAPSHOT HEALTH:
-${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return '  N/A -- no LUN/volume inventory reported for this scope.'; const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : 0; return `  - LUNs:                   ${_dfPlural(sn.lunCount, 'LUN')}, ${sn.lunProvisionedTB.toFixed(1)} TB provisioned size, across ${_dfPlural(sn.systemsCovered, 'system')}
+${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return '  N/A -- no LUN/volume inventory reported for this scope.'; const thinPct = sn.dataVolumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.dataVolumeCount * 100) : 0; return `  - LUNs:                   ${_dfPlural(sn.lunCount, 'LUN')}, ${sn.lunProvisionedTB.toFixed(1)} TB provisioned size, across ${_dfPlural(sn.systemsCovered, 'system')}
   - Volumes:                ${_dfPlural(sn.volumeCount, 'volume')}, ${sn.volumeProvisionedTB.toFixed(1)} TB configured size (LUNs live inside volumes, so the two sizes overlap)
-  - Thin Provisioning:      ${sn.volumeCount ? thinPct + '%' : 'N/A'} of volumes
+  - Thin Provisioning:      ${sn.dataVolumeCount ? thinPct + '%' : 'N/A'} of volumes
   - Note:                   ${_dfSanNasNote()}
   - Snapshot Reserve Overflow: ${_dfPlural(sn.volumeSnapshotReserveOverflowCount, 'volume')}
 ${sn.findings.length ? sn.findings.map(f => `  - ${f}`).join('\n') : '  - No SAN/NAS best-practice concerns identified.'}`; })()}
@@ -26104,7 +26121,7 @@ function compileQBRPack(targetSystems, allRisks, allUpgrades, expiringContracts,
     Data Reduction Ratio: ${drr}:1
     Space Saved:          ${savedTotal.toFixed(1)} TB\n`;
   }
-  sustainSection += (() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : 0; return `\n  SAN/NAS Storage: ${_dfSanNasSentence(sn)} ${sn.findings.length ? sn.findings[0] : 'No SAN/NAS best-practice concerns identified.'}\n`; })();
+  sustainSection += (() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.dataVolumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.dataVolumeCount * 100) : 0; return `\n  SAN/NAS Storage: ${_dfSanNasSentence(sn)} ${sn.findings.length ? sn.findings[0] : 'No SAN/NAS best-practice concerns identified.'}\n`; })();
 
   // ── Lifecycle / Renewal Pipeline ──
   const exp90  = expiringContracts.length;
@@ -26731,10 +26748,10 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `
   Red Zone (>85%):        ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''}
   Amber Zone (70-85%):    ${cap.amberCount} system${cap.amberCount !== 1 ? 's' : ''}
   <60-day Runway Systems: ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + (a.runway === 0 ? 'at threshold' : a.runway + 'd') + ')').join(', ') : 'None'}`; })()}
-${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : 0; return `
+${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.dataVolumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.dataVolumeCount * 100) : 0; return `
   SAN/NAS STORAGE:
   LUNs and volumes:       ${_dfPlural(sn.lunCount, 'LUN')} (${sn.lunProvisionedTB.toFixed(1)} TB provisioned size), ${_dfPlural(sn.volumeCount, 'volume')} (${sn.volumeProvisionedTB.toFixed(1)} TB configured size) across ${_dfPlural(sn.systemsCovered, 'system')}
-  Thin Provisioning:      ${sn.volumeCount ? thinPct + '%' : 'N/A'} of volumes
+  Thin Provisioning:      ${sn.dataVolumeCount ? thinPct + '%' : 'N/A'} of volumes
   How to read this:       ${_dfSanNasNote()}
   Snapshot Reserve Overflow: ${_dfPlural(sn.volumeSnapshotReserveOverflowCount, 'volume')}
 ${sn.findings.length ? sn.findings.map(f => `  - ${f}`).join('\n') : '  No SAN/NAS best-practice concerns identified.'}`; })()}
@@ -27335,7 +27352,7 @@ ${(() => { const cap = computeFleetCapacityForecast(targetSystems); return `  Fl
   AMBER Zone (70-85%):   ${cap.amberCount} system${cap.amberCount !== 1 ? 's' : ''}
   <60-day Runway:        ${cap.atRisk.length > 0 ? cap.atRisk.map(a => a.name + ' (' + (a.runway === 0 ? 'at threshold' : a.runway + 'd') + ')').join(', ') : 'None — capacity healthy'}
   Procurement Alert:     ${cap.atRisk.length > 0 ? 'Yes — capacity procurement discussions may be in progress' : 'No immediate procurement needed'}`; })()}
-${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : 0; return `
+${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.dataVolumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.dataVolumeCount * 100) : 0; return `
   SAN/NAS Storage: ${_dfSanNasSentence(sn)} ${sn.findings.length ? sn.findings[0] : 'No SAN/NAS best-practice concerns identified.'}`; })()}
 
 --------------------------------------------------------------------------------
@@ -27730,8 +27747,8 @@ function compileSustainabilityReport(targetSystems, allRisks, expiringContracts,
     Power and carbon: Active IQ reports scores, not measured power or CO2. No
     power or carbon figures are estimated here; for ESG reporting use your
     metered power data and regional grid carbon intensity.
-${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : 0; return `
-    SAN/NAS space efficiency: ${_dfPlural(sn.volumeCount, 'volume')} with ${sn.volumeProvisionedTB.toFixed(1)} TB configured size (not space used), ${sn.volumeCount ? thinPct + '%' : 'N/A'} thin-provisioned. Thin provisioning and data-reduction (dedupe/compression) both lower the physical footprint per TB served.${sn.volumeNoEfficiencyCount > 0 ? ` ${_dfPlural(sn.volumeNoEfficiencyCount, 'volume')} show 0% data reduction savings -- confirming efficiency policies are enabled would extend the fleet's effective capacity without adding physical media.` : ''}`; })()}
+${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.dataVolumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.dataVolumeCount * 100) : 0; return `
+    SAN/NAS space efficiency: ${_dfPlural(sn.volumeCount, 'volume')} with ${sn.volumeProvisionedTB.toFixed(1)} TB configured size (not space used), ${sn.dataVolumeCount ? thinPct + '%' : 'N/A'} thin-provisioned. Thin provisioning and data-reduction (dedupe/compression) both lower the physical footprint per TB served.${sn.volumeNoEfficiencyCount > 0 ? ` ${_dfPlural(sn.volumeNoEfficiencyCount, 'volume')} show 0% data reduction savings -- confirming efficiency policies are enabled would extend the fleet's effective capacity without adding physical media.` : ''}`; })()}
 
   3. PER-SYSTEM SUSTAINABILITY SCORES
   ────────────────────────────────────────────────────────────────────────────
@@ -28669,17 +28686,29 @@ function _dfCapacityTrend(systems) {
 // LUNs are stored inside volumes, so LUN size and volume size overlap and are never added together.
 // Volume sizes harvested before v5.6.234 were stored 1,024x too small (see server.py): correct them on read so cached data is right until the next harvest.
 function _lvVolumeKiB(lv) { return (lv && lv.volumeSizeKiB ? lv.volumeSizeKiB : 0) * (lv && lv.volumeSizeUnitsFixed ? 1 : 1024); }
+// Thin vs thick (ONTAP volume space guarantee). Active IQ's isThinProvisioned = space guarantee 'none'. NetApp: AFF/ASA volumes (and non-AFF DP volumes)
+// default to 'none' (thin); other FAS volumes default to 'volume' (thick: the full size is reserved in the aggregate whether or not it is written). Thick is
+// a valid choice for workloads that must never see an out-of-space write, and root volumes (vol0, SVM roots) are thick by design, so the share of thin
+// volumes is neither a score nor a finding by itself. Thick matters only where aggregate space is short. Volumes harvested before v5.6.235 have no
+// data-volume split, so all volumes are counted for them.
+function _lvThinStats(lv) {
+  const hasSplit = lv && lv.volumeDataCount != null;
+  const n = hasSplit ? lv.volumeDataCount : ((lv && lv.volumeCount) || 0);
+  const thin = hasSplit ? (lv.volumeDataThinCount || 0) : ((lv && lv.volumeThinProvisionedCount) || 0);
+  return { n, thin, thick: Math.max(0, n - thin), hasSplit };
+}
 function _dfSanNasNote() {
   return "Provisioned size is the size configured for a LUN or volume (what hosts see). With thin provisioning it is not space used and can exceed the system's usable capacity; physical used and usable capacity are reported in the capacity sections. LUNs are stored inside volumes, so LUN and volume sizes overlap and are not added together.";
 }
 function _dfSanNasSentence(sn, naWord) {
-  const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : null;
+  const thinPct = sn.dataVolumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.dataVolumeCount * 100) : null;
   return `${_dfPlural(sn.lunCount, 'LUN')} with ${sn.lunProvisionedTB.toFixed(1)} TB provisioned size, and ${_dfPlural(sn.volumeCount, 'volume')} with ${sn.volumeProvisionedTB.toFixed(1)} TB configured size (LUNs live inside volumes, so the sizes overlap; neither is space used), across ${_dfPlural(sn.systemsCovered, 'system')}; ${thinPct != null ? thinPct + '%' : (naWord || 'N/A')} of volumes are thin-provisioned.`;
 }
 function _sanNasStorageSummary(systems) {
   const withData = (systems || []).filter(s => s.lunVolumeSummary);
   if (!withData.length) return null;
   let lunCount = 0, lunUsableKiB = 0, lunTruncated = 0;
+  let volData = 0, volNoSplit = 0;
   let volCount = 0, volSizeKiB = 0, volThin = 0, volNoEff = 0, volHighSnap = 0, volTruncated = 0;
   let volSnapOverflow = 0, volSnapshotCountTotal = 0;
   const protocols = new Set();
@@ -28691,7 +28720,7 @@ function _sanNasStorageSummary(systems) {
     if (lv.lunFetchTruncated) lunTruncated++;
     volCount += lv.volumeCount || 0;
     volSizeKiB += _lvVolumeKiB(lv);
-    volThin += lv.volumeThinProvisionedCount || 0;
+    { const _ts = _lvThinStats(lv); volThin += _ts.thin; volData += _ts.n; if (!_ts.hasSplit) volNoSplit++; }
     volNoEff += lv.volumeNoEfficiencyCount || 0;
     volHighSnap += lv.volumeHighSnapshotCount || 0;
     volSnapOverflow += lv.volumeSnapshotReserveOverflowCount || 0;
@@ -28702,7 +28731,7 @@ function _sanNasStorageSummary(systems) {
       bySystem.push({ systemName: s.systemName, clusterName: s.clusterName, customerName: s.customerName,
         lunCount: lv.lunCount || 0, lunTB: (lv.lunUsableKiB || 0) / (1024 ** 3),
         volumeCount: lv.volumeCount || 0, volumeTB: _lvVolumeKiB(lv) / (1024 ** 3),
-        thinPct: lv.volumeCount ? (lv.volumeThinProvisionedCount || 0) / lv.volumeCount * 100 : 0,
+        thinPct: _lvThinStats(lv).n ? _lvThinStats(lv).thin / _lvThinStats(lv).n * 100 : null, thickCount: _lvThinStats(lv).thick,
         snapshotReserveOverflowCount: lv.volumeSnapshotReserveOverflowCount || 0,
         // thin-provisioning context: provisioned LUN size against this system's own physical capacity (as Active IQ reports it for the system)
         usableTB: (s.efficiency && s.efficiency.usableCapacityTB) || s.clusterUsableCapacityTB || 0,
@@ -28733,17 +28762,21 @@ function _sanNasStorageSummary(systems) {
   if (volHighSnap > 0) {
     findings.push(`${_dfPlural(volHighSnap, 'volume')} have a large snapshot footprint (snapshot space over 30% of used capacity). Review snapshot retention/schedule on these volumes.`);
   }
-  const thinPct = volCount > 0 ? (volThin / volCount * 100) : null;
-  if (volCount > 0 && thinPct < 50) {
-    findings.push(`Only ${thinPct.toFixed(0)}% of ${_dfPlural(volCount, 'volume')} across ${_dfPlural(withData.length, 'system')} are thin-provisioned. NetApp best practice is thin provisioning by default for space efficiency; review thick-provisioned volumes for conversion where the workload allows it.`);
+  // Thick (space-guaranteed) volumes are a valid NetApp configuration, so the thin share is never a finding by itself. They matter only on a system
+  // whose capacity is also running short, because each thick volume holds its full size in the aggregate whether or not it is written.
+  const thickHot = bySystem.filter(r => r.thickCount > 0 && r.usedPct != null && r.usedPct >= 80);
+  if (thickHot.length) {
+    findings.push(`${_dfPlural(thickHot.length, 'system')} ${thickHot.length === 1 ? 'is' : 'are'} 80% or more full and ${thickHot.length === 1 ? 'has' : 'have'} thick-provisioned (space-guaranteed) volumes (${thickHot.slice(0, 3).map(r => r.systemName + ' ' + r.usedPct.toFixed(0) + '% used, ' + _dfPlural(r.thickCount, 'thick volume')).join('; ')}${thickHot.length > 3 ? '; ...' : ''}). A thick volume reserves its full size in the aggregate whether or not it is written. Where a workload does not need a guaranteed-write commitment, setting the volume's space guarantee to none (thin) releases that reserved space; keep thick for workloads that must never see an out-of-space error. Root volumes are thick by design and are not counted.`);
   }
+  const thinPct = volData > 0 ? (volThin / volData * 100) : null;
   if (volNoEff > 0) {
     findings.push(`${_dfPlural(volNoEff, 'volume')} show 0% data reduction savings (no dedupe/compression benefit measured). Confirm efficiency policies are enabled where appropriate.`);
   }
   return {
     lunCount, lunUsableTB: lunUsableKiB / (1024 ** 3), lunTruncated,
     volumeCount: volCount, volumeTotalTB: volSizeKiB / (1024 ** 3),
-    volumeThinProvisionedCount: volThin, volumeNoEfficiencyCount: volNoEff, volumeHighSnapshotCount: volHighSnap, volTruncated,
+    volumeThinProvisionedCount: volThin, dataVolumeCount: volData, thickVolumeCount: Math.max(0, volData - volThin), thinCountIncludesRoot: volNoSplit > 0, thinPct,
+    thickHotCount: thickHot.length, volumeNoEfficiencyCount: volNoEff, volumeHighSnapshotCount: volHighSnap, volTruncated,
     volumeSnapshotReserveOverflowCount: volSnapOverflow, volumeSnapshotCountTotal: volSnapshotCountTotal,
     protocols: [...protocols].sort(),
     systemsCovered: withData.length,
@@ -28803,7 +28836,7 @@ function compileValueReport(targetSystems, allRisks, openCases, scopeTitle) {
   const plan = _dfActionPlan(targetSystems, allRisks, openCases);
   let o = `# ${cust} -- Customer Value Report\n\n_Prepared ${new Date().toISOString().split('T')[0]} from NetApp Active IQ telemetry. One heading per slide._\n\n`;
   o += `## Slide 1 -- Executive summary\n\n- **Account health index:** ${hs}/100 (grade ${grade}) -- a composite of AutoSupport, ARP, OS currency, firmware, contracts, risks and capacity.\n- **Estate:** ${targetSystems.length} system${targetSystems.length !== 1 ? 's' : ''}.\n- **Support:** ${cf.active.length} active${cf.expired.length ? `, ${cf.expired.length} lapsed` : ''}${cf.expiring90.length ? `, ${cf.expiring90.length} expiring within 90 days` : ''}.\n- **Storage efficiency (ONTAP):** ${ph > 0 ? `${(lg / ph).toFixed(1)}:1, ${(lg - ph).toFixed(1)} TB saved` : 'not reported'}.\n- **Availability:** ${up.systemsWithEvents > 0 ? `${up.totalOutageMinutes} minutes of downtime across ${up.systemsWithEvents} system${up.systemsWithEvents !== 1 ? 's' : ''}` : 'no downtime events recorded'}.\n${sus.scorePercentage != null ? `- **Sustainability score (Active IQ):** ${sus.scorePercentage}%.\n` : ''}\n`;
-  o += `## Slide 2 -- Value delivered\n\n${(() => { const _pv = _dfPlatformInsights(targetSystems); return _pv.energy.n ? `- Power and cooling: ${_dfPlatformInsightsSummaryLine(_pv).split(';')[0]}.\n` : ''; })()}- Data reduction on ONTAP systems: ${ph > 0 ? `${lg.toFixed(1)} TB of logical data in ${ph.toFixed(1)} TB physical (${(lg / ph).toFixed(1)}:1).` : 'not reported by Active IQ.'}\n- Capacity: ${cap.utilPct}% fleet utilisation; ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''} within 60 days of the capacity threshold.\n- Monitoring: ${targetSystems.filter(s => { const a = s.autosupport || {}; return a.enabled === true && (a.lastReceivedDays == null || a.lastReceivedDays <= 7); }).length} of ${targetSystems.length} systems send AutoSupport data to Active IQ.\n${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : 0; return `- SAN/NAS storage: ${_dfPlural(sn.lunCount, 'LUN')} and ${_dfPlural(sn.volumeCount, 'NAS volume')} totaling ${(sn.lunUsableTB + sn.volumeTotalTB).toFixed(1)} TB provisioned, ${sn.volumeCount ? thinPct + '%' : 'N/A'} thin-provisioned.\n`; })()}\n`;
+  o += `## Slide 2 -- Value delivered\n\n${(() => { const _pv = _dfPlatformInsights(targetSystems); return _pv.energy.n ? `- Power and cooling: ${_dfPlatformInsightsSummaryLine(_pv).split(';')[0]}.\n` : ''; })()}- Data reduction on ONTAP systems: ${ph > 0 ? `${lg.toFixed(1)} TB of logical data in ${ph.toFixed(1)} TB physical (${(lg / ph).toFixed(1)}:1).` : 'not reported by Active IQ.'}\n- Capacity: ${cap.utilPct}% fleet utilisation; ${cap.redCount} system${cap.redCount !== 1 ? 's' : ''} within 60 days of the capacity threshold.\n- Monitoring: ${targetSystems.filter(s => { const a = s.autosupport || {}; return a.enabled === true && (a.lastReceivedDays == null || a.lastReceivedDays <= 7); }).length} of ${targetSystems.length} systems send AutoSupport data to Active IQ.\n${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.dataVolumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.dataVolumeCount * 100) : 0; return `- SAN/NAS storage: ${_dfPlural(sn.lunCount, 'LUN')} and ${_dfPlural(sn.volumeCount, 'NAS volume')} totaling ${(sn.lunUsableTB + sn.volumeTotalTB).toFixed(1)} TB provisioned, ${sn.dataVolumeCount ? thinPct + '%' : 'N/A'} thin-provisioned.\n`; })()}\n`;
   o += `## Slide 3 -- Security and planning\n\n- **Risks detected by Active IQ on your systems:** ${rk('critical')} critical, ${rk('high')} high, ${rk('medium')} medium.\n- **Published vulnerabilities (CVEs) for the software versions you run:** ${cves.length} (${cves.filter(c => c.sev === 'critical').length} critical, ${cves.filter(c => c.sev === 'high').length} high). These are counted separately from the risks above.\n- **Hardware end-of-support within 24 months:** ${_dfRefreshPlan(targetSystems).filter(r => r.days <= 730).map(r => `${r.model} (${_dfPlural(r.n, 'system')}, ${_dfDate(r.eos)})`).join('; ') || 'none reported'}.\n\n`;
   const uf = _dfCollapseFindings((allRisks || []).filter(r => ['critical', 'high'].includes(String(r.severity).toLowerCase()) && !/best.?practice/i.test(r.category || '')).map(r => ({ description: r.description, severity: r.severity, systemName: r.systemName || r.serialNumber })));
   uf.sort((a, b) => (a.severity === 'critical' ? 0 : 1) - (b.severity === 'critical' ? 0 : 1) || b.systems.size - a.systems.size);
@@ -28950,7 +28983,7 @@ function compileCustomerReport(targetSystems, allRisks, expiringContracts, openC
     if (non.length) { const u = non.reduce((a, s) => a + (s.efficiency.physicalUsedTB || 0), 0), t = non.reduce((a, s) => a + (s.efficiency.usableCapacityTB || 0), 0); o += `${[...new Set(non.map(s => famLabel[_platformFamily(s)]))].join(' / ')} capacity: ${u.toFixed(1)} TB allocated of ${t.toFixed(1)} TB (${Math.round(u / t * 100)}% used). E-Series and StorageGRID have no dedupe/compression ratio.\n\n`; } }
   const near = targetSystems.filter(s => s.projections && Number.isFinite(s.projections.daysToLimit) && s.projections.daysToLimit >= 0 && s.projections.daysToLimit <= 365).sort((a, b) => a.projections.daysToLimit - b.projections.daysToLimit);
   o += near.length ? `Projected to reach (or already at) the capacity threshold within 12 months: ${near.map(s => `${nameOf(s)} (${s.projections.daysToLimit === 0 ? 'already at the threshold' : _dfRunwayText(s.projections.daysToLimit)})`).join(', ')}.\n\n` : `No system is projected to reach its capacity threshold within 12 months.\n\n`;
-  { const sn = _sanNasStorageSummary(targetSystems); if (sn) { const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : 0;
+  { const sn = _sanNasStorageSummary(targetSystems); if (sn) { const thinPct = sn.dataVolumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.dataVolumeCount * 100) : 0;
     o += `${_dfSanNasSentence(sn, 'not reported')} _${_dfSanNasNote()}_ ${sn.findings.length ? sn.findings[0] : 'No SAN/NAS best-practice concerns were identified.'}\n\n`;
   } }
 
@@ -29303,10 +29336,10 @@ CAPACITY RISK
   Utilisation:        ${cap.utilPct}% fleet-wide (${cap.totalPhysTB.toFixed(1)} / ${cap.totalAvailTB.toFixed(1)} TB)
   RAG Distribution:   ${cap.greenCount} Green / ${cap.amberCount} Amber / ${cap.redCount} Red
   Growth Rate:        ${cap.fleetGrowthGBDay.toFixed(1)} GB/day fleet-wide${cap.atRisk.length > 0 ? '\n  At Risk (≤60d):     ' + cap.atRisk.map(a => a.name + ' (' + (a.runway === 0 ? 'at threshold' : a.runway + 'd') + ')').join(', ') : ''}
-${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.volumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.volumeCount * 100) : 0; return `
+${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn) return ''; const thinPct = sn.dataVolumeCount ? Math.round(sn.volumeThinProvisionedCount / sn.dataVolumeCount * 100) : 0; return `
 SAN/NAS STORAGE RISK
   Inventory:          ${_dfPlural(sn.lunCount, 'LUN')} (${sn.lunProvisionedTB.toFixed(1)} TB provisioned size), ${_dfPlural(sn.volumeCount, 'volume')} (${sn.volumeProvisionedTB.toFixed(1)} TB configured size) across ${_dfPlural(sn.systemsCovered, 'system')}
-  Thin Provisioning:  ${sn.volumeCount ? thinPct + '%' : 'N/A'} of volumes
+  Thin Provisioning:  ${sn.dataVolumeCount ? thinPct + '%' : 'N/A'} of volumes
   How to read this:   ${_dfSanNasNote()}
   Snapshot Reserve Overflow: ${_dfPlural(sn.volumeSnapshotReserveOverflowCount, 'volume')}${sn.findings.length ? '\n' + sn.findings.map(f => '  - ' + f).join('\n') : ''}`; })()}
 
@@ -31883,7 +31916,7 @@ function _renderSanNasStorageSection(systems) {
       ${kpi('LUN provisioned size', summary.lunProvisionedTB.toFixed(1) + ' TB')}
       ${kpi('Volumes', summary.volumeCount.toLocaleString())}
       ${kpi('Volume configured size', summary.volumeProvisionedTB.toFixed(1) + ' TB')}
-      ${kpi('Volumes thin-provisioned', summary.volumeCount ? Math.round(summary.volumeThinProvisionedCount / summary.volumeCount * 100) + '%' : '—')}
+      ${kpi('Data volumes thin (rest thick)', summary.dataVolumeCount ? Math.round(summary.volumeThinProvisionedCount / summary.dataVolumeCount * 100) + '%' : '—')}
       ${kpi('Systems: LUN size above usable', summary.overcommittedCount + ' of ' + summary.bySystem.filter(r => r.lunCount).length)}
       ${kpi('...and 80%+ full', summary.overcommitHotCount)}
       ${kpi('Total Snapshots', summary.volumeSnapshotCountTotal.toLocaleString())}
@@ -33499,7 +33532,7 @@ function _renderAsBuiltSection(systems) {
             const lv = s.lunVolumeSummary;
             const lunTB = (lv.lunUsableKiB || 0) / (1024 ** 3);
             const volTB = _lvVolumeKiB(lv) / (1024 ** 3);
-            const thinPct = lv.volumeCount ? Math.round((lv.volumeThinProvisionedCount || 0) / lv.volumeCount * 100) : null;
+            const _tsx = _lvThinStats(lv), thinPct = _tsx.n ? Math.round(_tsx.thin / _tsx.n * 100) : null;
             const snapOverflow = lv.volumeSnapshotReserveOverflowCount || 0;
             const _ucTB = (s.efficiency && s.efficiency.usableCapacityTB) || s.clusterUsableCapacityTB || 0, _puTB = (s.efficiency && s.efficiency.physicalUsedTB) || 0;
             let _oc = _ucTB > 0 && lunTB > 0 ? lunTB / _ucTB : null, _usedPct = s.clusterCapacityUtilPct > 0 ? s.clusterCapacityUtilPct : (_ucTB > 0 ? _puTB / _ucTB * 100 : null);
@@ -33509,7 +33542,7 @@ function _renderAsBuiltSection(systems) {
                 + '<th style="' + thStyle + '">Volumes</th><td style="' + tdStyle + '">' + lv.volumeCount + ' &middot; ' + volTB.toFixed(1) + ' TB configured size</td></tr>'
                 + (_oc != null ? '<tr><th style="' + thStyle + '">Physical used</th><td style="' + tdStyle + '">' + (_usedPct != null ? _usedPct.toFixed(0) + '% of ' + _ucTB.toFixed(1) + ' TB usable' : emptyDash) + '</td>'
                 + '<th style="' + thStyle + '">LUN size / usable</th><td style="' + tdStyle + (_oc > 1 && _usedPct != null && _usedPct >= 80 ? ';color:#ef4444;font-weight:600;' : '') + '">' + _oc.toFixed(1) + 'x' + (_oc > 1 ? (_usedPct != null && _usedPct >= 80 ? ' &middot; overcommitted and nearly full' : ' &middot; thin-provisioned, physical space not under pressure') : '') + '</td></tr>' : '')
-                + '<tr><th style="' + thStyle + '">Thin-Provisioned</th><td style="' + tdStyle + '">' + (thinPct != null ? thinPct + '%' : emptyDash) + '</td>'
+                + '<tr><th style="' + thStyle + '" title="Share of data volumes whose space guarantee is none (thin). Thick volumes reserve their full size in the aggregate; both are valid. Root volumes are excluded.">Thin data volumes</th><td style="' + tdStyle + '">' + (thinPct != null ? thinPct + '%' : emptyDash) + '</td>'
                 + '<th style="' + thStyle + '">Protocols</th><td style="' + tdStyle + '">' + valOrDash((lv.volumeProtocols || []).join(', ')) + '</td></tr>'
                 + '<tr><th style="' + thStyle + '">Total Snapshots</th><td style="' + tdStyle + '">' + (lv.volumeSnapshotCountTotal || 0) + '</td>'
                 + '<th style="' + thStyle + '">Snapshot Reserve Overflow</th><td style="' + tdStyle + (snapOverflow > 0 ? ';color:#f59e0b;font-weight:600;' : '') + '">' + snapOverflow + (snapOverflow > 0 ? ' volume(s) over 100% reserve' : '') + '</td></tr>'

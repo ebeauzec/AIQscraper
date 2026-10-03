@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.236] - 2026-10-03
+
+### Fixed
+- Thick vs thin volumes now follow NetApp guidance. Active IQ's `provisioning.isThinProvisioned` is true when the volume's space guarantee is `none` and false for `volume` (verified in the live schema). Both are valid: thin is the AFF default, thick reserves the volume's full size in the aggregate, and root volumes are thick by design. The "under 50% thin -> convert" finding and the Feature Adoption Score check are removed; the thin share (data volumes only) is informational. Thick volumes are flagged only on a system that is also 80%+ full.
+- server.py records `volumeDataCount` / `volumeDataThinCount` (non-root volumes); cached data from before this release counts all volumes until the next harvest.
+
+---
+
 ## [5.6.235] - 2026-10-03
 
 ### Added
