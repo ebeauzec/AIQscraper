@@ -27,9 +27,49 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.231";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.232";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.232",
+    date: "3 October 2026",
+    title: "Complete Harvest (No Caps), Switches in Deliverables",
+    sections: [
+      {
+        icon: "🧮",
+        label: "Fixed -- Harvest Dropped Data to Caps and Default Filters",
+        color: "#ef4444",
+        items: [
+          "An audit of every query found places where only part of the data was read. LUNs: only the first 50 per system were read, so systems with up to 32,000 LUNs had their SAN capacity summed from 50 (now read in full). Shelf drives: a 60-drive shelf lost 10 drives (73 shelves). Aggregates were read 50 per system, success plans 200 per page, the OS version catalog 500 per page, and cluster scoping stopped at 30 watchlists; talking points were cut to 6 per system and recommendations to 50. All are now complete.",
+          "Active IQ's systems, cases and renewals queries default to controller product types only. Cases and renewals now request every product type (restricted account: cases 1,164 to 1,186, renewals 776 to 850), and the records that are not storage controllers (SnapMirror licence entries, licence managers, storage switches: 382 on the live fleet) are harvested into their own list and shown under Other Active IQ records in the Switch Validation tab, outside the controller statistics.",
+        ],
+      },
+      {
+        icon: "🔌",
+        label: "Improved -- Cluster Switches",
+        color: "#22c55e",
+        items: [
+          "The Technical Audit switch table listed a switch once per node (40 rows for 14 real switches on one customer); it now shows one row per physical switch with every node it serves. The MSP Service Report, Account Handover Brief and Security Posture Brief gained a cluster-switch section (inventory, firmware, monitoring status and SNMP version).",
+        ],
+      },
+      {
+        icon: "🐛",
+        label: "Fixed -- Harvest Stopped After the First Page",
+        color: "#ef4444",
+        items: [
+          "Contract renewals (200 per watchlist), sites and customers (100 each) were read as a single page. They now page through the full result with Active IQ's cursor, so a large watchlist is no longer silently truncated (the restricted account's renewals rose from 578 to 776).",
+        ],
+      },
+      {
+        icon: "📄",
+        label: "Fixed -- Two Word Export Leftovers",
+        color: "#3b82f6",
+        items: [
+          "Risk-trend rows (30/60/90 days) export as a Window / Critical / High / Open critical cases table, and Site Logistics contact cards export one clean Metric / Value row per field.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.231",
     date: "3 October 2026",
@@ -16207,13 +16247,19 @@ function renderTAMTab() {
   if (renderTAMTab._gen !== _tamRenderGeneration) return;
   const selectedSystems = _pipe;
   let switchRows = "";
-  const allSwitches = [];
+  // Active IQ reports a switch once per cluster node, so a switch shared by two nodes used to be listed twice (40 rows for 14 real
+  // switches on one customer). One row per physical switch; the System column lists every node it serves.
+  const allSwitches = [], _swSeen = new Map();
   selectedSystems.forEach(sys => {
     const sws = getSystemSwitches(sys);
     sws.forEach(sw => {
-      allSwitches.push({ ...sw, systemName: sys.systemName });
+      const k = _dfSwKey(sw), prev = _swSeen.get(k);
+      if (prev) { if (!prev._nodes.includes(sys.systemName)) prev._nodes.push(sys.systemName); return; }
+      const row = { ...sw, systemName: sys.systemName, _nodes: [sys.systemName] };
+      _swSeen.set(k, row); allSwitches.push(row);
     });
   });
+  allSwitches.forEach(r => { r.systemName = r._nodes.join(', '); });
 
   sortDataList(allSwitches, state.tamSwitchesSortKey, state.tamSwitchesSortOrder);
 
@@ -16512,6 +16558,11 @@ function _dfSwFwShort(fw) {
   if ((m = t.match(/Fabric OS.*?v?([0-9]+\.[0-9][\w.]*)/i))) return 'FOS ' + m[1];
   return t.length > 40 ? t.slice(0, 38) + '...' : t;
 }
+function _dfSwKey(w) {
+  const norm = d => String(d || '').toLowerCase().replace(/\.(cii_encrypt|pii_encrypt).*$/, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/\.int\.[a-z]+$/, '').trim();
+  const ser = String(w.serialNumber || '');
+  return (ser && !/^(unknown|not available)$/i.test(ser)) ? 'S:' + ser : 'N:' + norm(w.deviceName);
+}
 function _dfSwitchInventory(systems) {
   const norm = d => String(d || '').toLowerCase().replace(/\.(cii_encrypt|pii_encrypt).*$/, '').replace(/\s*\([^)]*\)\s*$/, '').replace(/\.int\.[a-z]+$/, '').trim();
   const map = new Map();
@@ -16572,6 +16623,40 @@ function _switchInventoryHtml(v) {
   const models = Object.keys(v.byModel).sort((x, y) => v.byModel[y].n - v.byModel[x].n);
   h += `<div style="font-size:0.72rem;color:var(--text-muted);text-transform:uppercase;margin:12px 0 4px;font-weight:600;">Models and firmware in use</div><table style="width:100%;border-collapse:collapse;margin-bottom:16px;"><thead><tr><th style="${th}">Model</th><th style="${th}">Switches</th><th style="${th}">Firmware versions</th></tr></thead><tbody>` +
     models.map(m => `<tr><td style="${td}">${esc(m)}</td><td style="${td}">${v.byModel[m].n}</td><td style="${td}">${esc([...v.byModel[m].fw].join('; ') || '\u2014')}${v.byModel[m].fw.size > 1 ? ' <span style="color:var(--status-warning);font-size:0.66rem;">mixed versions</span>' : ''}</td></tr>`).join('') + `</tbody></table>`;
+  return h;
+}
+// Text form of the switch inventory for the deliverables (title + rule, then a summary, notes and a table the Word builder recognises).
+function _dfSwitchInventoryText(systems, opts) {
+  opts = opts || {};
+  const v = _dfSwitchInventory(systems);
+  if (!v.n) return '';
+  const lim = opts.limit || 40, one = t => String(t == null || t === '' ? '\u2014' : t).replace(/\s+/g, ' ');
+  let o = `  ${v.n} distinct cluster switch${v.n !== 1 ? 'es' : ''} serving ${v.systemsWithSw} system${v.systemsWithSw !== 1 ? 's' : ''}: ${v.mon} monitored by the Cluster Switch Health Monitor (CSHM), ${v.disc} discovered but not monitored, ${v.conn} seen only through port connectivity.\n`;
+  if (v.snmpReported) o += `  SNMP: ${v.weak.length} of ${v.snmpReported} reporting switches use SNMPv1/v2c (community strings); NetApp recommends SNMPv3 for CSHM.\n`;
+  if (v.disc + v.conn) o += `  ${v.disc + v.conn} switch${(v.disc + v.conn) !== 1 ? 'es are' : ' is'} not monitored, so Active IQ holds no model, firmware, RCF or contract data for ${(v.disc + v.conn) !== 1 ? 'them' : 'it'}; enable CSHM on the cluster to get health alerts and firmware recommendations.\n`;
+  if (v.ontapNoSw) o += `  ${v.ontapNoSw} ONTAP system${v.ontapNoSw !== 1 ? 's' : ''} in scope ha${v.ontapNoSw !== 1 ? 've' : 's'} no switch records at all.\n`;
+  const show = v.list.slice().sort((x, y) => (y.monitored - x.monitored) || String(x.name).localeCompare(String(y.name), undefined, { numeric: true })).slice(0, lim);
+  o += `\n` + _dfTable(['Switch', 'Vendor / model', 'Network', 'Firmware', 'RCF', 'Monitoring', 'SNMP', 'Clusters'],
+    show.map(e => [e.name, [e.vendor, e.model].filter(Boolean).join(' ') || '\u2014', e.type || '\u2014', one(e.fw), one(e.rcf), e.source, e.snmpLabel || '\u2014', [...e.clusters].join(', ')]));
+  if (v.list.length > lim) o += `  ...and ${v.list.length - lim} more (see the Switch Validation tab for the full list)\n`;
+  return o;
+}
+// Active IQ also tracks records that are not storage controllers (product types NON_FILER / SWITCH / UNKNOWN / AIDE_DCN): on the live
+// fleet 37 SnapMirror-licence entries and 2 Brocade storage switches. They are kept out of the controller fleet (so ONTAP statistics are
+// unaffected) and listed here, scoped to the customers in view.
+function _dfOtherProductRecords(systems) {
+  const custs = new Set((systems || []).map(s => s.customerName).filter(Boolean));
+  const all = state.otherProductSystems || [];
+  return all.filter(o => { const c = (o.customer && o.customer.name) || ''; return !custs.size || custs.has(c); });
+}
+function _otherProductHtml(list) {
+  if (!list || !list.length) return '';
+  const esc = x => String(x == null ? '' : x).replace(/&/g, '&amp;').replace(/</g, '&lt;');
+  const th = 'text-align:left;padding:6px 8px;font-size:0.68rem;color:var(--text-muted);text-transform:uppercase;border-bottom:1px solid var(--border-color);', td = 'padding:5px 8px;font-size:0.76rem;border-bottom:1px solid rgba(255,255,255,0.04);vertical-align:top;';
+  const groups = {}; list.forEach(o => { const k = (o.platformType || o.type || 'Other') + ' / ' + ((o.hardwareModel && o.hardwareModel.name) || 'model not reported'); groups[k] = (groups[k] || 0) + 1; });
+  let h = `<h3 style="font-size:1rem;margin:16px 0 6px;">Other Active IQ records</h3><div style="font-size:0.8rem;color:var(--text-secondary);margin-bottom:8px;">Active IQ also tracks ${list.length} record${list.length !== 1 ? 's' : ''} that ${list.length !== 1 ? 'are' : 'is'} not a storage controller (${Object.keys(groups).map(k => groups[k] + ' x ' + esc(k)).join('; ')}). They are not counted in the fleet statistics.</div>`;
+  h += `<div style="overflow-x:auto;margin-bottom:10px;"><table style="width:100%;border-collapse:collapse;"><thead><tr>${['Name / serial', 'Type', 'Model', 'Customer', 'Site', 'Contract ends'].map(x => `<th style="${th}">${x}</th>`).join('')}</tr></thead><tbody>` +
+    list.map(o => `<tr><td style="${td}font-weight:600;">${esc(o.hostName || o.serialNumber || '\u2014')}${o.hostName && o.serialNumber ? `<div style="font-size:0.66rem;color:var(--text-muted);">S/N ${esc(o.serialNumber)}</div>` : ''}</td><td style="${td}">${esc(o.platformType || o.type || '\u2014')}</td><td style="${td}">${esc((o.hardwareModel && o.hardwareModel.name) || '\u2014')}</td><td style="${td}">${esc((o.customer && o.customer.name) || '\u2014')}</td><td style="${td}">${esc((o.site && (o.site.name || o.site.city)) || '\u2014')}</td><td style="${td}">${esc(String((o.contract && (o.contract.overallContractEndDate || o.contract.expiryDate)) || '\u2014').slice(0, 10))}</td></tr>`).join('') + `</tbody></table></div>`;
   return h;
 }
 function getSystemSwitches(sys) {
@@ -26492,6 +26577,10 @@ ${(() => { const dr = computeFleetDRSummary(targetSystems); if (dr.ontapCount ==
   RPO Lag Warnings:       ${dr.rpoText}`; })()}
 
 ${compilePerformanceText(targetSystems)}--------------------------------------------------------------------------------
+${(() => { const t = _dfSwitchInventoryText(targetSystems, { limit: 30 }); if (!t) return ''; return `7c. CLUSTER SWITCHES (inventory, firmware, SNMP)
+--------------------------------------------------------------------------------
+${t}--------------------------------------------------------------------------------
+`; })()}
 ${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `7a. STORAGEGRID OBJECT STORAGE [RISK EXPOSURE]
 --------------------------------------------------------------------------------
 ${_dfStorageGridText(v, { nodeLimit: 20 })}
@@ -27091,6 +27180,10 @@ ${_dfSystemHealthScoreWorstTable(hs)}`; })()}
 ${(() => { const t = _dfSystemIssueRankingText(targetSystems); return t || '  No system in scope currently has an open critical/high risk, critical/high CVE, or open support case.'; })()}
 
 --------------------------------------------------------------------------------
+${(() => { const t = _dfSwitchInventoryText(targetSystems, { limit: 30 }); if (!t) return ''; return `7e. CLUSTER SWITCHES (inventory, firmware, SNMP)
+--------------------------------------------------------------------------------
+${t}--------------------------------------------------------------------------------
+`; })()}
 ${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `7c. STORAGEGRID GRIDS (Topology, Tenants, ILM)
 --------------------------------------------------------------------------------
 ${_dfStorageGridText(v)}
@@ -27362,6 +27455,10 @@ ${compileSvmLifSummaryText(targetSystems)}
     RPO at Risk:       ${dr.rpoText}${dr.mcSystems > 0 ? `
     MetroCluster:      ${dr.mcView.health}` : ''}
 ${(() => { const sn = _sanNasStorageSummary(targetSystems); if (!sn || !sn.volumeSnapshotReserveOverflowCount) return ''; return `    Snapshot Reserve:  ${_dfPlural(sn.volumeSnapshotReserveOverflowCount, 'NAS volume')} with snapshot reserve over 100% used -- snapshots have overflowed into active/user data capacity, reducing the effective recovery point available on those volumes\n`; })()}
+${(() => { const t = _dfSwitchInventoryText(targetSystems, { limit: 30 }); if (!t) return ''; return `  6c. CLUSTER SWITCHES (SNMP version, monitoring, firmware)
+  ────────────────────────────────────────────────────────
+${t}  ────────────────────────────────────────────────────────
+`; })()}
 ${(() => { const v = _dfStorageGridView(targetSystems); if (!v.grids.length) return ''; return `  6a. STORAGEGRID DATA PROTECTION & IMMUTABILITY
   ────────────────────────────────────────────────────────────────────────
 ${_dfStorageGridText(v, { nodeLimit: 12 })}
@@ -34173,6 +34270,7 @@ function generateActionPlan() {
   `;
 
   html += _switchInventoryHtml(_dfSwitchInventory(targetSystems));
+  html += _otherProductHtml(_dfOtherProductRecords(targetSystems));
   html += `<h3 style="font-size:1rem;margin:6px 0 10px;">Switches needing attention</h3>`;
   if (switchAlerts.length === 0) {
     html += `<p style="font-size: 0.85rem; color: var(--text-muted);">✓ All interconnect and storage network fabric switches match validated firmware baselines.</p>`;
@@ -36701,11 +36799,25 @@ function _domToMarkdown(root, headingLevel) {
     const kids = Array.from(el.children).filter(c => !SKIP.has(String(c.tagName).toUpperCase()));
     // two tiles are enough when every tile has a label and a number; a tile may use a small <h4> as its label
     if (kids.length < 2 || el.querySelector('table,ul,ol,details') || Array.from(el.querySelectorAll('h1,h2,h3,h4,h5,h6')).some(h => clean(h.textContent).length > 60)) return false;
+    {   // window rows: ["30 Days *", "Critical: up 882 (..)", "High: up 5715 (..)", ...] -> Window | Critical | High | ...
+      const pl = kids.map(k => leafParts(k).filter(p => /[A-Za-z0-9]/.test(p)));
+      const kv = p => p.match(/^([^:]{2,40}):\s*(\S.*)$/);
+      if (pl.length >= 2 && pl.every(p => p.length >= 3 && /^\d+ Days?\b/.test(p[0]) && p.slice(1).every(x => kv(x)))) {
+        const heads = pl[0].slice(1).map(x => kv(x)[1]);
+        if (pl.every(p => p.length === pl[0].length && p.slice(1).every((x, i) => kv(x)[1] === heads[i]))) {
+          lines.push('| Window | ' + heads.join(' | ') + ' |', '| --- |' + heads.map(() => ' --- |').join(''));
+          pl.forEach(p => lines.push('| ' + [p[0]].concat(p.slice(1).map(x => kv(x)[2])).map(x => String(x).replace(/\|/g, '\\|')).join(' | ') + ' |'));
+          lines.push('');
+          return true;
+        }
+      }
+    }
     const rows = []; let skipped = 0; const _titleLines = [];
     for (const k of kids) {
       const parts = leafParts(k).filter(p => /[A-Za-z0-9]/.test(p));
       if (parts.length <= 1) { if (/^H[1-6]$/.test(String(k.tagName).toUpperCase()) && !rows.length && clean(k.textContent)) _titleLines.push(clean(k.textContent)); skipped++; continue; }   // connector between tiles, or the tiles' own title
       if (parts.length > 5 || parts.some(p => p.length > 110)) return false;
+      if (parts.length >= 2 && parts.every(p => /^[^:]{2,40}:\s*\S/.test(p))) { parts.forEach(p => { const m = p.match(/^([^:]{2,40}):\s*(\S.*)$/); rows.push([m[1], m[2], '']); }); continue; }
       if (kids.length === 2 && (!parts.some(p => /\d/.test(p) && p.length <= 16) || parts.some(p => p.length > 70))) return false;
       const _numLike = p => /^[-+~\u2264\u2265<>]?\s*\d[\d.,]*\s*(%|[A-Za-z]{1,4})?(\s*\/\s*\d[\d.,]*)?(\s*[A-Za-z]{1,4})?$/.test(p) && p.length <= 16;
       let vi = parts.findIndex(_numLike);
@@ -39082,6 +39194,7 @@ async function loadProductionData(forceRefresh = false) {
     state.tamSuccessPlans = result.tamSuccessPlans || [];
     state.tamOsVersions = result.tamOsVersions || [];
     state.tamRenewals = result.tamRenewals || [];
+    state.otherProductSystems = result.otherProductSystems || [];   // non-controller Active IQ records (SnapMirror licence entries, storage switches ...)
     // Risks a TAM acknowledged (accepted/deferred) that have since appeared in
     // CISA's Known Exploited Vulnerabilities catalog — active real-world
     // exploitation, not just a theoretical CVE. Surfaced in the Security Brief.

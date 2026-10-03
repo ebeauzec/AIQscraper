@@ -1212,7 +1212,7 @@ def _populate_reporting_tables(db, account_id, account_label, result):
 # entry of "risks".
 _MERGE_LIST_FIELDS = [
     "systems", "clusters", "risks", "cases",
-    "tamSites", "tamRenewals", "acknowledgedRisksNowExploited",
+    "tamSites", "tamRenewals", "otherProductSystems", "acknowledgedRisksNowExploited",
     # tamRecommendations was previously left out of this list and treated as
     # a "scalar/summary" field taken only from the largest account -- but
     # recommendations are per-account TAM insights, not account-agnostic
@@ -1492,9 +1492,9 @@ def _build_ontap_extras2(r):
         out["ciTenants"] = [{"app": (t.get("application") or {}).get("name"), "version": (t.get("application") or {}).get("version"),
                              "status": (t.get("application") or {}).get("status")} for t in tens if t]
     if r.get("propensityTalkingPoints"):
-        out["talkingPoints"] = [str(x) for x in r["propensityTalkingPoints"][:6]]
+        out["talkingPoints"] = [str(x) for x in r["propensityTalkingPoints"]]
     if r.get("nextBestActionTalkingPoints"):
-        out["nextBestActions"] = [str(x) for x in r["nextBestActionTalkingPoints"][:6]]
+        out["nextBestActions"] = [str(x) for x in r["nextBestActionTalkingPoints"]]
     return out or None
 
 
@@ -1749,7 +1749,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                       serialNumber shelfId
                       hardwareModel { name endOfAvailability endOfHwSupport }
                       moduleHardwareModel { name }
-                      drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
+                      drives(pageSize: 1000) { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
                     }
                     storageAggregates { totalCount }
                     storageVolumes { totalCount }
@@ -1830,7 +1830,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                       serialNumber shelfId
                       hardwareModel { name endOfAvailability endOfHwSupport }
                       moduleHardwareModel { name }
-                      drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
+                      drives(pageSize: 1000) { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
                     }
                     capacity {
                       physical { rawMarketingKiB usedKiB usedWithoutSnapshotsKiB usablePerformanceTierKiB }
@@ -1938,8 +1938,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         LUN_VOLUME_FIELDS = """
                   serialNumber
                   ... on ONTAPSystem {
-                    luns(pageSize: 50) { totalCount luns { capacity { usableKiB } } }
-                    storageVolumes(pageSize: 50) {
+                    luns(pageSize: 100000) { totalCount luns { capacity { usableKiB } } }
+                    storageVolumes(pageSize: 100000) {
                       totalCount
                       volumes {
                         isRoot
@@ -2032,7 +2032,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
 
         _PRIVILEGE_PHRASES = ("unfiltered_system_access", "mandatory argument", "privilege")
 
-        def _fetch_systems_for_scope(fields, scope_wl_id=None):
+        def _fetch_systems_for_scope(fields, scope_wl_id=None, product_types=None):
             """Fetch all systems pages for a given fields set and optional watchlist scope."""
             systems = []
             cursor = None
@@ -2042,6 +2042,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 page += 1
                 after_arg = f', after: "{cursor}"' if cursor else ""
                 wl_arg = f', watchlistId: "{scope_wl_id}"' if scope_wl_id else ""
+                if product_types:
+                    wl_arg += f', productTypes: [{product_types}]'
                 query_text = """{
                   systems(pageSize: 100, includeStorageGridNodes: true""" + after_arg + wl_arg + """) {
                     totalCount cursor
@@ -2195,7 +2197,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     print(f"  [HARVEST] Unfiltered {_QUERY_NAMES[attempt]} query succeeded: {len(all_systems)} systems", flush=True)
                     break
 
-        def _fetch_rows_all_scopes(fields):
+        def _fetch_rows_all_scopes(fields, product_types=None):
             """Rows for `fields` across every scope that works for this account. Configured watchlists first; if none are
             configured, try unfiltered, and on a privilege block (or zero rows) fall back to the auto-discovered watchlists --
             the same fallback the main systems query uses. Without this the extras merges silently returned nothing for
@@ -2211,14 +2213,33 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     rows.append(r)
             if watchlist_ids:
                 for wl in list(watchlist_ids):
-                    _take(_fetch_systems_for_scope(fields, wl)[0])
+                    _take(_fetch_systems_for_scope(fields, wl, product_types)[0])
                 return rows
-            batch, blocked = _fetch_systems_for_scope(fields, None)
+            batch, blocked = _fetch_systems_for_scope(fields, None, product_types)
             _take(batch)
             if (blocked or not batch) and _early_watchlists:
                 for wl in _early_watchlists:
-                    _take(_fetch_systems_for_scope(fields, wl)[0])
+                    _take(_fetch_systems_for_scope(fields, wl, product_types)[0])
             return rows
+
+        # ── Other Active IQ records ──
+        # `systems` defaults to productTypes [FILER, SWApp]; Active IQ also tracks NON_FILER, SWITCH, UNKNOWN and AIDE_DCN records
+        # (found live: 39 more on one account -- 37 SnapMirror-licence "OTHERS" entries and 2 Brocade storage switches). They are not
+        # storage controllers, so they are kept in their own list (otherProductSystems) rather than mixed into the controller fleet.
+        other_product_systems = []
+        try:
+            _OTHER_FIELDS = """
+                  hostName systemId serialNumber type platformType productType serviceTier
+                  customer { id name }
+                  site { id name city countryCode }
+                  hardwareModel { name endOfAvailability endOfSupport }
+                  contract { expiryDate overallContractEndDate softwareContractEndDate hardwareContractEndDate isContractActive hardwareServiceLevel hardwareWarrantyEndDate }"""
+            for _orow in _fetch_rows_all_scopes(_OTHER_FIELDS, "NON_FILER, UNKNOWN, SWITCH, AIDE_DCN"):
+                _orow["accountId"] = (account.get("id") if account else None) or "default"
+                other_product_systems.append(_orow)
+            print(f"  [HARVEST] Other Active IQ records (non-controller product types): {len(other_product_systems)}", flush=True)
+        except Exception as _e:
+            print(f"  [HARVEST] WARNING: other product types fetch failed: {_e}", flush=True)
 
         # ── E-Series capacity merge (see ESERIES_CAP_FIELDS) ──
         try:
@@ -2315,8 +2336,8 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         try:
             _asar2_by_serial = {}
 
-            def _asar2_fetch_scope(_wl):
-                """One watchlist (or None for unfiltered), paginated. Returns (rows, privilege_blocked)."""
+            def _asar2_fetch_scope(_wl, _nest_after=None):
+                """One watchlist (or None for unfiltered), paginated. Returns (rows, privilege_blocked). _nest_after pages the nested LUN/namespace lists."""
                 _rows, _cursor, _blocked = [], None, False
                 while True:
                     _wl_arg = f', watchlistId: "{_wl}"' if _wl else ""
@@ -2328,12 +2349,12 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                           serialNumber
                           ... on ONTAPSystem {
                             ontapPersonality
-                            luns(pageSize: 1000) { totalCount luns { capacity { usableKiB } } }
-                            namespaces(pageSize: 1000) { totalCount namespaces { capacity { usableKiB } } }
+                            luns(pageSize: 100000__NA__) { totalCount luns { capacity { usableKiB } } }
+                            namespaces(pageSize: 100000__NA__) { totalCount namespaces { capacity { usableKiB } } }
                           }
                         }
                       }
-                    }"""
+                    }""".replace("__NA__", f', after: "{_nest_after}"' if _nest_after else "")
                     _, _resp = _gql(token, _q)
                     if isinstance(_resp, dict) and _resp.get("errors"):
                         _err = _resp["errors"][0].get("message", "")
@@ -2359,7 +2380,9 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             # block) was tried and made things WORSE for the account that DOES have
             # the privilege -- _early_watchlists is auto-discovered from a different,
             # incomplete source than what that account's unfiltered query covers.
+            _a2_scopes = [None]
             if watchlist_ids:
+                _a2_scopes = list(watchlist_ids)
                 _asar2_page = []
                 for _wl in list(watchlist_ids):
                     _rows, _ = _asar2_fetch_scope(_wl)
@@ -2368,9 +2391,29 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 _asar2_page, _asar2_blocked = _asar2_fetch_scope(None)
                 if _asar2_blocked:
                     _asar2_page = []
+                    _a2_scopes = list(_early_watchlists or [])
                     for _wl in (_early_watchlists or []):
                         _rows, _ = _asar2_fetch_scope(_wl)
                         _asar2_page.extend(_rows)
+            _a2_off, _a2_pass = 100000, 0
+            def _a2_incomplete(_r):
+                _l = _r.get("luns") or {}; _n = _r.get("namespaces") or {}
+                return len(_l.get("luns") or []) < (_l.get("totalCount") or 0) or len(_n.get("namespaces") or []) < (_n.get("totalCount") or 0)
+            while _a2_pass < 100 and any(_a2_incomplete(_r) for _r in _asar2_page):
+                _a2_pass += 1
+                _a2_added = 0
+                for _sc in _a2_scopes:
+                    _more, _ = _asar2_fetch_scope(_sc, _a2_off)
+                    for _m in _more:
+                        for _t in [x for x in _asar2_page if x.get("serialNumber") == _m.get("serialNumber")]:
+                            _ml = (_m.get("luns") or {}).get("luns") or []; _mn = (_m.get("namespaces") or {}).get("namespaces") or []
+                            if _ml and len((_t.get("luns") or {}).get("luns") or []) < ((_t.get("luns") or {}).get("totalCount") or 0):
+                                _t["luns"]["luns"].extend(_ml); _a2_added += len(_ml)
+                            if _mn and len((_t.get("namespaces") or {}).get("namespaces") or []) < ((_t.get("namespaces") or {}).get("totalCount") or 0):
+                                _t["namespaces"]["namespaces"].extend(_mn); _a2_added += len(_mn)
+                if not _a2_added:
+                    break
+                _a2_off += 100000
             for _r in _asar2_page:
                 _luns = (_r.get("luns") or {}).get("luns") or []
                 _nss  = (_r.get("namespaces") or {}).get("namespaces") or []
@@ -2408,6 +2451,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             # DOES have the privilege: _early_watchlists is auto-discovered from a
             # different, incomplete source (4 watchlists / 27 systems here) than
             # what the main harvest's own unfiltered path actually covers (165).
+            _lv_scopes = list(watchlist_ids) if watchlist_ids else [None]
             if watchlist_ids:
                 _lv_all_rows = []
                 for _lv_scope in list(watchlist_ids):
@@ -2417,9 +2461,59 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 _lv_all_rows, _lv_blocked = _fetch_systems_for_scope(LUN_VOLUME_FIELDS, None)
                 if _lv_blocked or not _lv_all_rows:
                     _lv_all_rows = []
-                    for _lv_scope in (_early_watchlists or []):
+                    _lv_scopes = list(_early_watchlists or [])
+                    for _lv_scope in _lv_scopes:
                         _rows, _ = _fetch_systems_for_scope(LUN_VOLUME_FIELDS, _lv_scope)
                         _lv_all_rows.extend(_rows)
+            # A system can have thousands of LUNs (one had 2,671); the nested page size is honoured, so the first page
+            # is not the whole list. Fetch further pages (nested `after` is an offset) until every list is complete,
+            # otherwise LUN capacity is summed from only the first page.
+            _lv_rows_by_serial = {}
+            for _r in _lv_all_rows:
+                _lv_rows_by_serial.setdefault(_r.get("serialNumber"), []).append(_r)
+            def _lv_incomplete(_r):
+                _l = _r.get("luns") or {}; _v = _r.get("storageVolumes") or {}
+                return (len(_l.get("luns") or []) < (_l.get("totalCount") or 0)) or (len(_v.get("volumes") or []) < (_v.get("totalCount") or 0))
+            _lv_offset, _lv_pass = 100000, 0   # follow-up pages (only reached by a system with more than 100,000 of either)
+            while _lv_pass < 100 and any(_lv_incomplete(_r) for _r in _lv_all_rows):
+                _lv_pass += 1
+                _lv_page_fields = f"""
+                  serialNumber
+                  ... on ONTAPSystem {{
+                    luns(pageSize: 100000, after: "{_lv_offset}") {{ totalCount luns {{ capacity {{ usableKiB }} }} }}
+                    storageVolumes(pageSize: 100000, after: "{_lv_offset}") {{
+                      totalCount
+                      volumes {{
+                        isRoot
+                        protocols
+                        snapshotCount
+                        snapshotReserveUsedPercentage
+                        capacity {{ sizeKB availableKB logical {{ usedSnapshotsKiB }} efficiency {{ saved {{ totalSavedPercentage }} }} }}
+                        provisioning {{ isThinProvisioned }}
+                      }}
+                    }}
+                  }}"""
+                _added = 0
+                for _sc in _lv_scopes:
+                    _more, _ = _fetch_systems_for_scope(_lv_page_fields, _sc)
+                    for _m in _more:
+                        _targets = _lv_rows_by_serial.get(_m.get("serialNumber")) or []
+                        _ml = ((_m.get("luns") or {}).get("luns")) or []; _mv = ((_m.get("storageVolumes") or {}).get("volumes")) or []
+                        if not (_ml or _mv):
+                            continue
+                        for _t in _targets:
+                            if _ml and _lv_incomplete(_t):
+                                _t.setdefault("luns", {}).setdefault("luns", []).extend(_ml)
+                            _tv = _t.get("storageVolumes") or {}
+                            if _mv and len(_tv.get("volumes") or []) < (_tv.get("totalCount") or 0):   # never re-add volumes the first pass already returned
+                                _t.setdefault("storageVolumes", {}).setdefault("volumes", []).extend(_mv)
+                                _added += len(_mv)
+                        _added += len(_ml)
+                if not _added:
+                    break
+                _lv_offset += 100000
+            if _lv_pass:
+                print(f"  [HARVEST] LUN/volume lists completed with {_lv_pass} extra page pass(es)", flush=True)
             for _r in _lv_all_rows:
                     _luns = (_r.get("luns") or {}).get("luns") or []
                     _lun_total = (_r.get("luns") or {}).get("totalCount") or 0
@@ -2544,7 +2638,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     serialNumber shelfId
                     hardwareModel { name endOfAvailability endOfHwSupport }
                     moduleHardwareModel { name }
-                    drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
+                    drives(pageSize: 1000) { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
                   }
                   vservers { id name type subType logicalInterfaces { name ipAddress worldWidePortName status { administrative operation } serviceConfiguration { servicePolicy dataProtocols } failoverConfiguration { homeNode { hostName serialNumber } homePort currentNode { hostName serialNumber } currentPort failoverPolicy } } }
                   capacity {
@@ -2600,7 +2694,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         if _wl_ids_for_cl:
             print(f"  [HARVEST] Clusters: {len(all_clusters)} from unscoped call -- also scoping to {len(_wl_ids_for_cl)} watchlist(s) to recover any clusters outside the token's default visibility...", flush=True)
             _seen_cl_ids: set = {(_cl.get("id") or _cl.get("name")) for _cl in all_clusters if (_cl.get("id") or _cl.get("name"))}
-            for _wl_cl_id in _wl_ids_for_cl[:30]:  # cap at 30 watchlists
+            for _wl_cl_id in _wl_ids_for_cl:  # every watchlist (no cap)
                 _cl_wl_cursor = None
                 while True:
                     _cl_after_arg = f', after: "{_cl_wl_cursor}"' if _cl_wl_cursor else ""
@@ -2614,7 +2708,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                         ' switches { switchSerialNumber deviceName role network vendor model ipAddress'
                         '   isDiscovered isMonitored versionInfo { fwVersion rcfVersion } snmpConfiguration { version }'
                         '   supportContract { startDate endDate offerDescription } }'
-                        ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } } }'
+                        ' shelves { serialNumber shelfId hardwareModel { name endOfAvailability endOfHwSupport } moduleHardwareModel { name } drives(pageSize: 1000) { totalCount drives { firmwareRevision vendor hardwareModel { name } } } }'
                         ' vservers { id name type subType logicalInterfaces { name ipAddress worldWidePortName status { administrative operation } serviceConfiguration { servicePolicy dataProtocols } failoverConfiguration { homeNode { hostName serialNumber } homePort currentNode { hostName serialNumber } currentPort failoverPolicy } } }'
                         ' capacity {'
                         '   physical { usedKiB rawMarketingKiB usablePerformanceTierKiB'
@@ -2740,7 +2834,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             while True:
                 c_page += 1
                 c_after = f', after: "{c_cursor}"' if c_cursor else ""
-                c_pt    = ', productTypes: [FILER, SWApp]' if with_product_types else ''
+                c_pt    = ', productTypes: [FILER, SWApp, NON_FILER, UNKNOWN, SWITCH, AIDE_DCN]' if with_product_types else ''
                 c_wl    = f', watchlistId: "{scope_wl_id}"' if scope_wl_id else ''
                 _, cr = _gql(token, '{ cases(pageSize: 200' + c_after + c_pt + c_wl + ''') {
                     totalCount cursor
@@ -2835,13 +2929,22 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         # 8. Fetch customers (with sustainability)
         customers, _cust_seen = [], set()
         for _w in _all_scopes:
-            _, cust_resp = _gql(token, '{ customers(pageSize: 100' + _scope_arg(_w) + ''') { customers {
-                id cmatId name
-                sustainabilityScorePercentage { overall }
-            } } }''')
-            for _c in ((((cust_resp.get("data") or {}).get("customers") or {}).get("customers")) or [] if isinstance(cust_resp, dict) else []):
-                if _c.get("id") not in _cust_seen:
-                    _cust_seen.add(_c.get("id")); customers.append(_c)
+            _after, _guard = "", 0
+            while _guard < 100:   # page with the `after` cursor; a full page of 100 may not be the last
+                _guard += 1
+                _, cust_resp = _gql(token, '{ customers(pageSize: 100' + (f', after: "{_after}"' if _after else '') + _scope_arg(_w) + ''') { cursor customers {
+                    id cmatId name
+                    sustainabilityScorePercentage { overall }
+                } } }''')
+                _cc = (((cust_resp.get("data") or {}).get("customers")) or {}) if isinstance(cust_resp, dict) else {}
+                _pg = _cc.get("customers") or []
+                for _c in _pg:
+                    if _c.get("id") not in _cust_seen:
+                        _cust_seen.add(_c.get("id")); customers.append(_c)
+                _cur = _cc.get("cursor") or ""
+                if len(_pg) < 100 or not _cur or _cur == _after:
+                    break
+                _after = _cur
 
         # ── TAM: Recommendations ──
         tam_recommendations = []
@@ -2849,7 +2952,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             print("  [HARVEST] Fetching TAM recommendations...", flush=True)
             _rec_seen = set()
             for _w in _all_scopes:
-                _, rec_resp = _gql(token, '{ recommendations(isTopKeyRecommendation: true, limit: 50' + _scope_arg(_w) + ''') {
+                _, rec_resp = _gql(token, '{ recommendations(isTopKeyRecommendation: true, limit: 1000' + _scope_arg(_w) + ''') {
                     recommendation rank category subCategory score
                 } }''')
                 for _r in ((rec_resp.get("data") or {}).get("recommendations") or [] if isinstance(rec_resp, dict) else []):
@@ -2866,14 +2969,23 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             print("  [HARVEST] Fetching TAM sites...", flush=True)
             _site_seen = set()
             for _w in _all_scopes:
-                _, sites_resp = _gql(token, '{ sites(pageSize: 100' + _scope_arg(_w) + ''') { sites {
-                    id cmatId name countryCode postalCode city state streetAddress
-                    vmwareFlag systemsWithCriticalPropensity systemsWithHighPropensity
-                    operationalDate ageInYears
-                } } }''')
-                for _st in ((((sites_resp.get("data") or {}).get("sites") or {}).get("sites")) or []):
-                    if _st.get("id") not in _site_seen:
-                        _site_seen.add(_st.get("id")); tam_sites.append(_st)
+                _after, _guard = "", 0
+                while _guard < 100:   # page with the `after` cursor; a full page of 100 may not be the last
+                    _guard += 1
+                    _, sites_resp = _gql(token, '{ sites(pageSize: 100' + (f', after: "{_after}"' if _after else '') + _scope_arg(_w) + ''') { cursor sites {
+                        id cmatId name countryCode postalCode city state streetAddress
+                        vmwareFlag systemsWithCriticalPropensity systemsWithHighPropensity
+                        operationalDate ageInYears
+                    } } }''')
+                    _sc = (((sites_resp.get("data") or {}).get("sites")) or {}) if isinstance(sites_resp, dict) else {}
+                    _pg = _sc.get("sites") or []
+                    for _st in _pg:
+                        if _st.get("id") not in _site_seen:
+                            _site_seen.add(_st.get("id")); tam_sites.append(_st)
+                    _cur = _sc.get("cursor") or ""
+                    if len(_pg) < 100 or not _cur or _cur == _after:
+                        break
+                    _after = _cur
             print(f"  [HARVEST] Sites: {len(tam_sites)}", flush=True)
         except Exception as e:
             print(f"  [HARVEST] WARNING: Sites failed: {e}", flush=True)
@@ -2951,8 +3063,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         tam_success_plans = []
         try:
             print("  [HARVEST] Fetching Success Plans (real Active IQ CSP data)...", flush=True)
-            _, sp_resp = _gql(token, """{ successPlan(pageSize: 200) { details {
-                nagpId nagpName successPlans {
+            _SP_BODY = """nagpId nagpName successPlans {
                     id name title status lifecycleStage health tamOwnerEmail
                     source templateUsed customerChallengesAndGoals objectiveOther
                     successMetrics keyStakeholders { name email role }
@@ -2961,8 +3072,18 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                     objectives { name milestones { id name status blockerNotes lifecycleStage
                         actions { id name actionOwner dueDate actionStatus objective } } }
                 }
-            } } }""")
-            _sp_details = (((sp_resp.get("data") or {}).get("successPlan") or {}).get("details")) or [] if isinstance(sp_resp, dict) else []
+"""
+            _sp_details, _sp_after, _sp_guard = [], "", 0
+            while _sp_guard < 100:   # page with the cursor; was a single page of 200 customers
+                _sp_guard += 1
+                _, sp_resp = _gql(token, "{ successPlan(pageSize: 200" + (f', after: "{_sp_after}"' if _sp_after else "") + ") { cursor details { " + _SP_BODY + " } } }")
+                _spd = ((sp_resp.get("data") or {}).get("successPlan") or {}) if isinstance(sp_resp, dict) else {}
+                _sp_pg = _spd.get("details") or []
+                _sp_details.extend(_sp_pg)
+                _spc = _spd.get("cursor") or ""
+                if not _sp_pg or not _spc or _spc == _sp_after:
+                    break
+                _sp_after = _spc
             for _grp in _sp_details:
                 for _plan in (_grp.get("successPlans") or []):
                     # Older code/UI read a single `tamNotes` string; the API's real field is `notes`
@@ -2979,16 +3100,25 @@ def _do_full_harvest(watchlist_ids=None, account=None):
         tam_os_versions = []
         try:
             print("  [HARVEST] Fetching OS version catalog...", flush=True)
-            _, osv_resp = _gql(token, """{ osVersions(pageSize: 500) { osVersions {
-                osVersion majorOsVersion osType operatingMode
+            _OSV_BODY = """osVersion majorOsVersion osType operatingMode
                 releaseDate endOfVersionFullSupport endOfVersionLimitedSupport endOfSelfServiceSupport
                 supportState progressionPath
                 bundledSystemFirmwares { type version biosVersion systemModel }
                 bundledDriveFirmwares { driveModel version }
                 bundledShelfFirmwares { shelfName shelfModuleName firmwareType shelfModuleFirmwareVersion sysShelfModuleFirmwareVersion }
                 bundledSecurityFiles { fileType version }
-            } } }""")
-            tam_os_versions = ((osv_resp.get("data") or {}).get("osVersions", {}).get("osVersions")) or [] if isinstance(osv_resp, dict) else []
+"""
+            tam_os_versions, _osv_after, _osv_guard = [], "", 0
+            while _osv_guard < 100:   # page with the cursor; was one page of 500
+                _osv_guard += 1
+                _, osv_resp = _gql(token, "{ osVersions(pageSize: 500" + (f', after: "{_osv_after}"' if _osv_after else "") + ") { cursor osVersions { " + _OSV_BODY + " } } }")
+                _osvd = ((osv_resp.get("data") or {}).get("osVersions") or {}) if isinstance(osv_resp, dict) else {}
+                _osv_pg = _osvd.get("osVersions") or []
+                tam_os_versions.extend(_osv_pg)
+                _osvc = _osvd.get("cursor") or ""
+                if len(_osv_pg) < 500 or not _osvc or _osvc == _osv_after:
+                    break
+                _osv_after = _osvc
             print(f"  [HARVEST] OS versions: {len(tam_os_versions)}", flush=True)
 
             # ── Fill gaps: query specifically for fleet OS versions not in first page ──
@@ -3028,15 +3158,27 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             print("  [HARVEST] Fetching contract renewals...", flush=True)
             _ren_seen = set()
             for _w in _all_scopes:
-              _, ren_resp = _gql(token, '{ systemContractRenewals(pageSize: 200, beginDate: "2024-01-01", endDate: "2030-12-31"' + _scope_arg(_w) + ''') { systems {
-                serialNumber hostName platformType serviceTier techRefreshStatus
-                contract { expiryDate isContractActive hardwareServiceLevel hardwareContractEndDate softwareContractEndDate overallContractEndDate hardwareWarrantyEndDate }
-                hardwareModel { name endOfAvailability endOfSupport }
-                endOfSupport { earliestEndOfSupportDate latestPVRDate latestEndOfSupportDate }
-              } } }''')
-              for _rs in ((((ren_resp.get("data") or {}).get("systemContractRenewals") or {}).get("systems")) or [] if isinstance(ren_resp, dict) else []):
+              # page through the whole result (the query returns a totalCount and an `after` cursor); it used to stop at the first 200
+              _after, _got, _guard = "", 0, 0
+              while _guard < 200:
+                _guard += 1
+                _after_arg = f', after: "{_after}"' if _after else ''
+                _, ren_resp = _gql(token, '{ systemContractRenewals(pageSize: 200, beginDate: "2024-01-01", endDate: "2030-12-31", productTypes: [FILER, SWApp, NON_FILER, UNKNOWN, SWITCH, AIDE_DCN]' + _after_arg + _scope_arg(_w) + ''') { cursor totalCount systems {
+                  serialNumber hostName platformType serviceTier techRefreshStatus
+                  contract { expiryDate isContractActive hardwareServiceLevel hardwareContractEndDate softwareContractEndDate overallContractEndDate hardwareWarrantyEndDate }
+                  hardwareModel { name endOfAvailability endOfSupport }
+                  endOfSupport { earliestEndOfSupportDate latestPVRDate latestEndOfSupportDate }
+                } } }''')
+                _rc = (((ren_resp.get("data") or {}).get("systemContractRenewals")) or {}) if isinstance(ren_resp, dict) else {}
+                _page = _rc.get("systems") or []
+                for _rs in _page:
                   if _rs.get("serialNumber") not in _ren_seen:
-                      _ren_seen.add(_rs.get("serialNumber")); tam_renewals.append(_rs)
+                    _ren_seen.add(_rs.get("serialNumber")); tam_renewals.append(_rs)
+                _got += len(_page)
+                _cur = _rc.get("cursor") or ""
+                if not _page or not _cur or _cur == _after or _got >= int(_rc.get("totalCount") or 0):
+                  break
+                _after = _cur
             # .get("systemContractRenewals", {}) only applies its default when the key
             # is MISSING — GraphQL can return {"data": {"systemContractRenewals": null}}
             # (e.g. no privilege/no systems in scope), where the key exists with value
@@ -4218,12 +4360,21 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             def _fetch_aggregates(_sys):
                 _serial = _sys.get("serialNumber")
                 try:
-                    _, _resp = _gql(token, (
-                        '{ aggregates(pageSize: 50, systemSerialNumber: "' + _serial + '") { '
-                        'aggregates { isRoot isFabricPoolEnabled sisDisabledVolumesCount '
-                        'storageEfficiencyRatio { withoutSnapshot } } } }'
-                    ))
-                    _aggs = (((_resp.get("data") or {}).get("aggregates") or {}).get("aggregates")) or [] if isinstance(_resp, dict) else []
+                    _aggs, _ag_after, _ag_guard = [], "", 0
+                    while _ag_guard < 200:
+                        _ag_guard += 1
+                        _, _resp = _gql(token, (
+                            '{ aggregates(pageSize: 200' + (f', after: "{_ag_after}"' if _ag_after else '') + ', systemSerialNumber: "' + _serial + '") { cursor '
+                            'aggregates { isRoot isFabricPoolEnabled sisDisabledVolumesCount '
+                            'storageEfficiencyRatio { withoutSnapshot } } } }'
+                        ))
+                        _agd = ((_resp.get("data") or {}).get("aggregates") or {}) if isinstance(_resp, dict) else {}
+                        _pg = _agd.get("aggregates") or []
+                        _aggs.extend(_pg)
+                        _agc = _agd.get("cursor") or ""
+                        if len(_pg) < 200 or not _agc or _agc == _ag_after:
+                            break
+                        _ag_after = _agc
                     _data_aggs = [a for a in _aggs if not a.get("isRoot")]
                     if not _data_aggs:
                         return _serial, None
@@ -4312,7 +4463,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
                 _cid, _cname = _item
                 try:
                     _, _resp = _gql(token, (
-                        '{ recommendations(isTopKeyRecommendation: true, limit: 50, customerId: "' + _cid + '") { '
+                        '{ recommendations(isTopKeyRecommendation: true, limit: 1000, customerId: "' + _cid + '") { '
                         'recommendation rank category subCategory score } }'
                     ))
                     _recs = (_resp.get("data") or {}).get("recommendations") if isinstance(_resp, dict) else None
@@ -4524,6 +4675,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             "tamOsVersions": tam_os_versions,
             "acknowledgedRisksNowExploited": acknowledged_risks_now_exploited,
             "tamRenewals": tam_renewals,
+            "otherProductSystems": other_product_systems,
             # ── External firmware baselines (ground-truth) ──
             "firmwareBaselines": _ext_baselines,
         }
@@ -4536,7 +4688,7 @@ def _do_full_harvest(watchlist_ids=None, account=None):
             _acct_label = account.get("label") or _acct_id
             result["accountId"] = _acct_id
             result["accountLabel"] = _acct_label
-            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals", "tamRecommendations", "tamSustainability", "tamOfficialHealthScore", "tamCustomerHealthScores", "tamCustomerRecommendations", "tamSuccessPlans"):
+            for _field in ("systems", "clusters", "risks", "cases", "tamSites", "tamRenewals", "otherProductSystems", "tamRecommendations", "tamSustainability", "tamOfficialHealthScore", "tamCustomerHealthScores", "tamCustomerRecommendations", "tamSuccessPlans"):
                 for _item in (result.get(_field) or []):
                     if isinstance(_item, dict):
                         _item.setdefault("accountId", _acct_id)
@@ -10728,7 +10880,7 @@ class ProxyHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
                             serialNumber shelfId
                             hardwareModel { name }
                             moduleHardwareModel { name }
-                            drives { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
+                            drives(pageSize: 1000) { totalCount drives { firmwareRevision vendor hardwareModel { name } } }
                         }
                     }
                 }
