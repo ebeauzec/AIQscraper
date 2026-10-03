@@ -1,8 +1,8 @@
 {
-  "version": "5.6.238",
+  "version": "5.6.239",
   "major": 5,
   "minor": 6,
-  "patch": 238,
+  "patch": 239,
   "date": "2026-10-03",
   "notes": "Thin provisioning no longer causes confusion: LUN and volume sizes are labelled 'provisioned/configured size' everywhere (not space used, never added together, kept out of capacity totals), each system shows its provisioned LUN size against its usable capacity and physical use, and overcommitment is only flagged as a risk when the system is also 80% or more full. Also fixed: volume sizes were reported 1,024 times too small (a unit error), so every 'Volume Provisioned' figure was wrong; they are now correct, including for data already cached."
 }

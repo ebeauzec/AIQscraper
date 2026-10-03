@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.238";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.239";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.239",
+    date: "3 October 2026",
+    title: "Readable TAM Recommendations Word Report",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- TAM Recommendations Word Document Was Confusing",
+        color: "#22c55e",
+        items: [
+          "The Word export of the TAM Recommendations tab was converted from the on-screen cards, which split every web address at its colon into 'https' and '//...' table rows, repeated 'Metric / Value' tables and left empty headings. It now has its own report: a summary table (area, check, score, systems not meeting it), then one block per check with the Finding (Active IQ's score and the measured or estimated count) kept apart from Active IQ's General guidance text, with all links intact.",
+          "Counts that are item counts (for example 141 drives) are no longer shown as 'of 8 systems', and a check where ARIA measures 0 systems but Active IQ's account-wide score is lower says so.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.238",
     date: "3 October 2026",
@@ -35297,6 +35313,71 @@ function _ensurePlanWordButton(sec) {
 function _wdCell(c) { return String(c == null || c === '' ? '\u2014' : c).replace(/\|/g, '/').replace(/\s*[\r\n]+\s*/g, ' ').trim(); }
 function _wdTable(head, rows) { return rows.length ? `| ${head.join(' | ')} |\n|${head.map(() => '---').join('|')}|\n` + rows.map(r => `| ${r.map(_wdCell).join(' | ')} |`).join('\n') + '\n\n' : ''; }
 function _wdCust(scopeTitle) { return String(scopeTitle || '').replace(/_/g, ' ').replace(/^(Customer|Watchlist|Group|Custom Group|System):\s*/, '') || 'Portfolio'; }
+// Word report for the TAM Recommendations tab, built from the recommendation data (not from the card layout): a summary table, then one
+// block per check with the measured finding (score and systems affected) kept apart from Active IQ's general guidance text.
+function compileRecommendationsWordMd(systems, scopeTitle) {
+  const cust = _wdCust(scopeTitle), today = new Date().toISOString().split('T')[0], scopeCount = (systems || []).length;
+  const { recs, usingRealCustomerRecs } = _getScopedRecommendations(systems);
+  let o = `# ${cust} -- TAM Recommendations
+
+Prepared ${today} from the recommendations Active IQ publishes for this customer, with counts rescoped to the ${scopeCount} selected system${scopeCount !== 1 ? 's' : ''}.
+
+`;
+  if (!recs.length) return o + `No recommendations are available. Run a data refresh to load them.
+`;
+  const nice = t => String(t || '').replace(/_/g, ' ').toLowerCase().replace(/\b([a-z])/g, c => c.toUpperCase()).replace(/\b(Sp|Bmc|Bios|Dqp|Eos|Ha|Arp|Hw|Plat)\b/g, x => x.toUpperCase());
+  const plain = html => String(html || '')
+    .replace(/<a\s+[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi, (m, url, lbl) => { const t = lbl.replace(/<[^>]+>/g, '').trim(); return (!t || t === url) ? url : `${t} (${url})`; })
+    .replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+  const rows = recs.map(r => {
+    const { effectiveScore, isAllClear } = _resolveRecommendationScore(r);
+    const real = _realRecommendationCount(r.subCategory, systems);
+    const failing = real != null ? real : (effectiveScore != null ? Math.round(((100 - effectiveScore) / 100) * scopeCount) : null);
+    return { r, score: isAllClear ? 100 : effectiveScore, failing, measured: real != null, items: real != null && real > scopeCount };
+  });
+  const cnt = x => x.failing == null ? 'n/a' : (x.items ? `${x.failing} items across ${scopeCount} systems` : `${x.failing}${x.measured ? '' : ' (est.)'} of ${scopeCount}`);
+  const rescope = (text, x) => {
+    let t = text;
+    if (x.failing != null) {
+      t = t.replace(/(\d+)\s+of\s+your\s+systems/gi, () => `${x.failing}${x.measured ? '' : ' (estimated)'} of your ${scopeCount} selected systems`);
+      if (scopeCount > 0) t = t.replace(/(\d+)%\s+of\b/gi, () => `${x.failing}${x.measured ? '' : ' (estimated)'} of ${scopeCount}`);
+    }
+    return t;
+  };
+  o += `## 1. Summary
+
+` + (usingRealCustomerRecs
+    ? `Scores are this customer's own Active IQ figures. `
+    : `Active IQ scores these checks per account, not per customer. Where ARIA has its own per-system data for a check the count is measured on these systems; otherwise it is estimated by applying the account rate to the ${scopeCount} selected systems and marked as estimated. `)
+    + `A score is the percentage of systems meeting the check; 100% means all clear.
+
+`;
+  o += _wdTable(['Area', 'Check', 'Score', 'Systems not meeting it'], rows.map(x => [nice(x.r.category), nice(x.r.subCategory), x.score != null ? x.score + '%' : 'n/a', cnt(x)]));
+  o += `## 2. Recommendations by area
+
+For each check: the **Finding** is what Active IQ measured for this customer; the **General guidance** is Active IQ's standard advice for that check, not a statement about a particular system.
+
+`;
+  const byCat = new Map(); rows.forEach(x => { const k = x.r.category || 'OTHER'; if (!byCat.has(k)) byCat.set(k, []); byCat.get(k).push(x); });
+  byCat.forEach((items, cat) => {
+    o += `### ${nice(cat)} (${items.length})
+
+`;
+    items.forEach(x => {
+      o += `#### ${nice(x.r.subCategory) || 'Check'}
+
+`;
+      o += `**Finding:** Active IQ score ${x.score != null ? x.score + '%' : 'n/a'}${x.failing != null ? `; ${x.measured ? 'ARIA measured' : 'estimated'}: ${cnt(x)} not meeting this check` : ''}${x.measured && x.failing === 0 && x.score != null && x.score < 100 ? ' (Active IQ scores the whole account, so its score can be lower than what ARIA measures on these systems)' : ''}.
+
+`;
+      const txt = rescope(plain(x.r.recommendation), x);
+      if (txt) o += `**General guidance:** ${txt}
+
+`;
+    });
+  });
+  return o;
+}
 // Word report for the OS Upgrades tab, built from the same data as the on-screen cards: a summary, one table row per system,
 // each distinct upgrade path (with its hop-by-hop steps) written once with every system that follows it, and the non-CVE
 // critical findings per system. Replaces a conversion of the card layout (stray hop numbers, duplicated text, badge labels).
@@ -35436,6 +35517,11 @@ function downloadPlanSectionWord(index) {
   if (String(index) === '5') {
     window.__dlScope = scopeTitle.replace(/_/g, ' ');
     triggerFileDownload(_dlFilename('OS Upgrade Roadmaps', scopeTitle.replace(/_/g, ' '), 'md'), compileUpgradesWordMd(_scopeSys, scopeTitle), { format: 'docx' });
+    return;
+  }
+  if (String(index) === '12') {
+    window.__dlScope = scopeTitle.replace(/_/g, ' ');
+    triggerFileDownload(_dlFilename('TAM Recommendations', scopeTitle.replace(/_/g, ' '), 'md'), compileRecommendationsWordMd(_scopeSys, scopeTitle), { format: 'docx' });
     return;
   }
   if (['2', '3'].includes(String(index))) {
@@ -36443,7 +36529,7 @@ function _dxSplitTitle(title) {
     let depth = 0, k = -1;
     for (let x = t.length - 1; x >= 0; x--) { if (t[x] === ')') depth++; else if (t[x] === '(') { depth--; if (depth === 0) { k = x; break; } } }
     const head = k > 0 ? t.slice(0, k).trim() : '', scope = k > 0 ? t.slice(k + 1, -1).trim() : '';
-    if (head.length >= 12 && (t.length > 90 || /findings?/i.test(scope))) {
+    if (head.length >= 12 && (t.length > 90 || /\bfindings?\b/i.test(scope))) {
       const fm = scope.match(/^(\d+)\s+(?:distinct\s+)?(findings?)(?:,\s*\d+\s+occurrences?)?\s+(?:across|—|-)\s+(.+)$/i);
       if (fm) { const sys = _dxSplitTop(fm[3]); return { title: head.replace(/[\s—-]+$/, ''), rows: [['Findings', [fm[1] + ' ' + fm[2].toLowerCase()]], ['Systems (' + sys.length + ')', sys]] }; }
       return { title: head, rows: [['Scope', [scope]]] };

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.239] - 2026-10-03
+
+### Fixed
+- TAM Recommendations Word report rebuilt from the recommendation data (`compileRecommendationsWordMd`, tab 12): summary table plus per-check Finding / General guidance blocks. The DOM conversion split URLs at the colon into key/value rows and produced repeated tables.
+
+---
+
 ## [5.6.238] - 2026-10-03
 
 ### Fixed
