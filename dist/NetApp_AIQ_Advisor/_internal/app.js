@@ -27,9 +27,32 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.229";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.230";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.230",
+    date: "3 October 2026",
+    title: "Action Planner Word Downloads Reworked",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Technical Risks, Security Advisories and OS Upgrades Word Reports",
+        color: "#22c55e",
+        items: [
+          "These three downloads were conversions of the on-screen cards and read badly: the document title was the first system's name, severity lines were plain text, numbering was doubled, upgrade hops were split into stray numbers, and every finding repeated its full remediation under every system (hundreds of pages). Each is now a purpose-built report with a correct title, a summary, a compact per-system table, and every distinct issue, advisory or upgrade path written once with all of its affected systems; upgrade hops list their steps as bullets.",
+        ],
+      },
+      {
+        icon: "✨",
+        label: "Improved -- Every Other Tab Download",
+        color: "#3b82f6",
+        items: [
+          "All 23 downloadable tabs were exported for two customers and checked. KPI tiles (including two-tile rows and tiles with a small heading) become Metric / Value tables with no empty Detail column, stat cards become one bold line, case, system and switch headers become headings, a Label: line over a list is bold, and a run of label/value lines becomes a table.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.229",
     date: "3 October 2026",
@@ -34780,6 +34803,138 @@ function _ensurePlanWordButton(sec) {
   if (parent && getComputedStyle(parent).display === 'flex') parent.appendChild(btn);
   else { const bar = document.createElement('div'); bar.style.cssText = 'display:flex;justify-content:flex-end;margin-bottom:8px;'; bar.appendChild(btn); h.insertAdjacentElement('beforebegin', bar); }
 }
+// Word reports for the Technical Risks and Security Advisories tabs. The plain-text export lists every finding under every
+// system with its full remediation text repeated each time (hundreds of pages for a large customer); here each distinct issue is
+// written ONCE with every affected system listed, and the per-system view is a compact table. Nothing is dropped or truncated.
+function _wdCell(c) { return String(c == null || c === '' ? '\u2014' : c).replace(/\|/g, '/').replace(/\s*[\r\n]+\s*/g, ' ').trim(); }
+function _wdTable(head, rows) { return rows.length ? `| ${head.join(' | ')} |\n|${head.map(() => '---').join('|')}|\n` + rows.map(r => `| ${r.map(_wdCell).join(' | ')} |`).join('\n') + '\n\n' : ''; }
+function _wdCust(scopeTitle) { return String(scopeTitle || '').replace(/_/g, ' ').replace(/^(Customer|Watchlist|Group|Custom Group|System):\s*/, '') || 'Portfolio'; }
+// Word report for the OS Upgrades tab, built from the same data as the on-screen cards: a summary, one table row per system,
+// each distinct upgrade path (with its hop-by-hop steps) written once with every system that follows it, and the non-CVE
+// critical findings per system. Replaces a conversion of the card layout (stray hop numbers, duplicated text, badge labels).
+function compileUpgradesWordMd(systems, scopeTitle) {
+  const cust = _wdCust(scopeTitle), today = new Date().toISOString().split('T')[0];
+  const one = t => String(t == null ? '' : t).replace(/\s*[\r\n]+\s*/g, ' ').replace(/^(.{12,}?)\s+\1$/, '$1').trim();
+  const ups = [];
+  (systems || []).forEach(sys => {
+    if (sys.upgrades && sys.upgrades.targetVersion !== 'Up to Date') ups.push({ sys, u: { systemName: sys.systemName, serialNumber: sys.serialNumber, platform: sys.platform, currentVersion: sys.santricityVersion ? sys.santricityVersion : sys.ontapVersion, ...sys.upgrades } });
+  });
+  let o = `# ${cust} -- OS Upgrade Roadmaps\n\nPrepared ${today} from NetApp Active IQ recommended software versions and NetApp upgrade-path rules.\n\n`;
+  const parity = (() => { try { return _dfNonCveParityVersion(systems); } catch (e) { return null; } })();
+  if (!ups.length) return o + `All systems in scope are running their target version baselines.\n` + (parity ? '' : '');
+  const rows = ups.map(({ sys, u }) => {
+    const cur = u.currentVersion || 'Unknown', min = u.targetVersion || 'N/A';
+    let hops = []; try { hops = calculateUpgradePath(u.platform, cur, min) || []; } catch (e) { hops = []; }
+    let latest = ''; try { latest = getLatestSupportedVersion(u.platform) || ''; } catch (e) { latest = ''; }
+    let floor = null; try { floor = _dfCriticalHighFixFloor(sys); } catch (e) { floor = null; }
+    let nonCve = null; try { nonCve = _dfCriticalHighNonCveIssues(sys); } catch (e) { nonCve = null; }
+    return { sys, u, cur, min, hops, latest, floor: floor && !floor.alreadyMet ? floor : null, nonCve };
+  });
+  const byUrg = {}; rows.forEach(r => { const k = r.u.urgency || 'Not rated'; byUrg[k] = (byUrg[k] || 0) + 1; });
+  o += `## 1. Summary\n\n- **${rows.length}** system${rows.length !== 1 ? 's' : ''} have a recommended upgrade; ${rows.filter(r => r.hops.length > 1).length} need more than one hop.\n`;
+  const fl = rows.filter(r => r.floor).length, nc = rows.filter(r => r.nonCve).length;
+  if (fl) o += `- **${fl}** have critical/high CVEs that need a version above the recommended target (see the Security fix floor column).\n`;
+  if (nc) o += `- **${nc}** have critical/high NetApp findings that are not CVEs and are not cleared by a version change alone.\n`;
+  o += `\n` + _wdTable(['Urgency', 'Systems'], Object.keys(byUrg).map(k => [k, byUrg[k]]));
+  if (parity && parity.results && parity.results.length) {
+    o += `**Cross-site version parity (critical NetApp issues, non-CVE).** ${_dfPlural(parity.issueSystemCount, 'system')} in this scope ${parity.issueSystemCount === 1 ? 'has' : 'have'} ${_dfPlural(parity.totalIssueCount, 'outstanding critical/high non-CVE finding')}. To keep one consistent version across every site:\n\n`;
+    parity.results.forEach(r => { o += `- All ${r.label} systems should match at **${r.version}** (highest requirement, driven by: ${r.driverSystems.slice(0, 3).join(', ')}${r.driverSystems.length > 3 ? ` and ${r.driverSystems.length - 3} more` : ''}).\n`; });
+    o += `\n`;
+  }
+  o += `## 2. Upgrades by system\n\n` + _wdTable(['System', 'Platform', 'Current', 'Minimum required', 'Latest supported', 'Path', 'Security fix floor', 'Non-CVE critical/high', 'Urgency'],
+    rows.slice().sort((x, y) => String(x.u.systemName).localeCompare(String(y.u.systemName), undefined, { numeric: true })).map(r => [r.u.systemName, r.u.platform, r.cur, r.min, r.latest, r.hops.length > 1 ? `${r.hops.length} hops` : (r.hops.length === 1 ? 'Direct' : 'n/a'), r.floor ? r.floor.version : '', r.nonCve ? r.nonCve.count : '', r.u.urgency]));
+  // distinct upgrade paths
+  const paths = new Map();
+  rows.forEach(r => { const k = [r.u.platform, r.cur, r.min, r.hops.map(h => h.from + '>' + h.to).join(',')].join('|'); let g = paths.get(k); if (!g) { g = { r, systems: [] }; paths.set(k, g); } g.systems.push(r.u.systemName); });
+  o += `## 3. Upgrade paths\n\nSystems that follow the same path are listed together.\n\n`;
+  [...paths.values()].sort((x, y) => (y.r.hops.length - x.r.hops.length) || (y.systems.length - x.systems.length)).forEach(g => {
+    const r = g.r;
+    o += `### ${r.cur} to ${r.min}${r.u.platform ? ` (${[...new Set(rows.filter(x => g.systems.includes(x.u.systemName)).map(x => x.u.platform))].join(', ')})` : ''}\n\n`;
+    o += `**Systems (${g.systems.length}):** ${g.systems.slice().sort((x, y) => String(x).localeCompare(String(y), undefined, { numeric: true })).join(', ')}\n\n`;
+    if (r.hops.length > 1) {
+      o += `**${r.hops.length}-hop upgrade path** -- complete each hop before starting the next.\n\n`;
+      const stepTxt = s => one(s).replace(/<\/?code>/g, '`').replace(/^\d+\.\s*/, '');
+      r.hops.forEach((h, i) => { o += `${i + 1}. **${h.from} to ${h.to}**\n`; (h.steps || []).forEach(s => { o += `- ${stepTxt(s)}\n`; }); o += `\n`; });
+    } else if (r.hops.length === 1) o += `Direct upgrade: no intermediate versions are required.\n\n`;
+    if (r.u.benefits) o += `**Expected benefits:** ${one(r.u.benefits)}\n\n`;
+    if (r.u.source === 'heuristic') o += `Active IQ did not report a target version for this platform; generic version-based guidance is shown.\n\n`;
+  });
+  // non-CVE critical/high findings per system
+  const withNc = rows.filter(r => r.nonCve && r.nonCve.items && r.nonCve.items.length);
+  if (withNc.length) {
+    o += `## 4. Critical NetApp issues that a version change does not clear\n\nFirmware, configuration, hardware-refresh and similar findings; review each individually.\n\n`;
+    withNc.sort((x, y) => String(x.u.systemName).localeCompare(String(y.u.systemName), undefined, { numeric: true })).forEach(r => {
+      o += `### ${r.u.systemName}\n\n`;
+      const seen = new Set(); r.nonCve.items.forEach(it => { const d = `[${it.category}] ${one(it.description)}`; if (!seen.has(d)) { seen.add(d); o += `- ${d}\n`; } });
+      o += `\n`;
+    });
+  }
+  const withFloor = rows.filter(r => r.floor);
+  if (withFloor.length) {
+    o += `## ${withNc.length ? 5 : 4}. Security fix floor\n\nThe version needed to clear every critical/high CVE on the system, where it differs from the recommended target.\n\n` + _wdTable(['System', 'Fix floor', 'Critical/high CVEs', 'Customer qualified version'], withFloor.map(r => [r.u.systemName, r.floor.version, (r.floor.cveIds || []).length, r.sys.swCQV || '']));
+  }
+  return o;
+}
+function compileRisksWordMd(systems, scopeTitle) {
+  const rank = { critical: 0, high: 1, medium: 2, low: 3 }, sev = r => String(r.severity || 'low').toLowerCase();
+  const all = []; (systems || []).forEach(s => (s.risks || []).forEach(r => all.push({ sys: s.systemName || s.serialNumber, r })));
+  const cust = _wdCust(scopeTitle), today = new Date().toISOString().split('T')[0], cap = x => { const t = String(x).replace(/_/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); };
+  let o = `# ${cust} -- Technical Risks\n\nPrepared ${today} from NetApp Active IQ risk signatures.\n\n`;
+  if (!all.length) return o + `No technical risk signatures were identified across the monitored scope.\n`;
+  const nSys = new Set(all.map(x => x.sys)).size;
+  const bySev = {}; all.forEach(x => { const k = sev(x.r); (bySev[k] = bySev[k] || { n: 0, s: new Set() }); bySev[k].n++; bySev[k].s.add(x.sys); });
+  o += `## 1. Summary\n\n- **${all.length}** open risk findings across **${nSys}** system${nSys !== 1 ? 's' : ''}.\n\n`;
+  o += _wdTable(['Severity', 'Findings', 'Systems affected'], Object.keys(bySev).sort((x, y) => (rank[x] ?? 4) - (rank[y] ?? 4)).map(k => [cap(k), bySev[k].n, bySev[k].s.size]));
+  // distinct issues (same severity, category and description) with the systems they affect
+  const issues = new Map();
+  all.forEach(({ sys, r }) => { const k = sev(r) + '|' + r.category + '|' + r.description; let g = issues.get(k); if (!g) { g = { r, sys: new Set() }; issues.set(k, g); } g.sys.add(sys); });
+  const list = [...issues.values()].sort((x, y) => ((rank[sev(x.r)] ?? 4) - (rank[sev(y.r)] ?? 4)) || (y.sys.size - x.sys.size) || String(x.r.description).localeCompare(String(y.r.description)));
+  o += `### Most widespread issues\n\n` + _wdTable(['Severity', 'Category', 'Issue', 'Systems'], list.slice().sort((x, y) => y.sys.size - x.sys.size).slice(0, 15).map(g => [cap(sev(g.r)), g.r.category, g.r.description, g.sys.size]));
+  // per-system table
+  o += `## 2. Risks by system\n\nOne row per finding, most severe first. The remediation plan for each issue is in section 3.\n\n`;
+  const bySystem = new Map(); all.forEach(x => { if (!bySystem.has(x.sys)) bySystem.set(x.sys, []); bySystem.get(x.sys).push(x.r); });
+  [...bySystem.entries()].sort((x, y) => String(x[0]).localeCompare(String(y[0]), undefined, { numeric: true })).forEach(([name, rs]) => {
+    o += `### ${name}\n\n` + _wdTable(['Severity', 'Category', 'Issue', 'Safety classification'], rs.slice().sort((x, y) => (rank[sev(x)] ?? 4) - (rank[sev(y)] ?? 4)).map(r => [cap(sev(r)), r.category, r.description, String(getRiskSafetyTier(r) || '').toUpperCase()]));
+  });
+  // remediation, once per distinct issue
+  o += `## 3. Remediation plans by issue\n\nEach distinct issue is described once, with every system it affects.\n\n`;
+  list.forEach((g, i) => {
+    const r = g.r, p = r.remediationPlan, names = [...g.sys].sort((x, y) => String(x).localeCompare(String(y), undefined, { numeric: true }));
+    o += `### ${i + 1}. ${String(r.description).length > 110 ? String(r.description).slice(0, 107) + '...' : r.description}\n\n`;
+    o += `**Severity:** ${cap(sev(r))}  |  **Category:** ${r.category}  |  **Safety classification:** ${String(getRiskSafetyTier(r) || '').toUpperCase()}\n\n`;
+    if (String(r.description).length > 110) o += `**Issue:** ${r.description}\n\n`;
+    o += `**Affected systems (${names.length}):** ${names.join(', ')}\n\n`;
+    o += `**Root cause:** ${p && p.cause ? p.cause : 'Undetermined'}\n\n**Operations impact:** ${p && p.impact ? p.impact : 'Undetermined'}\n\n`;
+    const steps = p && p.steps && p.steps.length ? p.steps : ['Review standard operating guidelines.'];
+    o += `**Remediation steps**\n\n` + steps.map((s, k) => `${k + 1}. ${String(s).replace(/^\d+\.\s*/, '')}`).join('\n') + '\n\n';
+    const opts = p && p.options && p.options.length ? p.options : ['Contact NetApp Support.'];
+    o += `**Options and trade-offs**\n\n` + opts.map(x => `- ${x}`).join('\n') + '\n\n';
+  });
+  return o;
+}
+function compileAdvisoriesWordMd(systems, scopeTitle) {
+  const rank = { critical: 0, high: 1, medium: 2, low: 3 }, sev = a => String(a.severity || 'low').toLowerCase();
+  const all = []; (systems || []).forEach(s => (s.securityBulletins || []).forEach(b => all.push({ sys: s.systemName || s.serialNumber, b })));
+  const cust = _wdCust(scopeTitle), today = new Date().toISOString().split('T')[0], cap = x => { const t = String(x).replace(/_/g, ' '); return t.charAt(0).toUpperCase() + t.slice(1); };
+  let o = `# ${cust} -- Security Advisories\n\nPrepared ${today} from NetApp security advisories matched to each system's software version.\n\n`;
+  if (!all.length) return o + `No security vulnerabilities were mapped against release baselines for this scope.\n`;
+  const groups = new Map();
+  all.forEach(({ sys, b }) => { const k = (b.cve || b.id || b.title) + '|' + sev(b); let g = groups.get(k); if (!g) { g = { b, sys: new Set() }; groups.set(k, g); } g.sys.add(sys); });
+  const list = [...groups.values()].sort((x, y) => ((rank[sev(x.b)] ?? 4) - (rank[sev(y.b)] ?? 4)) || (y.sys.size - x.sys.size) || String(x.b.cve || x.b.id).localeCompare(String(y.b.cve || y.b.id)));
+  const nSys = new Set(all.map(x => x.sys)).size;
+  const bySev = {}; list.forEach(g => { const k = sev(g.b); bySev[k] = (bySev[k] || 0) + 1; });
+  o += `## 1. Summary\n\n- **${list.length}** distinct advisories affect **${nSys}** system${nSys !== 1 ? 's' : ''} (${all.length} system-advisory pairs).\n\n`;
+  o += _wdTable(['Severity', 'Advisories'], Object.keys(bySev).sort((x, y) => (rank[x] ?? 4) - (rank[y] ?? 4)).map(k => [cap(k), bySev[k]]));
+  o += `## 2. Advisories\n\n` + _wdTable(['Advisory', 'Severity', 'Title', 'Systems affected'], list.map(g => [g.b.cve || g.b.id, cap(sev(g.b)), g.b.title, g.sys.size]));
+  o += `## 3. Mitigation and affected systems\n\n`;
+  list.forEach(g => {
+    const names = [...g.sys].sort((x, y) => String(x).localeCompare(String(y), undefined, { numeric: true })), st = [...new Set(all.filter(x => (x.b.cve || x.b.id || x.b.title) === (g.b.cve || g.b.id || g.b.title)).map(x => x.b.status).filter(Boolean))];
+    o += `### ${g.b.cve || g.b.id}\n\n**Severity:** ${cap(sev(g.b))}${st.length ? `  |  **Status:** ${st.join(', ')}` : ''}\n\n`;
+    if (g.b.title) o += `**Title:** ${g.b.title}\n\n`;
+    o += `**Mitigation:** ${g.b.mitigation || 'Upgrade to a fixed release; see the NetApp advisory.'}\n\n**Affected systems (${names.length}):** ${names.join(', ')}\n\n`;
+  });
+  return o;
+}
 function downloadPlanSectionWord(index) {
   const body = document.getElementById('generatedPlanBody');
   const sec = body && body.querySelector(`.plan-section[data-section-index="${index}"]`);
@@ -34790,14 +34945,17 @@ function downloadPlanSectionWord(index) {
     triggerFileDownload(_dlFilename('Firmware Currency', scopeTitle.replace(/_/g, ' '), 'md'), compileFirmwareWordMd(_scopeSys, scopeTitle), { format: 'docx' });
     return;
   }
+  if (String(index) === '5') {
+    window.__dlScope = scopeTitle.replace(/_/g, ' ');
+    triggerFileDownload(_dlFilename('OS Upgrade Roadmaps', scopeTitle.replace(/_/g, ' '), 'md'), compileUpgradesWordMd(_scopeSys, scopeTitle), { format: 'docx' });
+    return;
+  }
   if (['2', '3'].includes(String(index))) {
-    // These views have purpose-built export text (grouped by system, remediation plans, advisories); use it so the Word file
-    // carries the same real structure as the deliverables instead of a conversion of the card layout.
-    const hh = sec.querySelector('h2, h3'); const ttl = (hh ? hh.innerText.trim() : 'Action Planner View') || 'Action Planner View';
-    const real = window.triggerFileDownload; let cap = null;
-    window.triggerFileDownload = (fn, t) => { cap = t; }; window.__dlFmtOverride = 'txt';
-    try { downloadPlanSection(parseInt(index, 10)); } finally { window.triggerFileDownload = real; window.__dlFmtOverride = null; }
-    if (cap) { window.__dlScope = scopeTitle.replace(/_/g, ' '); triggerFileDownload(_dlFilename(ttl, scopeTitle.replace(/_/g, ' '), 'txt'), cap, { format: 'docx' }); return; }
+    // Purpose-built Word reports: every distinct issue once with all affected systems, plus a compact per-system table.
+    window.__dlScope = scopeTitle.replace(/_/g, ' ');
+    const _isRisk = String(index) === '2';
+    triggerFileDownload(_dlFilename(_isRisk ? 'Technical Risks' : 'Security Advisories', scopeTitle.replace(/_/g, ' '), 'md'), _isRisk ? compileRisksWordMd(_scopeSys, scopeTitle) : compileAdvisoriesWordMd(_scopeSys, scopeTitle), { format: 'docx' });
+    return;
   }
   const _full = { '12': () => _renderRecommendationsSection(_planScopeSystems().systems, { full: true }) }[String(index)];
   const clone = sec.cloneNode(true);
@@ -36436,22 +36594,28 @@ function _domToMarkdown(root, headingLevel) {
   }
   // A row of stat tiles (value + label + note in each) becomes one Metric / Value / Detail table instead of scattered fragments.
   function leafParts(el) { const out = []; (function w(n) { Array.from(n.children).forEach(c => { if (SKIP.has(String(c.tagName).toUpperCase())) return; if (!c.querySelector('*') || !hasBlock(c)) { const t = clean(inline(c)); if (t) out.push(t); } else w(c); }); })(el); return out; }
-  function tryTiles(el) {
+  function tryTiles(el, lvl) {
     const kids = Array.from(el.children).filter(c => !SKIP.has(String(c.tagName).toUpperCase()));
-    if (kids.length < 3 || el.querySelector('table,ul,ol,details,h1,h2,h3,h4,h5,h6')) return false;
-    const rows = []; let skipped = 0;
+    // two tiles are enough when every tile has a label and a number; a tile may use a small <h4> as its label
+    if (kids.length < 2 || el.querySelector('table,ul,ol,details') || Array.from(el.querySelectorAll('h1,h2,h3,h4,h5,h6')).some(h => clean(h.textContent).length > 60)) return false;
+    const rows = []; let skipped = 0; const _titleLines = [];
     for (const k of kids) {
       const parts = leafParts(k).filter(p => /[A-Za-z0-9]/.test(p));
-      if (parts.length <= 1) { skipped++; continue; }   // connector (arrow / separator) between tiles
+      if (parts.length <= 1) { if (/^H[1-6]$/.test(String(k.tagName).toUpperCase()) && !rows.length && clean(k.textContent)) _titleLines.push(clean(k.textContent)); skipped++; continue; }   // connector between tiles, or the tiles' own title
       if (parts.length > 5 || parts.some(p => p.length > 110)) return false;
-      let vi = parts.findIndex(p => /\d/.test(p) && p.length <= 16);
+      if (kids.length === 2 && (!parts.some(p => /\d/.test(p) && p.length <= 16) || parts.some(p => p.length > 70))) return false;
+      const _numLike = p => /^[-+~\u2264\u2265<>]?\s*\d[\d.,]*\s*(%|[A-Za-z]{1,4})?(\s*\/\s*\d[\d.,]*)?(\s*[A-Za-z]{1,4})?$/.test(p) && p.length <= 16;
+      let vi = parts.findIndex(_numLike);
+      if (vi < 0) vi = parts.findIndex(p => /\d/.test(p) && p.length <= 16);
       if (vi < 0) { if (parts.length === 2) { rows.push([parts[0], parts[1], '']); continue; } return false; }
       const value = parts[vi], rest = parts.filter((_, i) => i !== vi);
-      rows.push([rest[0], value, rest.slice(1).join('; ')]);
+      rows.push([String(rest[0] || '').replace(/:\s*$/, ''), value, rest.slice(1).join('; ')]);
     }
     if (rows.length < 2 || skipped > rows.length) return false;
-    lines.push('| Metric | Value | Detail |', '| --- | --- | --- |');
-    rows.forEach(r => lines.push('| ' + r.map(x => String(x || '').replace(/\|/g, '\\|') || ' ').join(' | ') + ' |'));
+    _titleLines.forEach(tl => heading(lvl + 1, tl));
+    const _hasDetail = rows.some(r => String(r[2] || '').trim());   // no empty Detail column when no tile has a note
+    lines.push(_hasDetail ? '| Metric | Value | Detail |' : '| Metric | Value |', _hasDetail ? '| --- | --- | --- |' : '| --- | --- |');
+    rows.forEach(r => lines.push('| ' + (_hasDetail ? r : r.slice(0, 2)).map(x => String(x || '').replace(/\|/g, '\\|') || ' ').join(' | ') + ' |'));
     lines.push('');
     return true;
   }
@@ -36484,7 +36648,7 @@ function _domToMarkdown(root, headingLevel) {
   function walkBlock(el, lvl) {
     const tag = String(el.tagName).toUpperCase();
     if (SKIP.has(tag)) return;
-    if ((tag === 'DIV' || tag === 'SECTION') && tryTiles(el)) return;
+    if ((tag === 'DIV' || tag === 'SECTION') && tryTiles(el, lvl)) return;
     if (tag === 'TABLE') { walkTable(el); return; }
     if (tag === 'UL') { walkList(el, false); return; }
     if (tag === 'OL') { walkList(el, true); return; }
@@ -36499,11 +36663,14 @@ function _domToMarkdown(root, headingLevel) {
     if (tag === 'TEXTAREA' || tag === 'PRE') { const t = (el.value || el.textContent || '').trim(); if (t) lines.push(t, ''); return; }
     if (!hasBlock(el)) {
       if (headingLike(el)) { heading(lvl + 1, inline(el)); return; }
+      { const _t0 = clean(inline(el)); if (_t0.length < 140 && /\(S\/N:\s*[A-Za-z0-9]+\)\s*$/.test(_t0)) { heading(lvl + 1, _t0); return; } }   // a system card header
       if (emptyLabel(el)) return;                                        // a section label with no content under it
       const kids = Array.from(el.children).filter(c => !SKIP.has(String(c.tagName).toUpperCase()));
       if (el.style && el.style.display === 'flex' && kids.length >= 2) {
         const parts = kids.map(k => clean(inline(k))).filter(Boolean);
-        para(parts.length === 2 ? (/:$/.test(parts[0]) ? `**${parts[0]}** ${parts[1]}` : `**${parts[0]}** -- ${parts[1]}`) : parts.join('  |  '));
+        if (parts.length === 2 && /\((Cluster Interconnect|Storage|Management|MetroCluster|Fabric)[^)]*\)\s*$/i.test(parts[0]) && parts[0].length < 100) heading(lvl + 1, `${parts[0]} (${parts[1].replace(/^[^A-Za-z0-9]+/, '')})`);
+        else if (parts.length === 2 && /^(Case ID|Case|Ticket|Advisory|Risk|Plan|Site|Cluster|System|Node|Grid|Tenant)\b[ :]/i.test(parts[0]) && parts[0].length < 90) heading(lvl + 1, `${parts[0]} (${parts[1].replace(/^[^A-Za-z0-9]+/, '')})`);
+        else para(parts.length === 2 ? (/:$/.test(parts[0]) ? `**${parts[0]}** ${parts[1]}` : `**${parts[0]}** -- ${parts[1]}`) : parts.join('  |  '));
       } else para(inline(el));
       return;
     }
@@ -36521,7 +36688,33 @@ function _domToMarkdown(root, headingLevel) {
     flush();
   }
   walkBlock(root, headingLevel || 1);
-  return lines.join('\n');
+  // clean-up: a stat card that came out as  heading / value / note  becomes  **Heading:** value -- note;
+  // a case heading absorbs the priority line under it
+  const out = [], isNum = s => /^[-+~\u2264\u2265<>]?\s*\d[\d.,]*\s*(%|[A-Za-z]{1,4})?(\s*\/\s*\d[\d.,]*)?(\s*[A-Za-z]{1,4})?$/.test(s) && s.length <= 16;
+  const plain = s => s && !/^(#|\||[-*] |\d+\. |\*\*)/.test(s);
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(/^(#{2,6}) (.+)$/);
+    if (m && lines[i + 1] === '' && /^Case ID/.test(m[2]) && /^S\d\b/.test(lines[i + 2] || '')) { out.push(lines[i].replace(/\)$/, `, ${lines[i + 2]})`), ''); i += 3; continue; }
+    if (m && lines[i + 1] === '' && isNum(lines[i + 2] || '') && (lines[i + 3] === '' || lines[i + 3] === undefined)) {
+      const note = plain(lines[i + 4]) && lines[i + 4].length <= 70 && (lines[i + 5] === '' || lines[i + 5] === undefined) ? lines[i + 4] : '';
+      out.push(`**${m[2]}:** ${lines[i + 2]}${note ? ' -- ' + note : ''}`, '');
+      i += note ? 5 : 3; continue;
+    }
+    out.push(lines[i]);
+  }
+  // a short "Label:" line that introduces a list or table is a bold label; a run of 3+ "**x** -- y" lines is one table
+  const out2 = [];
+  for (let i = 0; i < out.length; i++) {
+    const l = out[i];
+    if (/^[A-Z][A-Za-z0-9 \/&()-]{2,58}:$/.test(l) && out[i + 1] === '' && /^(\d+\. |- |\|)/.test(out[i + 2] || '')) { out2.push(`**${l.slice(0, -1)}**`); continue; }
+    if (/^\*\*(.+?)\*\* -- (.+)$/.test(l)) {
+      let j = i; const run = [];
+      while (j < out.length) { const mm = (out[j] || '').match(/^\*\*(.+?)\*\* -- (.+)$/); if (!mm) break; run.push(mm); j++; if (out[j] === '' && /^\*\*(.+?)\*\* -- /.test(out[j + 1] || '')) j++; else break; }
+      if (run.length >= 3) { out2.push('| Item | Detail |', '| --- | --- |'); run.forEach(r => out2.push(`| ${r[1].replace(/\|/g, '\\|')} | ${r[2].replace(/\|/g, '\\|')} |`)); out2.push(''); i = j - 1; if (out[j] === '') i = j; continue; }
+    }
+    out2.push(l);
+  }
+  return out2.join('\n');
 }
 
 // Whole-plan download (every generated section, not just one) using the same

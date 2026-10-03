@@ -1,8 +1,8 @@
 {
-  "version": "5.6.229",
+  "version": "5.6.230",
   "major": 5,
   "minor": 6,
-  "patch": 229,
+  "patch": 230,
   "date": "2026-10-03",
-  "notes": "Section titles are now real Word headings in every download: a short title line (after a blank line) that introduces a table, a list, underlined rule or labelled lines becomes a sub-heading in the plain-text deliverables, and styled bold or small-caps labels become headings in the on-screen tab exports (empty ones are dropped). Fixes StorageGRID and Platform Insights sub-sections (Grid Inventory, Node Roster, Power & Heat ...) and titles such as HARDWARE FIRMWARE CURRENCY and COST OF INACTION SUMMARY appearing as plain paragraphs. Risk titles containing a line break no longer split table rows."
+  "notes": "Word downloads of the Action Planner tabs reworked and audited tab by tab: Technical Risks, Security Advisories and OS Upgrade Roadmaps are now purpose-built reports (correct title, summary, a compact per-system table, each distinct issue or upgrade path written once with every affected system, hop-by-hop steps as lists); stat tiles become clean Metric/Value tables, stat cards become one bold line, case and system and switch headers become headings, label lines become bold, and runs of label/value lines become tables."
 }

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.230] - 2026-10-03
+
+### Fixed
+- Word downloads of the Action Planner tabs reworked and audited tab by tab: Technical Risks, Security Advisories and OS Upgrade Roadmaps are now purpose-built reports (correct title, summary, a compact per-system table, each distinct issue or upgrade path written once with every affected system, hop-by-hop steps as lists); stat tiles become clean Metric/Value tables, stat cards become one bold line, case and system and switch headers become headings, label lines become bold, and runs of label/value lines become tables. (`compileRisksWordMd`, `compileAdvisoriesWordMd`, `compileUpgradesWordMd`, `_domToMarkdown` tile/heading/label clean-up, routed from `downloadPlanSectionWord`.) Checked with a harness that exports every tab and flags lone numbers, joined steps, undefined text, labels above tables and empty last columns: none left on two customers. Known leftovers: the Portfolio Dashboard trend rows and the Site Logistics contact table still show some mis-split cells; the Portfolio Dashboard export names other customers by design (internal view). Layout verified from the generated documents, not by opening them in Word.
+
+---
+
 ## [5.6.229] - 2026-10-03
 
 ### Fixed
