@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.241] - 2026-10-03
+
+### Fixed
+- `_dxParse` markdown mode only recognised `#`-`###`, so `####` headings (TAM Recommendations checks) printed literally in Word; it now accepts up to six and caps the Word level at 3.
+
+---
+
 ## [5.6.240] - 2026-10-03
 
 ### Fixed

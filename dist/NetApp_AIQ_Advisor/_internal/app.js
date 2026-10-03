@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.240";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.241";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.241",
+    date: "3 October 2026",
+    title: "Fourth-Level Headings in Word",
+    sections: [
+      {
+        icon: "🔤",
+        label: "Fixed -- Stray #### Characters in Word",
+        color: "#22c55e",
+        items: [
+          "A heading nested three levels deep (for example each check in the TAM Recommendations report) printed its four # characters as text instead of becoming a heading. The Word builder now recognises headings down to level six and gives the deepest ones the third heading style.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.240",
     date: "3 October 2026",
@@ -36756,10 +36771,10 @@ function _dxParse(text, isMd, ctx) {
     for (let i = 0; i < L.length; i++) {
       const l = L[i]; let m;
       if (!l.trim()) { gap = true; continue; }
-      if ((m = l.match(/^(#{1,3})\s+(.*)$/))) {
+      if ((m = l.match(/^(#{1,6})\s+(.*)$/))) {   // levels 4-6 share the deepest Word heading style
         let h = _dxClean(m[2]).replace(/^Slide \d+\s+\u2014\s+/, '');
         if (m[1].length === 1) { const c = doc.customer ? h.match(new RegExp('^' + doc.customer.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\s+\u2014\\s+(.*)$', 'i')) : null; const pre = h.match(/^(.+?)\s+\u2014\s+(.*)$/); if (c) h = c[1]; else if (pre && !doc.customer) { doc.customer = pre[1]; h = pre[2]; } doc.title = h; continue; }
-        setSection(m[1].length - 1, h); continue;
+        setSection(Math.min(3, m[1].length - 1), h); continue;
       }
       if (l.trim().startsWith('|')) {
         const rows = []; while (i < L.length && L[i].trim().startsWith('|')) { if (!/^\|?\s*:?-{2,}/.test(L[i].trim().replace(/^\|/, '').trim())) rows.push(L[i].trim().replace(/^\||\|$/g, '').split('|').map(c => _dxClean(c.trim()))); i++; } i--;
