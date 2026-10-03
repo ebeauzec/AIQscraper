@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.223";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.224";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.224",
+    date: "3 October 2026",
+    title: "Capacity History: Spikes and Missing Months Fixed",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Capacity Spike in the Forecast Chart",
+        color: "#ef4444",
+        items: [
+          "Active IQ's monthly capacity data contains an isolated month (mostly August) where a system's capacity is reported at 1.5x to 4x its normal level for that one month, and a blank September on almost every system. The chart plotted the spike as real growth and, because it skipped blank months, slid later values under earlier month labels. History is now built by calendar month: a spike that is not sustained is replaced by an interpolation (111 systems, named in a note under the chart), missing months are interpolated, and growth and runway are measured over the same six months the chart shows, so they can no longer disagree with it. The fleet's aggregate growth falls accordingly.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.223",
     date: "3 October 2026",
@@ -18692,6 +18707,16 @@ function renderProjectionsChart(proj, systemName) {
   const yMax = yVals.length > 0 ? Math.max(...yVals) * 1.1 : undefined;
   const yMin = yVals.length > 0 ? Math.min(...yVals) * 0.85 : undefined;
 
+  // footnote naming any month replaced by interpolation, so a correction is never silent
+  (function () {
+    let note = document.getElementById('csmHistNote');
+    const adj = proj.historyAdjustedMonths || [];
+    if (!adj.length) { if (note) note.style.display = 'none'; return; }
+    if (!note) { note = document.createElement('div'); note.id = 'csmHistNote'; note.style.cssText = 'font-size:0.7rem;color:var(--text-muted);margin-top:6px;'; ctx.parentNode.appendChild(note); }
+    note.style.display = '';
+    note.textContent = 'Note: Active IQ reported an isolated capacity spike for ' + adj.join(', ') + ' (1.5x or more of the neighbouring months, not sustained); that month is replaced by an interpolation between its neighbours. Months with no data are also interpolated.';
+  })();
+
   projectionsChartInstance = new Chart(ctx, {
     type: 'line',
     data: {
@@ -21165,7 +21190,12 @@ function enrichSystemTelemetry(s) {
 
     // 1. Real monthly history linear regression
     const validMonths = monthly.filter(m => m.usedTB > 0).sort((a,b) => a.month < b.month ? -1 : 1);
-    if (validMonths.length >= 2) {
+    const _cleanHist = _dfCleanMonthlyCapacity(monthly);
+    if (_cleanHist && _cleanHist.windowMonths >= 1) {
+      // growth from the cleaned series over the chart's own window (last six months)
+      growthPerDayTB = _cleanHist.growthTBPerDay;
+      growthSource = 'actual-monthly';
+    } else if (validMonths.length >= 2) {
       const first = validMonths[0].usedTB;
       const last  = validMonths[validMonths.length - 1].usedTB;
       growthPerDayTB = Math.max(0, (last - first) / ((validMonths.length - 1) * 30));
@@ -21186,7 +21216,9 @@ function enrichSystemTelemetry(s) {
 
     // ── Chart history ──
     let hist = [], proj = [];
-    if (validMonths.length >= 3) {
+    if (_cleanHist) {
+      hist = _cleanHist.hist6;
+    } else if (validMonths.length >= 3) {
       hist = validMonths.slice(-6).map(m => parseFloat(m.usedTB.toFixed(2)));
     } else {
       for (let i = 5; i >= 0; i--) {
@@ -21212,6 +21244,7 @@ function enrichSystemTelemetry(s) {
       peakIops: 0,
       avgLatencyMs: 0,
       historicalCapacityMonths: hist,
+      historyAdjustedMonths: _cleanHist ? _cleanHist.outliers : [],
       projectedCapacityMonths: proj
     };
   } else {
@@ -41854,6 +41887,45 @@ function _dfCapacityUniqueSystems(list) {
     });
   });
   return members.size ? src.filter(s => !members.has(s)) : src;
+}
+// Cleans Active IQ's monthly capacity rows into six CALENDAR months ending this month (the capacity chart's x-axis).
+//  - Months with no data are interpolated between their neighbours (never skipped: skipping slid later values under
+//    earlier month labels).
+//  - A month whose capacity is >= 1.5x BOTH neighbouring months (seen on ~1 in 6 systems: Active IQ appears to sum several
+//    rows for that month) is a reporting artefact, not growth: replaced by interpolation. Real expansions persist and are kept.
+// Returns { hist6, outliers:[YYYY-MM], firstUsed, lastUsed, spanMonths } or null when fewer than 3 usable months.
+function _dfCleanMonthlyCapacity(monthly, now) {
+  now = now || new Date();
+  const idx = ym => { const p = String(ym || '').split('-'); return p.length === 2 ? (+p[0]) * 12 + (+p[1]) - 1 : NaN; };
+  const curIdx = now.getFullYear() * 12 + now.getMonth();
+  const rows = (monthly || []).filter(m => m && m.usedTB > 0 && idx(m.month) <= curIdx)
+    .map(m => ({ i: idx(m.month), month: m.month, used: m.usedTB, raw: m.rawTB || 0 })).sort((x, y) => x.i - y.i);
+  if (rows.length < 3) return null;
+  // An isolated artefact: a month whose raw capacity AND used capacity are both >= 1.5x those of every neighbouring
+  // month (previous and next reported month). A real expansion persists, so its next month is not lower and it is kept.
+  // The final (current) month has only a previous neighbour and is judged against that alone.
+  const hi = (r, o) => o && r.raw > 0 && o.raw > 0 && r.raw >= 1.5 * o.raw && r.used >= 1.5 * o.used;
+  const bad = new Set();
+  rows.forEach((r, n) => {
+    const prev = n > 0 ? rows[n - 1] : null, next = n < rows.length - 1 ? rows[n + 1] : null;
+    if ((!prev || hi(r, prev)) && (!next || hi(r, next)) && (prev || next)) bad.add(r.i);
+  });
+  const good = rows.filter(r => !bad.has(r.i));
+  if (good.length < 2) return null;
+  const at = new Map(good.map(r => [r.i, r.used]));
+  const val = i => {
+    if (at.has(i)) return at.get(i);
+    let lo = null, hi = null;
+    for (const r of good) { if (r.i < i) lo = r; else if (r.i > i && hi == null) hi = r; }
+    if (lo && hi) return lo.used + (hi.used - lo.used) * (i - lo.i) / (hi.i - lo.i);
+    return (lo || hi).used;                         // before the first / after the last real month: hold the nearest
+  };
+  const hist6 = [];
+  for (let i = curIdx - 5; i <= curIdx; i++) hist6.push(parseFloat(val(i).toFixed(2)));
+  // growth over the same window the chart shows (the last six calendar months, or fewer if the history is shorter)
+  const startI = Math.max(curIdx - 5, good[0].i), endI = good[good.length - 1].i;
+  const growthTBPerDay = endI > startI ? Math.max(0, (val(endI) - val(startI)) / ((endI - startI) * 30)) : 0;
+  return { hist6, outliers: rows.filter(r => bad.has(r.i)).map(r => r.month), growthTBPerDay, windowMonths: endI - startI };
 }
 function renderNodeVisualLayout(selectedSystems, sys) {
   const container = document.getElementById("tamNodeVisualContainer");

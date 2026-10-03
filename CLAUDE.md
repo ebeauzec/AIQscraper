@@ -22,7 +22,7 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-10-03 (Windows dev station, v5.6.223)
+## Session handoff -- 2026-10-03 (Windows dev station, v5.6.224)
 
 **State:** `main`, v5.6.221 (APP_VERSION + version.json + CHANGELOG.md + top APP_CHANGELOG entry all bumped together). `dist/` synced
 (app.js, `_internal/server.py`, rebuilt exe + base_library.zip from `%LOCALAPPDATA%\Temp\aiqbuild221`). See `git log` for pushed state.
@@ -47,6 +47,8 @@ Action Planner view; StorageGRID latest-version; MetroCluster card follows the s
 **v5.6.222:** fleet capacity double-counted StorageGRID storage-node E-Series arrays (inside the grid's own `gridCapacity`); `_dfCapacityUniqueSystems()` fixes the Overview charts, Value & ROI chart/runway and `computeFleetCapacitySummary`. Used capacity 167,260 -> 127,920 TB on the live fleet. Still to apply: per-node capacity breakdown table and deliverable capacity totals.
 
 **v5.6.223:** systems with no capacity history (43) drew a projection from zero using a default 1 GB/day 'estimate'; chart/growth/runway now show no-data and they add no growth to the aggregate. The default estimate may still feed other per-system capacity lists.
+
+**v5.6.224:** capacity-history spikes (Active IQ monthly rows with one month at 1.5-4x capacity, 111 systems, mostly 2026-08; Sep blank for nearly all) -> `_dfCleanMonthlyCapacity()` builds six calendar months, interpolates spikes/gaps, growth measured over the same window; footnote under the chart. Not probed against the raw API.
 
 **Open / not done:**
 - Word layout was judged from generated Markdown/structure, never rendered in Word -- open one before sending to a customer.

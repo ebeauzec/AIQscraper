@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.224] - 2026-10-03
+
+### Fixed
+- Capacity history is built by calendar month: isolated capacity spikes in Active IQ's monthly data (a month 1.5x or more of both neighbours, seen on 111 systems, mostly August) are replaced by interpolation and named in a note under the chart, missing months are interpolated instead of skipped (which shifted later values under earlier month labels), and growth/runway use the chart's own six-month window. (`_dfCleanMonthlyCapacity()`, used by `enrichSystemTelemetry`; footnote in `renderProjectionsChart`.) Root cause of the spike itself is on Active IQ's side (monthly rows apparently summed for one month); not confirmed with a raw API probe. A genuine expansion in the latest month with no following data would be mistaken for a spike.
+
+---
+
 ## [5.6.223] - 2026-10-03
 
 ### Fixed

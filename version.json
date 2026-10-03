@@ -1,8 +1,8 @@
 {
-  "version": "5.6.223",
+  "version": "5.6.224",
   "major": 5,
   "minor": 6,
-  "patch": 223,
+  "patch": 224,
   "date": "2026-10-03",
-  "notes": "Capacity projection chart no longer draws an invented projection for systems with no capacity history (43 systems): it says no capacity history is reported, and growth, runway and limit date show N/A. Such systems no longer add a default 1 GB/day to the aggregate growth."
+  "notes": "Capacity history is built by calendar month: isolated capacity spikes in Active IQ's monthly data (a month 1.5x or more of both neighbours, seen on 111 systems, mostly August) are replaced by interpolation and named in a note under the chart, missing months are interpolated instead of skipped (which shifted later values under earlier month labels), and growth/runway use the chart's own six-month window."
 }
