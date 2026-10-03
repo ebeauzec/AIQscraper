@@ -22,7 +22,7 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-10-03 (Windows dev station, v5.6.228)
+## Session handoff -- 2026-10-03 (Windows dev station, v5.6.229)
 
 **State:** `main`, v5.6.221 (APP_VERSION + version.json + CHANGELOG.md + top APP_CHANGELOG entry all bumped together). `dist/` synced
 (app.js, `_internal/server.py`, rebuilt exe + base_library.zip from `%LOCALAPPDATA%\Temp\aiqbuild221`). See `git log` for pushed state.
@@ -53,6 +53,8 @@ Action Planner view; StorageGRID latest-version; MetroCluster card follows the s
 **v5.6.225:** 593 systems (all StorageGRID/E-Series + 248 ONTAP) had growth 'estimated' = invented from raw capacity (0.5%/month) with back-filled history/projection; now `growthSource:'unavailable'`, no projection, aggregate says 'measured on N of M systems', runway N/A when none. TODO: derive real growth for StorageGRID from `gridCapacity` QoQ/YoY.
 
 **v5.6.226:** Technical Audit used to auto-select only the first 20 systems of a scope (`TAM_AUTO_SELECT_CAP`), hiding nodes (one half of a MetroCluster pair); now unlimited (672 systems render in ~340 ms); node strip grouped by cluster/grid (`e.group`/`e.order` from `_dfNodeStrip`); MetroCluster card completes clusters. The browser pane was hidden at the end, so the grouped strip was verified from the DOM, not a screenshot.
+
+**v5.6.229:** headings. Plain-text deliverables go through `_dxParse`; a title line after a blank line that introduces a table/list/rule/labelled lines is now a sub-heading; the DOM export (`_domToMarkdown`) recognises styled bold/small-caps labels (`headingLike`) and drops empty ones. To audit after changing generators: parse each deliverable and list short `p` blocks directly above a `table`/`bullet`/`num` block.
 
 **Open / not done:**
 - Word layout was judged from generated Markdown/structure, never rendered in Word -- open one before sending to a customer.

@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.229] - 2026-10-03
+
+### Fixed
+- Section titles are now real Word headings in every download: a short title line (after a blank line) that introduces a table, a list, underlined rule or labelled lines becomes a sub-heading in the plain-text deliverables, and styled bold or small-caps labels become headings in the on-screen tab exports (empty ones are dropped). Fixes StorageGRID and Platform Insights sub-sections (Grid Inventory, Node Roster, Power & Heat ...) and titles such as HARDWARE FIRMWARE CURRENCY and COST OF INACTION SUMMARY appearing as plain paragraphs. Risk titles containing a line break no longer split table rows. (`_dxParse` plain-text path, `_domToMarkdown` `headingLike`/`emptyLabel`, risk description normalisation in `enrichSystemTelemetry`.) Checked by parsing every deliverable for two customers and listing short paragraphs that sit directly above a table or list; a few remain by design (card system headers, 'Support Contracts Expiring < 180 Days: N').
+
+---
+
 ## [5.6.228] - 2026-10-03
 
 ### Changed

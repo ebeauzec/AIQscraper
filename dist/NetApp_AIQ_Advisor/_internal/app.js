@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.228";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.229";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.229",
+    date: "3 October 2026",
+    title: "Real Headings Throughout the Word Downloads",
+    sections: [
+      {
+        icon: "📄",
+        label: "Fixed -- Headings Showing as Plain Text in Word",
+        color: "#22c55e",
+        items: [
+          "Many section titles in the downloads were ordinary paragraphs, so Word did not show them as headings (for example Grid Inventory, Node Roster, Power & Heat, Drive Inventory, StorageGRID Recommendations, HARDWARE FIRMWARE CURRENCY and COST OF INACTION SUMMARY). A short title that introduces a table, a list, an underline or labelled lines is now a heading in every deliverable, and the same applies to the Word download of each Action Planner tab. Across the fifteen deliverables the heading count rose substantially (for one customer, Executive Risk Assessment 14 to 25 and MSP Report 24 to 39), and a section with nothing under it is no longer printed. A risk title that contained a line break no longer splits a table row.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.228",
     date: "3 October 2026",
@@ -21380,7 +21395,7 @@ function enrichSystemTelemetry(s) {
       id:             r.id             || r.riskId          || (9000 + idx),
       severity:       (r.severity      || r.riskSeverity    || "medium").toLowerCase(),
       category:       r.category       || r.riskCategory    || r.impactArea || "General",
-      description:    r.description    || r.shortName       || r.riskDetail || r.riskDescription || r.title || "Unknown risk identified.",
+      description:    String(r.description || r.shortName || r.riskDetail || r.riskDescription || r.title || "Unknown risk identified.").replace(/\s*[\r\n]+\s*/g, ' ').trim(),
       recommendation: r.recommendation || r.potentialImpact || r.riskRecommendation || r.mitigationAction || "Review system telemetry and consult NetApp support.",
       advisoryUrl:    '',
       remediationPlan: r.remediationPlan || null,
@@ -35979,6 +35994,18 @@ function _dxParse(text, isMd, ctx) {
       if (/^\d+[a-z]?\.\s/.test(t)) setSection(thinLvl, _dxClean(noTag(t))); else setSub(_dxClean(noTag(t)));
       continue;
     }
+    {   // A short title line, after a blank line, that introduces a table or a list is a sub-heading even without an underline
+        // (StorageGRID / Platform Insights / firmware sub-sections were left as plain paragraphs, so Word did not show them as headings).
+      const prevBlank = i === 0 || !L[i - 1].trim();
+      const nx = L[i + 1] || '', nx2 = L[i + 2] || '';
+      const letters = t.replace(/[^A-Za-z]/g, ''), caps = letters.length >= 6 && letters.replace(/[^A-Z]/g, '').length / letters.length >= 0.7;
+      const titleish = ind <= 6 && t.length >= 4 && t.length <= 80 && !/[.!?:;,|]$/.test(t) && !/^\s*[-*\u2022\u2713\u2717\u26A0]/.test(l) && !/^\d+[a-z]?[.)]\s/.test(t) && (caps || !/^[A-Za-z][A-Za-z0-9 \/&\-.()#<>%]{1,32}:\s+\S/.test(t)) && !/https?:/.test(t);   // an ALL-CAPS title may carry "(Score: 12)"
+      const introTable = _dxSplitCols(nx).length >= 3 && !!_dxSegRule(nx2);
+      const introList = /^\s*([-*\u2022]|\d+\.)\s+\S/.test(nx) && (ind > 0 || caps);
+      const introRule = _dxIsRule(nx);                                        // title underlined with a rule (also when indented)
+      const introKv = caps && /^\s+[A-Za-z][A-Za-z0-9 \/&\-.()#<>%]{1,32}:\s+\S/.test(nx);   // ALL-CAPS title over indented "Label: value" lines
+      if (prevBlank && titleish && (introTable || introList || introRule || introKv)) { setSub(_dxClean(noTag(t))); continue; }
+    }
     {   // "sys (platform): 9.15.1P7 -> 9.16.1P9 (Recommended)" + "Benefit: ..." pairs -> one upgrade table
       const UP = /^\s*(.+?)\s+\(([^)]*)\):\s+(\S+)\s+->\s+(\S+)(?:\s+\(Recommended\))?\s*$/;
       if (UP.test(l)) {
@@ -36428,6 +36455,32 @@ function _domToMarkdown(root, headingLevel) {
     lines.push('');
     return true;
   }
+  // A short bold label (or small-caps section label) that is a styled <div>/<p>/<span> rather than an <h1>-<h6> is still a heading when
+  // it introduces a table or list; the screen shows it as one, so the document must too. A label with nothing under it is dropped.
+  const hasStructure = n => !!n && (/^(TABLE|UL|OL)$/.test(String(n.tagName).toUpperCase()) || !!n.querySelector('table,ul,ol'));
+  function headingLike(el) {
+    if (hasBlock(el) || !el.style) return false;
+    const t = clean(inline(el));
+    if (t.length < 3 || t.length > 90 || /[.!?]$/.test(t)) return false;
+    const fw = String(el.style.fontWeight || ''), bold = fw === 'bold' || parseInt(fw, 10) >= 600 || (el.children.length === 1 && /^(STRONG|B)$/i.test(el.children[0].tagName) && clean(el.children[0].textContent) === t);
+    const caps = /uppercase/i.test(el.style.textTransform || '');
+    if (!bold && !caps) return false;
+    if (el.style.display === 'flex') return false;                    // a card header row (label + badge), handled elsewhere
+    const nx = el.nextElementSibling;
+    if (hasStructure(nx)) return true;
+    // a label followed by another heading-like label, or by nothing, has no content to introduce
+    return false;
+  }
+  function emptyLabel(el) {
+    if (hasBlock(el) || !el.style) return false;
+    const t = clean(inline(el));
+    if (t.length < 3 || t.length > 90 || /[.!?]$/.test(t)) return false;
+    const fw = String(el.style.fontWeight || ''), bold = fw === 'bold' || parseInt(fw, 10) >= 600, caps = /uppercase/i.test(el.style.textTransform || '');
+    if (!bold && !caps) return false;
+    if (el.style.display === 'flex') return false;
+    const nx = el.nextElementSibling;
+    return !nx || ((nx.style && (/uppercase/i.test(nx.style.textTransform || '') || parseInt(nx.style.fontWeight || '0', 10) >= 600)) && !hasStructure(nx) && !hasBlock(nx) && clean(inline(nx)).length < 90 && !/[.!?]$/.test(clean(inline(nx))));
+  }
   function walkBlock(el, lvl) {
     const tag = String(el.tagName).toUpperCase();
     if (SKIP.has(tag)) return;
@@ -36445,6 +36498,8 @@ function _domToMarkdown(root, headingLevel) {
     if (/^H[1-6]$/.test(tag)) { heading(parseInt(tag[1], 10) <= 2 ? lvl : lvl + 1, inline(el)); return; }
     if (tag === 'TEXTAREA' || tag === 'PRE') { const t = (el.value || el.textContent || '').trim(); if (t) lines.push(t, ''); return; }
     if (!hasBlock(el)) {
+      if (headingLike(el)) { heading(lvl + 1, inline(el)); return; }
+      if (emptyLabel(el)) return;                                        // a section label with no content under it
       const kids = Array.from(el.children).filter(c => !SKIP.has(String(c.tagName).toUpperCase()));
       if (el.style && el.style.display === 'flex' && kids.length >= 2) {
         const parts = kids.map(k => clean(inline(k))).filter(Boolean);
