@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.219] - 2026-10-03
+
+### Fixed
+- Fixed badly formatted Word exports of Action Planner views: the HTML-to-document converter dropped text around bold or linked words, ran separate blocks together, and the Recommendations export inherited the screen's 500-character truncation. It now keeps every word, separates paragraphs, turns card headers into bold labels, keeps link URLs, and the Recommendations export is untruncated.
+
+---
+
 ## [5.6.218] - 2026-10-03
 
 ### Added

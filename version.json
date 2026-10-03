@@ -1,8 +1,8 @@
 {
-  "version": "5.6.218",
+  "version": "5.6.219",
   "major": 5,
   "minor": 6,
-  "patch": 218,
+  "patch": 219,
   "date": "2026-10-03",
-  "notes": "Every Action Planner view can now be downloaded as a formatted Word document (new 'Download Word' button on each tab), and the StorageGRID tab has a full StorageGRID Assessment Report with executive summary, prioritised findings and recommended actions, and per-grid node roster, ILM rules, tenants and buckets."
+  "notes": "Fixed badly formatted Word exports of Action Planner views: the HTML-to-document converter dropped text around bold or linked words, ran separate blocks together, and the Recommendations export inherited the screen's 500-character truncation. It now keeps every word, separates paragraphs, turns card headers into bold labels, keeps link URLs, and the Recommendations export is untruncated."
 }

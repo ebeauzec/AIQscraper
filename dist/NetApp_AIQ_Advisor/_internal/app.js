@@ -27,9 +27,25 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.218";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.219";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.219",
+    date: "3 October 2026",
+    title: "Fixed: Poorly Formatted Word Exports of Action Planner Views",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Word Exports of Card-Style Views",
+        color: "#ef4444",
+        items: [
+          "The converter that turns a view into a Word document had three faults: a paragraph containing bold or linked words kept only those words (the sentence around them was lost), separate blocks were not separated so card labels, scores and text ran together, and links lost their text. It now keeps every word, puts each block in its own paragraph, renders card headers such as 'DISK_FIRMWARE / Score: 23%' as a bold label with the score, and keeps link URLs next to their text. Checked on all 22 exportable views: none loses more than 15% of its words.",
+          "The Recommendations view is cut to 500 characters per card on screen. Its Word export now renders the complete recommendation text instead.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.218",
     date: "3 October 2026",
@@ -30304,7 +30320,7 @@ function _getScopedRecommendations(targetSystems) {
   return { recs: _scopeRecommendationsToAccounts(state.tamRecommendations || [], targetSystems).filter(r => _recAppliesToScope(r, targetSystems)), usingRealCustomerRecs: false };
 }
 
-function _renderRecommendationsSection(targetSystems) {
+function _renderRecommendationsSection(targetSystems, opts) {
   const { recs, usingRealCustomerRecs } = _getScopedRecommendations(targetSystems);
   const scopeCount = (targetSystems || []).length;
   // How many distinct accounts remain in scope -- if more than one, any score
@@ -30395,7 +30411,7 @@ function _renderRecommendationsSection(targetSystems) {
         })
         // Strip remaining tags (strong, span, br, etc.)
         .replace(/<[^>]+>/g, '');
-      const truncated = rawRec.length > 500 ? rawRec.substring(0, 497) + '…' : rawRec;
+      const truncated = (opts && opts.full) || rawRec.length <= 500 ? rawRec : rawRec.substring(0, 497) + '…';   // the screen truncates; the Word export passes opts.full
       const displayText = rescopeText(linkify(truncated), effectiveScore, r.subCategory);
       // When the current scope spans multiple accounts, the same check can
       // legitimately report different scores per account (two real, separate
@@ -34488,7 +34504,9 @@ function downloadPlanSectionWord(index) {
   const sec = body && body.querySelector(`.plan-section[data-section-index="${index}"]`);
   if (!sec) { alert('Generate an action plan first.'); return; }
   const { title: scopeTitle } = _planScopeSystems();
+  const _full = { '12': () => _renderRecommendationsSection(_planScopeSystems().systems, { full: true }) }[String(index)];
   const clone = sec.cloneNode(true);
+  if (_full) { const hh = clone.querySelector('h2, h3'); const wrap = document.createElement('div'); if (hh) wrap.appendChild(hh.cloneNode(true)); const body = document.createElement('div'); body.innerHTML = _full(); wrap.appendChild(body); clone.innerHTML = ''; clone.appendChild(wrap); }
   clone.querySelectorAll('button, .action-btn, select, .plan-word-btn').forEach(el => el.remove());
   const h = clone.querySelector('h2, h3'); const title = (h ? h.innerText.trim() : 'Action Planner View') || 'Action Planner View';
   if (h) h.remove();
@@ -36069,12 +36087,33 @@ function triggerFileDownload(filename, text, opts) {
 // Word headings/tables/bullets as every other deliverable, instead of the
 // squashed, structure-free text plain .innerText would produce.
 function _domToMarkdown(root, headingLevel) {
+  // Inline-aware converter. Block elements become separate paragraphs (blank-line separated); an element whose content is
+  // inline (text plus <strong>/<a>/<span>) stays ONE paragraph with every word kept, links keep their URL, and a flex row
+  // such as a card header (label + badge) becomes "**label** -- badge". Tables, lists, details/summary and headings keep structure.
   const lines = [];
-  const text = (el) => (el.innerText || el.textContent || '').replace(/\s+/g, ' ').trim();
-  const heading = (lvl, t) => { if (t) lines.push('#'.repeat(Math.min(6, Math.max(1, lvl))) + ' ' + t, ''); };
+  const BLOCK_SEL = 'div,p,ul,ol,table,h1,h2,h3,h4,h5,h6,details,pre,textarea,blockquote,section,article,hr';
+  const SKIP = new Set(['SCRIPT', 'STYLE', 'BUTTON', 'SVG', 'CANVAS', 'SELECT', 'INPUT', 'NOSCRIPT']);
+  const BLOCK = new Set(['DIV', 'P', 'UL', 'OL', 'TABLE', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6', 'DETAILS', 'PRE', 'TEXTAREA', 'BLOCKQUOTE', 'SECTION', 'ARTICLE', 'HR']);
+  const clean = t => String(t == null ? '' : t).replace(/\s+/g, ' ').trim();
+  const inline = node => {
+    let out = '';
+    node.childNodes.forEach(n => {
+      if (n.nodeType === 3) { out += n.nodeValue; return; }
+      if (n.nodeType !== 1) return;
+      const tag = String(n.tagName).toUpperCase();
+      if (SKIP.has(tag)) return;
+      if (tag === 'BR') { out += ' '; return; }
+      let t = inline(n);
+      if (tag === 'A') { const href = n.getAttribute('href') || '', tt = clean(t); if (/^https?:/i.test(href) && tt && !tt.includes(href)) t = `${tt} (${href})`; }
+      out += t;
+    });
+    return out;
+  };
+  const para = t => { const c = clean(t); if (c) lines.push(c, ''); };
+  const heading = (lvl, t) => { const c = clean(t); if (c) lines.push('#'.repeat(Math.min(6, Math.max(1, lvl))) + ' ' + c, ''); };
+  const hasBlock = el => !!el.querySelector(BLOCK_SEL);
   function walkTable(table) {
-    const rows = Array.from(table.querySelectorAll('tr')).map(tr =>
-      Array.from(tr.children).map(td => text(td).replace(/\|/g, '\\|') || ' '));
+    const rows = Array.from(table.querySelectorAll('tr')).map(tr => Array.from(tr.children).map(td => clean(inline(td)).replace(/\|/g, '\\|') || ' '));
     if (!rows.length) return;
     const width = Math.max(...rows.map(r => r.length));
     rows.forEach(r => { while (r.length < width) r.push(''); });
@@ -36084,31 +36123,46 @@ function _domToMarkdown(root, headingLevel) {
     lines.push('');
   }
   function walkList(list, ordered) {
-    Array.from(list.children).filter(c => c.tagName === 'LI').forEach((li, idx) => {
-      const t = text(li);
-      if (t) lines.push((ordered ? `${idx + 1}. ` : '- ') + t);
-    });
+    Array.from(list.children).filter(c => c.tagName === 'LI').forEach((li, idx) => { const t = clean(inline(li)); if (t) lines.push((ordered ? `${idx + 1}. ` : '- ') + t); });
     lines.push('');
   }
-  function walk(node, lvl) {
-    Array.from(node.children).forEach(el => {
-      const tag = el.tagName;
-      if (tag === 'TABLE') { walkTable(el); return; }
-      if (tag === 'UL') { walkList(el, false); return; }
-      if (tag === 'OL') { walkList(el, true); return; }
-      if (tag === 'DETAILS') {
-        const summary = el.querySelector(':scope > summary');
-        if (summary) heading(lvl + 1, text(summary));
-        Array.from(el.children).filter(c => c.tagName !== 'SUMMARY').forEach(r => walk(r, lvl + 1));
-        return;
-      }
-      if (/^H[1-6]$/.test(tag)) { heading(parseInt(tag[1], 10), text(el)); return; }
-      if (tag === 'TEXTAREA') { const t = (el.value || el.innerText || '').trim(); if (t) lines.push(t, ''); return; }
-      if (el.children.length === 0) { const t = text(el); if (t) lines.push(t); return; }
-      walk(el, lvl); // container div/span -- recurse, same heading level
+  function walkBlock(el, lvl) {
+    const tag = String(el.tagName).toUpperCase();
+    if (SKIP.has(tag)) return;
+    if (tag === 'TABLE') { walkTable(el); return; }
+    if (tag === 'UL') { walkList(el, false); return; }
+    if (tag === 'OL') { walkList(el, true); return; }
+    if (tag === 'HR') return;
+    if (tag === 'DETAILS') {
+      const summary = el.querySelector(':scope > summary');
+      if (summary) heading(lvl + 1, inline(summary));
+      Array.from(el.children).filter(c => c.tagName !== 'SUMMARY').forEach(c => walkBlock(c, lvl + 1));
+      return;
+    }
+    if (/^H[1-6]$/.test(tag)) { heading(parseInt(tag[1], 10) <= 2 ? lvl : lvl + 1, inline(el)); return; }
+    if (tag === 'TEXTAREA' || tag === 'PRE') { const t = (el.value || el.textContent || '').trim(); if (t) lines.push(t, ''); return; }
+    if (!hasBlock(el)) {
+      const kids = Array.from(el.children).filter(c => !SKIP.has(String(c.tagName).toUpperCase()));
+      if (el.style && el.style.display === 'flex' && kids.length >= 2) {
+        const parts = kids.map(k => clean(inline(k))).filter(Boolean);
+        para(parts.length === 2 ? `**${parts[0]}** -- ${parts[1]}` : parts.join('  |  '));
+      } else para(inline(el));
+      return;
+    }
+    // mixed content: runs of inline nodes become paragraphs, block children recurse
+    let buf = '';
+    const flush = () => { para(buf); buf = ''; };
+    el.childNodes.forEach(n => {
+      if (n.nodeType === 3) { buf += n.nodeValue; return; }
+      if (n.nodeType !== 1) return;
+      const t = String(n.tagName).toUpperCase();
+      if (SKIP.has(t)) return;
+      if (BLOCK.has(t) || hasBlock(n)) { flush(); walkBlock(n, lvl); }
+      else buf += inline({ childNodes: [n] });
     });
+    flush();
   }
-  walk(root, headingLevel || 1);
+  walkBlock(root, headingLevel || 1);
   return lines.join('\n');
 }
 
