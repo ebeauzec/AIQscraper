@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [5.6.225] - 2026-10-03
+
+### Fixed
+- Systems with no measured capacity growth (593 on the live fleet: every StorageGRID and E-Series record and 248 ONTAP) no longer get an invented growth rate, back-filled history, projection, runway or limit date derived from raw capacity; the forecast chart says no capacity history is reported, the aggregate shows how many systems growth was measured on, and runway is N/A when none were. (`enrichSystemTelemetry` projections, `renderCSMTab` aggregate.) StorageGRID grids do report QoQ/YoY capacity growth in `gridCapacity`; it is not yet used to derive a real growth rate for them.
+
+---
+
 ## [5.6.224] - 2026-10-03
 
 ### Fixed

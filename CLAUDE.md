@@ -22,7 +22,7 @@ log; the full history already lives in git log and CHANGELOG.md. Commit and
 push it (to `main` when the work itself was pushed to `main`) as part of
 wrapping up the session, the same way you'd commit code.
 
-## Session handoff -- 2026-10-03 (Windows dev station, v5.6.224)
+## Session handoff -- 2026-10-03 (Windows dev station, v5.6.225)
 
 **State:** `main`, v5.6.221 (APP_VERSION + version.json + CHANGELOG.md + top APP_CHANGELOG entry all bumped together). `dist/` synced
 (app.js, `_internal/server.py`, rebuilt exe + base_library.zip from `%LOCALAPPDATA%\Temp\aiqbuild221`). See `git log` for pushed state.
@@ -49,6 +49,8 @@ Action Planner view; StorageGRID latest-version; MetroCluster card follows the s
 **v5.6.223:** systems with no capacity history (43) drew a projection from zero using a default 1 GB/day 'estimate'; chart/growth/runway now show no-data and they add no growth to the aggregate. The default estimate may still feed other per-system capacity lists.
 
 **v5.6.224:** capacity-history spikes (Active IQ monthly rows with one month at 1.5-4x capacity, 111 systems, mostly 2026-08; Sep blank for nearly all) -> `_dfCleanMonthlyCapacity()` builds six calendar months, interpolates spikes/gaps, growth measured over the same window; footnote under the chart. Not probed against the raw API.
+
+**v5.6.225:** 593 systems (all StorageGRID/E-Series + 248 ONTAP) had growth 'estimated' = invented from raw capacity (0.5%/month) with back-filled history/projection; now `growthSource:'unavailable'`, no projection, aggregate says 'measured on N of M systems', runway N/A when none. TODO: derive real growth for StorageGRID from `gridCapacity` QoQ/YoY.
 
 **Open / not done:**
 - Word layout was judged from generated Markdown/structure, never rendered in Word -- open one before sending to a customer.

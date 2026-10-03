@@ -1,8 +1,8 @@
 {
-  "version": "5.6.224",
+  "version": "5.6.225",
   "major": 5,
   "minor": 6,
-  "patch": 224,
+  "patch": 225,
   "date": "2026-10-03",
-  "notes": "Capacity history is built by calendar month: isolated capacity spikes in Active IQ's monthly data (a month 1.5x or more of both neighbours, seen on 111 systems, mostly August) are replaced by interpolation and named in a note under the chart, missing months are interpolated instead of skipped (which shifted later values under earlier month labels), and growth/runway use the chart's own six-month window."
+  "notes": "Systems with no measured capacity growth (593 on the live fleet: every StorageGRID and E-Series record and 248 ONTAP) no longer get an invented growth rate, back-filled history, projection, runway or limit date derived from raw capacity; the forecast chart says no capacity history is reported, the aggregate shows how many systems growth was measured on, and runway is N/A when none were."
 }

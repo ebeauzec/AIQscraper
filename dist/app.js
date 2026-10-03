@@ -27,9 +27,24 @@ const API_BASE = locOrigin.startsWith("http") ? "/api" : "https://api.activeiq.n
 // The modal fires automatically whenever APP_VERSION differs from the value
 // stored in localStorage key "aiq_seen_version".
 // ─────────────────────────────────────────────────────────────────────────────
-const APP_VERSION = "5.6.224";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
+const APP_VERSION = "5.6.225";   // MUST match version.json and APP_CHANGELOG[0].version (drives the nav footer and the What's New modal)
 
 const APP_CHANGELOG = [
+  {
+    version: "5.6.225",
+    date: "3 October 2026",
+    title: "No Invented Capacity Forecasts",
+    sections: [
+      {
+        icon: "🐛",
+        label: "Fixed -- Forecast Built From Raw Capacity, Not Data",
+        color: "#ef4444",
+        items: [
+          "When Active IQ reports no monthly capacity history, quarter-over-quarter or year-over-year growth for a system, ARIA assumed 0.5% of its raw capacity per month and back-filled history and a projection from that, so a nearly empty system (13 GB used on 118 TB raw) showed a forecast climbing to 2 TB. This affected 593 systems on the live fleet: all StorageGRID and E-Series records and 248 ONTAP systems. They now show no growth, runway or limit date, the chart says no capacity history is reported, the aggregate states how many systems growth was measured on, and the aggregate runway is N/A when none were instead of '> 10 Years'.",
+        ],
+      },
+    ],
+  },
   {
     version: "5.6.224",
     date: "3 October 2026",
@@ -18075,10 +18090,14 @@ function renderCSMTab() {
     }
 
     const srcLabel = {'actual-monthly':'Actual','qoq':'QoQ','yoy':'YoY','estimated':'Est.','unavailable':'Est.'}[bestGrowthSource] || 'Est.';
-    document.getElementById("csmGrowthRateText").innerText = `Aggregate Growth: +${(totalGrowthGB || 0).toFixed(0)} GB/day (${srcLabel})`;
+    const _measuredN = targetCSMSystems.filter(s => ((s.projections || {}).historicalCapacityMonths || []).some(v => v > 0)).length;
+    document.getElementById("csmGrowthRateText").innerText = `Aggregate Growth: +${(totalGrowthGB || 0).toFixed(0)} GB/day (${srcLabel}) -- measured on ${_measuredN} of ${targetCSMSystems.length} systems`;
     
     const limitLabel = document.getElementById("csmDaysToLimitText");
-    if (fleetDaysToLimit == null || fleetDaysToLimit >= 9999) {
+    if (_measuredN === 0) {
+      limitLabel.innerText = 'N/A';          // no measured growth anywhere in scope: runway is unknown, not '> 10 Years'
+      limitLabel.style.color = 'var(--text-muted)';
+    } else if (fleetDaysToLimit == null || fleetDaysToLimit >= 9999) {
       limitLabel.innerText = '> 10 Years';
       limitLabel.style.color = 'var(--status-normal)';
     } else {
@@ -18086,7 +18105,9 @@ function renderCSMTab() {
       limitLabel.style.color = fleetDaysToLimit <= 60 ? "var(--status-critical)" : (fleetDaysToLimit <= 120 ? "var(--status-warning)" : "var(--status-normal)");
     }
     
-    document.getElementById("csmLimitDateText").innerText = fleetLimitDate !== 'N/A'
+    document.getElementById("csmLimitDateText").innerText = _measuredN === 0
+      ? 'Runway unavailable: Active IQ reports no capacity history for these systems'
+      : fleetLimitDate !== 'N/A'
       ? `Est. fleet capacity ceiling (90%) reached: ${fleetLimitDate}`
       : 'Fleet capacity runway exceeds 10 years at current growth rate';
     document.getElementById("csmPeakIopsText").innerHTML = totalPeakIops > 0
@@ -21236,7 +21257,19 @@ function enrichSystemTelemetry(s) {
     const daysToLimit = growthPerDayTB > 0 ? Math.round(remainingTB / growthPerDayTB) : 9999;
     const limitDate   = new Date(Date.now() + daysToLimit * 86400000).toISOString().split('T')[0];
 
-    projections = s.projections || {
+    // growthSource 'estimated' means NO measured history and no QoQ/YoY: the growth rate was invented from raw capacity
+    // (0.5%/month), and so were the back-filled history and the projection. Do not present any of it as data.
+    projections = s.projections || (growthSource === 'estimated' ? {
+      growthRateGBPerDay: null,
+      growthSource: 'unavailable',
+      daysToLimit: null,
+      limitDate: 'N/A',
+      peakIops: 0,
+      avgLatencyMs: 0,
+      historicalCapacityMonths: [],
+      projectedCapacityMonths: [],
+      _noMeasuredHistory: true
+    } : {
       growthRateGBPerDay: Math.round(growthPerDayTB * 1024),
       growthSource: growthSource,
       daysToLimit: daysToLimit,
@@ -21246,7 +21279,7 @@ function enrichSystemTelemetry(s) {
       historicalCapacityMonths: hist,
       historyAdjustedMonths: _cleanHist ? _cleanHist.outliers : [],
       projectedCapacityMonths: proj
-    };
+    });
   } else {
     // Non-live (mock / ASUP import) — use stored projections if present,
     // otherwise mark as unavailable. Never fabricate IOPS or latency figures
